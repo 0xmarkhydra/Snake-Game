@@ -353,34 +353,69 @@ export class GameScene extends Scene {
     }
     
     private createBackground() {
-        // Create a tiled background
-        const bgTexture = this.textures.get('background');
-        const bgWidth = bgTexture.getSourceImage().width;
-        const bgHeight = bgTexture.getSourceImage().height;
+        // Create solid dark green/teal background
+        const bg = this.add.graphics();
         
-        // Calculate how many tiles we need
-        const tilesX = Math.ceil(this.worldWidth / bgWidth) + 1;
-        const tilesY = Math.ceil(this.worldHeight / bgHeight) + 1;
+        // Fill with dark teal color similar to the reference image
+        bg.fillStyle(0x0d4d4d, 1); // Dark teal base color
+        bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
         
-        // Create the tiles
-        for (let x = 0; x < tilesX; x++) {
-            for (let y = 0; y < tilesY; y++) {
-                this.add.image(
-                    x * bgWidth,
-                    y * bgHeight,
-                    'background'
-                ).setOrigin(0, 0).setAlpha(0.5);
+        // Add darker green overlay for depth
+        bg.fillStyle(0x1a3a3a, 0.3);
+        bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
+        
+        // Create hexagon pattern
+        this.createHexagonPattern();
+    }
+    
+    private createHexagonPattern() {
+        const hexGraphics = this.add.graphics();
+        
+        // Hexagon settings
+        const hexSize = 50; // Size of each hexagon
+        const hexWidth = hexSize * 2;
+        const hexHeight = Math.sqrt(3) * hexSize;
+        const horizontalSpacing = hexWidth * 0.75;
+        const verticalSpacing = hexHeight;
+        
+        // Calculate how many hexagons we need
+        const cols = Math.ceil(this.worldWidth / horizontalSpacing) + 2;
+        const rows = Math.ceil(this.worldHeight / verticalSpacing) + 2;
+        
+        // Draw hexagon pattern
+        hexGraphics.lineStyle(2, 0x0a3333, 0.2); // Dark teal outline with low opacity
+        
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const x = col * horizontalSpacing;
+                const y = row * verticalSpacing + (col % 2 === 1 ? verticalSpacing / 2 : 0);
+                
+                // Draw hexagon
+                this.drawHexagon(hexGraphics, x, y, hexSize);
             }
         }
         
-        // Add a grid pattern
-        const grid = this.add.grid(
-            0, 0,
-            this.worldWidth, this.worldHeight,
-            100, 100,
-            0x000000, 0,
-            0xffffff, 0.1
-        ).setOrigin(0, 0);
+        hexGraphics.setDepth(0);
+    }
+    
+    private drawHexagon(graphics: Phaser.GameObjects.Graphics, x: number, y: number, size: number) {
+        const angle = Math.PI / 3; // 60 degrees
+        
+        graphics.beginPath();
+        
+        for (let i = 0; i < 6; i++) {
+            const xPos = x + size * Math.cos(angle * i);
+            const yPos = y + size * Math.sin(angle * i);
+            
+            if (i === 0) {
+                graphics.moveTo(xPos, yPos);
+            } else {
+                graphics.lineTo(xPos, yPos);
+            }
+        }
+        
+        graphics.closePath();
+        graphics.strokePath();
     }
     
     private createUI() {
@@ -394,18 +429,18 @@ export class GameScene extends Scene {
         const cardHeight = 120;
         const cardBg = this.add.graphics();
         cardBg.fillGradientStyle(
-            0x000033, 0x000033,  // Dark blue at top
-            0x000022, 0x000022,  // Darker blue at bottom
+            0x0d2828, 0x0d2828,  // Dark teal at top
+            0x081818, 0x081818,  // Darker teal at bottom
             1, 1, 1, 1
         );
         cardBg.fillRoundedRect(0, 0, cardWidth, cardHeight, 10);
-        cardBg.lineStyle(2, 0x3333ff, 0.8);
+        cardBg.lineStyle(2, 0x2d7a7a, 0.8);
         cardBg.strokeRoundedRect(0, 0, cardWidth, cardHeight, 10);
         this.statsPanel.add(cardBg);
         
         // Add title
         const titleBg = this.add.graphics();
-        titleBg.fillStyle(0x3333ff, 0.8);
+        titleBg.fillStyle(0x1a5555, 0.8);
         titleBg.fillRoundedRect(0, 0, cardWidth, 30, { tl: 10, tr: 10, bl: 0, br: 0 });
         this.statsPanel.add(titleBg);
         
@@ -514,9 +549,9 @@ export class GameScene extends Scene {
         
         // Create a background for the minimap
         const minimapBg = this.add.graphics();
-        minimapBg.fillStyle(0x000033, 0.7); // Dark blue background with transparency
+        minimapBg.fillStyle(0x0d2828, 0.7); // Dark teal background with transparency
         minimapBg.fillRoundedRect(0, 0, minimapSize + 10, minimapSize + 10, 8); // Slightly larger than the minimap with rounded corners
-        minimapBg.lineStyle(2, 0x3333ff, 0.8); // Blue border
+        minimapBg.lineStyle(2, 0x2d7a7a, 0.8); // Teal border
         minimapBg.strokeRoundedRect(0, 0, minimapSize + 10, minimapSize + 10, 8);
         
         // Position the background in the bottom right corner
@@ -1194,18 +1229,18 @@ export class GameScene extends Scene {
         const bgHeight = 300;
         const bg = this.add.graphics();
         bg.fillGradientStyle(
-            0x000033, 0x000033,  // Dark blue at top
-            0x000022, 0x000022,  // Darker blue at bottom
+            0x0d2828, 0x0d2828,  // Dark teal at top
+            0x081818, 0x081818,  // Darker teal at bottom
             1, 1, 1, 1
         );
         bg.fillRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
-        bg.lineStyle(2, 0x3333ff, 0.8);
+        bg.lineStyle(2, 0x2d7a7a, 0.8);
         bg.strokeRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
         this.leaderboardPanel.add(bg);
         
         // Add title with icon
         const titleBg = this.add.graphics();
-        titleBg.fillStyle(0x3333ff, 0.8);
+        titleBg.fillStyle(0x1a5555, 0.8);
         titleBg.fillRoundedRect(-bgWidth/2, 0, bgWidth, 40, { tl: 10, tr: 10, bl: 0, br: 0 });
         this.leaderboardPanel.add(titleBg);
         
@@ -1257,7 +1292,7 @@ export class GameScene extends Scene {
         
         // Add separator line
         const separator = this.add.graphics();
-        separator.lineStyle(1, 0x3333ff, 0.5);
+        separator.lineStyle(1, 0x2d7a7a, 0.5);
         separator.lineBetween(-bgWidth/2 + 10, headerY + 15, bgWidth/2 - 10, headerY + 15);
         this.leaderboardPanel.add(separator);
         
@@ -1284,7 +1319,7 @@ export class GameScene extends Scene {
             // Add row background for current player
             if (isCurrentPlayer) {
                 const rowBg = this.add.graphics();
-                rowBg.fillStyle(0x3333ff, 0.3);
+                rowBg.fillStyle(0x1a5555, 0.5);
                 rowBg.fillRoundedRect(-bgWidth/2 + 10, rowY - 10, bgWidth - 20, 20, 5);
                 this.leaderboardPanel.add(rowBg);
             }
