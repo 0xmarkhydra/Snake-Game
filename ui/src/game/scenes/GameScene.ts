@@ -68,7 +68,7 @@ export class GameScene extends Scene {
     private playerRankText: Phaser.GameObjects.Text;
     
     // Add these properties to the class
-    private segmentSpacing: number = 12; // Reduced from 20 to 12 for closer segments
+    private segmentSpacing: number = 8; // Reduced to 8 for closer segments like the reference
     private playerSegmentHistories: Map<string, Array<{x: number, y: number}>> = new Map(); // Store histories for all players
     private historySize: number = 500; // Maximum history size
     
@@ -822,48 +822,23 @@ export class GameScene extends Scene {
                 nameText.setDepth(100);
                 this.playerTexts.set(id, nameText);
                 
-                // Create initial segments (5 is the default)
+                // Create initial segments (5 is the default) using graphics
                 const initialSegments = 5;
                 for (let i = 0; i < initialSegments; i++) {
                     const isHead = i === 0;
-                    // Apply skin to texture name
-                    const texture = isHead ? `snake-head-${skinId}` : `snake-body-${skinId}`;
                     
-                    // Fallback to default textures if the skin-specific ones don't exist
-                    const textureExists = this.textures.exists(texture);
-                    const finalTexture = textureExists ? texture : (isHead ? 'snake-head' : 'snake-body');
+                    // Create graphics object for segment
+                    const segment = this.add.graphics();
                     
-                    const newSegment = this.add.image(0, 0, finalTexture);
-                    
-                    // Apply color tint
-                    newSegment.setTint(parseInt(color.replace('#', '0x')));
+                    // Store segment data
+                    segment.setData('isHead', isHead);
+                    segment.setData('color', color);
                     
                     // Add to snake group
-                    snake.add(newSegment);
-                    
-                    // Make head face the right direction
-                    if (isHead) {
-                        newSegment.setOrigin(0.5, 0.5);
-                    }
+                    snake.add(segment);
                     
                     // Set appropriate depths for snake segments
-                    newSegment.setDepth(isHead ? 20 : 10);
-                    
-                    // Add glow effect to head
-                    if (isHead) {
-                        // Create a glow sprite behind the head
-                        const glow = this.add.image(0, 0, finalTexture)
-                            .setTint(parseInt(color.replace('#', '0x')))
-                            .setAlpha(0.3)
-                            .setScale(1.5);
-                        glow.setDepth(19); // Just below the head
-                        
-                        // Add the glow to the snake group
-                        snake.add(glow);
-                        
-                        // Store reference to the glow for updates
-                        newSegment.setData('glow', glow);
-                    }
+                    segment.setDepth(isHead ? 20 : 10);
                 }
             }
             
@@ -871,26 +846,20 @@ export class GameScene extends Scene {
             const targetSegmentCount = 5 + Math.floor(playerData.score);
             const currentSegmentCount = snake.getChildren().length;
             
-            // Adjust for the glow object (1 glow per snake)
-            const actualSegmentCount = currentSegmentCount - 1;
-            
-            if (actualSegmentCount < targetSegmentCount) {
+            if (currentSegmentCount < targetSegmentCount) {
                 // Add segments if needed
-                for (let i = actualSegmentCount; i < targetSegmentCount; i++) {
-                    const texture = `snake-body-${skinId}`;
-                    const textureExists = this.textures.exists(texture);
-                    const finalTexture = textureExists ? texture : 'snake-body';
-                    
-                    const newSegment = this.add.image(0, 0, finalTexture);
-                    newSegment.setTint(parseInt(color.replace('#', '0x')));
-                    newSegment.setDepth(10);
-                    snake.add(newSegment);
+                for (let i = currentSegmentCount; i < targetSegmentCount; i++) {
+                    // Create graphics object for new segment
+                    const segment = this.add.graphics();
+                    segment.setData('isHead', false);
+                    segment.setData('color', color);
+                    segment.setDepth(10);
+                    snake.add(segment);
                 }
-            } else if (actualSegmentCount > targetSegmentCount) {
+            } else if (currentSegmentCount > targetSegmentCount) {
                 // Remove segments if needed
                 const children = snake.getChildren();
-                // Skip the first two objects (head and glow)
-                for (let i = targetSegmentCount + 1; i < children.length; i++) {
+                for (let i = targetSegmentCount; i < children.length; i++) {
                     children[i].destroy();
                 }
             }
@@ -916,8 +885,7 @@ export class GameScene extends Scene {
             
             // Update head position
             const children = snake.getChildren();
-            const headObj = children[0] as Phaser.GameObjects.Image;
-            const glowObj = headObj.getData('glow') as Phaser.GameObjects.Image;
+            const headObj = children[0] as Phaser.GameObjects.Graphics;
             
             if (headObj) {
                 // Apply interpolation for smoother movement
@@ -934,67 +902,45 @@ export class GameScene extends Scene {
                 // Update position
                 headObj.setPosition(newX, newY);
                 
-                // Update glow position
-                if (glowObj) {
-                    glowObj.setPosition(newX, newY);
-                }
-                
                 // Calculate base scale based on score
-                const baseScale = Math.min(2.0, 1 + (playerData.score / 50));
-                headObj.setScale(baseScale);
+                const baseScale = Math.min(1.5, 1 + (playerData.score / 100));
+                const headRadius = 20 * baseScale;
                 
-                // Update head rotation based on angle
-                headObj.setRotation(Phaser.Math.DegToRad(playerData.angle + 90));
+                // Clear and redraw head
+                headObj.clear();
                 
-                // Update glow rotation
-                if (glowObj) {
-                    glowObj.setRotation(Phaser.Math.DegToRad(playerData.angle + 90));
-                }
+                // Draw head with outline
+                const colorInt = parseInt(color.replace('#', '0x'));
                 
-                // Add visual effect for boosting
+                // Add glow effect for boosting
                 if (playerData.boosting) {
-                    headObj.setAlpha(0.8 + Math.sin(this.time.now * 0.01) * 0.2); // Pulsing effect
-                    headObj.setScale(baseScale * 1.2); // Make head slightly larger when boosting
-                    
-                    // Make glow more intense when boosting
-                    if (glowObj) {
-                        glowObj.setAlpha(0.5 + Math.sin(this.time.now * 0.01) * 0.2);
-                        glowObj.setScale(baseScale * 2.0);
-                    }
-                    
-                    // Add trail particles when boosting
-                    if (id === this.playerId && this.time.now % 5 === 0) {
-                        this.addTrailParticle(newX, newY, color);
-                    }
-                } else {
-                    headObj.setAlpha(1);
-                    headObj.setScale(baseScale);
-                    
-                    // Normal glow
-                    if (glowObj) {
-                        glowObj.setAlpha(0.3);
-                        glowObj.setScale(baseScale * 1.5);
-                    }
+                    headObj.fillStyle(colorInt, 0.3);
+                    headObj.fillCircle(0, 0, headRadius * 1.3);
                 }
+                
+                // Draw main head circle with outline
+                headObj.lineStyle(4, 0x000000, 1); // Black outline
+                headObj.fillStyle(colorInt, 1);
+                headObj.fillCircle(0, 0, headRadius);
+                headObj.strokeCircle(0, 0, headRadius);
+                
+                // Draw eyes
+                this.drawSnakeEyes(headObj, playerData.angle, headRadius);
                 
                 // Update all other segments based on history
-                // Skip the glow object in the children array
                 for (let i = 1; i < children.length; i++) {
-                    // Skip the glow object
-                    if (children[i] === glowObj) continue;
-                    
-                    const segmentObj = children[i] as Phaser.GameObjects.Image;
+                    const segmentObj = children[i] as Phaser.GameObjects.Graphics;
                     if (!segmentObj) continue;
                     
                     // Calculate history index based on segment spacing
                     const historyIndex = Math.min(
-                        Math.floor((i-1) * (this.segmentSpacing / playerData.speed)), 
+                        Math.floor(i * (this.segmentSpacing / playerData.speed)), 
                         segmentHistory.length - 1
                     );
                     
                     if (segmentHistory[historyIndex]) {
                         // Apply interpolation for smoother movement
-                        const lerpFactor = Math.max(0.05, 0.2 - ((i-1) * 0.01));
+                        const lerpFactor = Math.max(0.05, 0.2 - (i * 0.01));
                         
                         // Get current position
                         const currentX = segmentObj.x;
@@ -1012,20 +958,56 @@ export class GameScene extends Scene {
                         segmentObj.setPosition(newX, newY);
                         
                         // Apply scale based on position in snake
-                        const segmentScale = baseScale * Math.max(0.6, 1 - ((i-1) * 0.02));
-                        segmentObj.setScale(segmentScale);
+                        const segmentScale = baseScale * Math.max(0.7, 1 - (i * 0.015));
+                        const segmentRadius = 18 * segmentScale;
                         
-                        // Add subtle pulsing effect to segments
-                        const pulseAmount = 0.05 * Math.sin((this.time.now * 0.005) + (i * 0.5));
-                        segmentObj.setScale(segmentScale * (1 + pulseAmount));
+                        // Clear and redraw segment
+                        segmentObj.clear();
                         
-                        // Add subtle alpha variation for a more organic look
-                        const alphaVariation = 0.1 * Math.sin((this.time.now * 0.003) + (i * 0.3));
-                        segmentObj.setAlpha(0.9 + alphaVariation);
+                        // Draw body segment with outline
+                        segmentObj.lineStyle(3, 0x000000, 1); // Black outline
+                        segmentObj.fillStyle(colorInt, 1);
+                        segmentObj.fillCircle(0, 0, segmentRadius);
+                        segmentObj.strokeCircle(0, 0, segmentRadius);
                     }
                 }
             }
         });
+    }
+    
+    private drawSnakeEyes(graphics: Phaser.GameObjects.Graphics, angle: number, headRadius: number) {
+        // Calculate eye positions based on snake direction
+        const angleRad = Phaser.Math.DegToRad(angle);
+        const eyeDistance = headRadius * 0.4; // Distance from center
+        const eyeRadius = headRadius * 0.2; // Eye size
+        
+        // Calculate positions for both eyes (left and right of center)
+        const perpAngle = angleRad + Math.PI / 2; // Perpendicular to direction
+        
+        // Left eye
+        const leftEyeX = Math.cos(perpAngle) * eyeDistance;
+        const leftEyeY = Math.sin(perpAngle) * eyeDistance;
+        
+        // Right eye  
+        const rightEyeX = Math.cos(perpAngle + Math.PI) * eyeDistance;
+        const rightEyeY = Math.sin(perpAngle + Math.PI) * eyeDistance;
+        
+        // Move eyes slightly forward
+        const forwardOffset = headRadius * 0.3;
+        const forwardX = Math.cos(angleRad) * forwardOffset;
+        const forwardY = Math.sin(angleRad) * forwardOffset;
+        
+        // Draw left eye
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius * 0.6);
+        
+        // Draw right eye
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius * 0.6);
     }
     
     private addTrailParticle(x: number, y: number, color: string) {
@@ -1574,7 +1556,8 @@ export class GameScene extends Scene {
         }
     }
     
-    shutdown() {
+    // Clean up method called when scene is destroyed
+    cleanUp() {
         // Stop background music when leaving the scene
         if (this.backgroundMusic) {
             this.backgroundMusic.stop();
@@ -1584,9 +1567,6 @@ export class GameScene extends Scene {
         if (this.room) {
             this.room.removeAllListeners();
         }
-        
-        // Call the parent shutdown method
-        super.shutdown();
     }
     
     // Update the attractFoodInFront method to handle glow cleanup when food is eaten
