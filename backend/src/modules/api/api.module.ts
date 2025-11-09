@@ -12,6 +12,7 @@ import { configAuth } from './configs/auth';
 import { configCache } from './configs/cache';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 const controllers = [HealthController];
 
@@ -57,6 +58,7 @@ const controllers = [HealthController];
       ttl: 60,
       limit: 10000,
     }),
+    WebSocketModule,
   ],
   controllers: [...controllers],
   providers: [

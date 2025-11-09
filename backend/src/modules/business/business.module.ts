@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
-import { OpenAIService } from './services/openai.service';
 import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from '../database/database.module';
+import { GameService, OpenAIService } from './services';
 
-const services = [OpenAIService];
+const services = [GameService, OpenAIService];
 
 @Module({
   imports: [DatabaseModule, ConfigModule],

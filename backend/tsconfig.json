@@ -27,6 +27,7 @@
       "@/shared/*": ["shared/*"],
       "@/worker/*": ["modules/worker/*"],
       "@/business/*": ["modules/business/*"],
+      "@/game/*": ["modules/game/*"],
       "@/queue/*": ["modules/queue/*"],
       "@nestjs/passport": ["./node_modules/@nestjs/passport"],
       "passport-jwt": ["./node_modules/passport-jwt"],
