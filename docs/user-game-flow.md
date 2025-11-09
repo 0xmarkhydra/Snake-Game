@@ -65,4 +65,3 @@ Tài liệu này mô tả chi tiết quá trình một người chơi tham gia g
 ---
 
 Bằng cách hiểu rõ các bước trên, bạn có thể tự tin điều chỉnh hoặc mở rộng game mà không phá vỡ flow hiện tại.
-
