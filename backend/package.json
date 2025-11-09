@@ -41,7 +41,9 @@
     "@nestjs/throttler": "^4.2.1",
     "@nestjs/typeorm": "^10.0.0",
     "@nestjs/websockets": "^10.4.20",
+    "@solana/web3.js": "^1.95.3",
     "axios": "1.6.8",
+    "bs58": "^5.0.0",
     "bull": "^4.11.3",
     "cache-manager": "^5.5.2",
     "cache-manager-redis-store": "^3.0.1",
@@ -62,6 +64,7 @@
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
+    "tweetnacl": "^1.0.3",
     "typeorm": "^0.3.17",
     "uuid": "^11.0.3"
   },

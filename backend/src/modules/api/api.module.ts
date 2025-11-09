@@ -1,6 +1,6 @@
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { DatabaseModule } from '@/database';
-import { HealthController } from '@/api/controllers';
+import { AuthController, HealthController } from '@/api/controllers';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { QueueModule } from '@/queue/queue.module';
@@ -13,8 +13,9 @@ import { configCache } from './configs/cache';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
 import { WebSocketModule } from '../websocket/websocket.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
-const controllers = [HealthController];
+const controllers = [AuthController, HealthController];
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ const controllers = [HealthController];
     QueueModule,
     BusinessModule,
     CacheModule.registerAsync({
+      isGlobal: true,
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
@@ -54,23 +56,19 @@ const controllers = [HealthController];
       }),
       inject: [ConfigService],
     }),
-    ThrottlerModule.forRoot({
-      ttl: 60,
-      limit: 10000,
-    }),
     WebSocketModule,
   ],
   controllers: [...controllers],
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard
+      useClass: ThrottlerGuard,
     },
     {
       provide: APP_INTERCEPTOR,
       useClass: HttpCacheInterceptor,
     },
-    // ...services,
+    JwtAuthGuard,
   ],
   exports: [],
 })

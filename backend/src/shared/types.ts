@@ -1,4 +1,5 @@
 export type TJWTPayload = {
   sub: string;
-  // address: string;
+  walletAddress: string;
+  jti: string;
 };

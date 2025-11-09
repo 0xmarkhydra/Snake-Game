@@ -2,15 +2,25 @@ import { Module } from '@nestjs/common';
 import { configDb } from './configs';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AdminConfigRepository } from './repositories';
+import {
+  AdminConfigRepository,
+  UserRepository,
+  UserSessionRepository,
+} from './repositories';
 import { AdminConfigEntity } from './entities/admin-config.entity';
 import { SeedDatabase } from './seeders/seed.database';
+import { UserEntity } from './entities/user.entity';
+import { UserSessionEntity } from './entities/user-session.entity';
 
-const repositories = [AdminConfigRepository];
+const repositories = [
+  AdminConfigRepository,
+  UserRepository,
+  UserSessionRepository,
+];
 
 const services = [];
 
-const entities = [AdminConfigEntity];
+const entities = [AdminConfigEntity, UserEntity, UserSessionEntity];
 
 @Module({
   imports: [
