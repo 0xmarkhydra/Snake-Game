@@ -1,21 +1,20 @@
-import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Room, Server } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { createServer, Server as HttpServer } from 'http';
+import { Server as HttpServer } from 'http';
 import { GameService } from '../business/services';
 import { FreeGameRoom } from '../game/rooms';
 
 type RoomConstructor<T extends Room = Room> = new (...args: any[]) => T;
 
 @Injectable()
-export class GameGateway implements OnApplicationBootstrap, OnModuleDestroy {
+export class GameGateway implements OnModuleDestroy {
   private server: Server | null = null;
+  private httpServer: HttpServer | null = null;
 
   constructor(
     private readonly gameService: GameService,
-    private readonly configService: ConfigService,
     @InjectPinoLogger(GameGateway.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -34,16 +33,11 @@ export class GameGateway implements OnApplicationBootstrap, OnModuleDestroy {
     return this.gameService.hasRegisteredRoom(roomName);
   }
 
-  async onApplicationBootstrap(): Promise<void> {
+  initialize(httpServer: HttpServer): void {
     if (this.server) {
       this.logger.warn('Game server already initialized, skipping bootstrap.');
       return;
     }
-
-    const port = Number(this.configService.get('COLYSEUS_PORT') ?? 2567);
-    const host = this.configService.get<string>('COLYSEUS_HOST') ?? '0.0.0.0';
-
-    const httpServer = createServer();
 
     const gameServer = new Server({
       transport: new WebSocketTransport({
@@ -51,32 +45,19 @@ export class GameGateway implements OnApplicationBootstrap, OnModuleDestroy {
       }),
     });
 
+    this.httpServer = httpServer;
     this.server = gameServer;
 
     this.attachServer(gameServer);
     this.registerDefaultRooms();
-
-    await gameServer.listen(port, host);
-    this.logger.info(`Colyseus server listening on ws://${host}:${port}`);
+    this.logger.info('Colyseus server attached to existing HTTP server.');
   }
 
   async onModuleDestroy(): Promise<void> {
     this.logger.info('Shutting down GameGateway and underlying Colyseus server.');
     await this.gameService.shutdown();
-    const httpServer = this.server?.transport?.server as HttpServer | undefined;
-
-    if (httpServer) {
-      await new Promise<void>((resolve, reject) => {
-        httpServer.close(error => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve();
-        });
-      });
-    }
+    this.server = null;
+    this.httpServer = null;
   }
 
   private registerDefaultRooms(): void {
