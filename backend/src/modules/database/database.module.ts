@@ -4,23 +4,37 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   AdminConfigRepository,
+  TransactionRepository,
   UserRepository,
   UserSessionRepository,
+  WalletBalanceRepository,
 } from './repositories';
-import { AdminConfigEntity } from './entities/admin-config.entity';
+import {
+  AdminConfigEntity,
+  TransactionEntity,
+  UserEntity,
+  UserSessionEntity,
+  WalletBalanceEntity,
+} from './entities';
 import { SeedDatabase } from './seeders/seed.database';
-import { UserEntity } from './entities/user.entity';
-import { UserSessionEntity } from './entities/user-session.entity';
 
 const repositories = [
   AdminConfigRepository,
+  TransactionRepository,
   UserRepository,
   UserSessionRepository,
+  WalletBalanceRepository,
 ];
 
 const services = [];
 
-const entities = [AdminConfigEntity, UserEntity, UserSessionEntity];
+const entities = [
+  AdminConfigEntity,
+  TransactionEntity,
+  UserEntity,
+  UserSessionEntity,
+  WalletBalanceEntity,
+];
 
 @Module({
   imports: [

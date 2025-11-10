@@ -1,6 +1,6 @@
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { DatabaseModule } from '@/database';
-import { AuthController, HealthController } from '@/api/controllers';
+import { AuthController, HealthController, WalletController } from '@/api/controllers';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { QueueModule } from '@/queue/queue.module';
@@ -10,12 +10,13 @@ import { redisStore } from 'cache-manager-redis-store';
 import { CacheModule, CacheStore } from '@nestjs/cache-manager';
 import { configAuth } from './configs/auth';
 import { configCache } from './configs/cache';
+import { configWallet } from './configs/wallet';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
 import { WebSocketModule } from '../websocket/websocket.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
-const controllers = [AuthController, HealthController];
+const controllers = [AuthController, HealthController, WalletController];
 
 @Module({
   imports: [
@@ -47,7 +48,7 @@ const controllers = [AuthController, HealthController];
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
-      load: [configAuth, configCache],
+      load: [configAuth, configCache, configWallet],
     }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

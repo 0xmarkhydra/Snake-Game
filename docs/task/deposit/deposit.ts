@@ -15,7 +15,7 @@ import {
   PublicKey,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { VaultSDK, PROGRAM_ID, RPC_ENDPOINTS } from "../dist/index";
+import { VaultSDK, PROGRAM_ID, RPC_ENDPOINTS } from "../../../sdk/dist/index";
 import * as fs from "fs";
 import * as path from "path";
 

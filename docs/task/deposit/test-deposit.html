@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Deposit Test Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        color-scheme: dark light;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      h1,
+      h2 {
+        margin-top: 24px;
+      }
+      section {
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        background: #1e293b;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        margin-top: 6px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      button {
+        cursor: pointer;
+        background: #22c55e;
+        border: none;
+        transition: background 0.2s ease;
+      }
+      button:hover {
+        background: #16a34a;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0f172a;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+      small {
+        display: block;
+        margin-top: 6px;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Deposit Test Playground</h1>
+    <p>
+      Trang này dùng để kiểm thử nhanh hai bước chính của luồng nạp credit:
+      <code>/wallet/deposit</code> và <code>/wallet/webhook/deposit</code>.
+    </p>
+
+    <section>
+      <h2>Cấu hình chung</h2>
+      <label for="backendUrl">Backend Base URL</label>
+      <input
+        id="backendUrl"
+        type="text"
+        value="http://localhost:2567"
+        placeholder="http://localhost:2567"
+      />
+      <small>Điều chỉnh nếu backend chạy ở host/cổng khác.</small>
+
+      <label for="walletAddress">Wallet Address</label>
+      <input
+        id="walletAddress"
+        type="text"
+        placeholder="Ví người dùng (ví dụ: 7L5Q3s5j...)"
+      />
+      <small>
+        Địa chỉ ví này sẽ được gửi lên <code>/wallet/deposit</code> để sinh metadata và
+        được dùng trong webhook test.
+      </small>
+    </section>
+
+    <section>
+      <h2>Bước 1 – Gọi /wallet/deposit</h2>
+      <label for="depositAmount">Số lượng token muốn nạp</label>
+      <input
+        id="depositAmount"
+        type="number"
+        min="0.000001"
+        step="0.000001"
+        placeholder="Nhập số lượng (ví dụ 10)"
+      />
+      <small>
+        Endpoint chỉ cần <code>walletAddress</code> và <code>amount</code>, không yêu cầu
+        JWT.
+      </small>
+      <div class="row">
+        <button id="btnCreateDeposit">Tạo metadata deposit</button>
+      </div>
+      <label for="depositMetadata">Metadata trả về</label>
+      <textarea id="depositMetadata" rows="6" readonly></textarea>
+    </section>
+
+    <section>
+      <h2>Bước 2 – Gửi webhook giả lập</h2>
+      <label for="webhookPayload">Payload JSON</label>
+      <textarea
+        id="webhookPayload"
+        rows="10"
+        placeholder="Dán payload webhook JSON vào đây"
+      >{
+  "event": {
+    "signature": "example-signature",
+    "slot": 420122255,
+    "blockTime": 1762592529,
+    "eventType": "DepositEvent",
+    "success": true,
+    "data": {
+      "user": "WALLET_ADDRESS",
+      "amount": "1000000"
+    }
+  },
+  "timestamp": 1762601253479,
+  "indexerVersion": "1.0.0"
+}</textarea>
+      <small>
+        Thay <code>WALLET_ADDRESS</code> bằng ví thực tế. Nếu backend có cấu hình secret,
+        điền thêm header tương ứng khi test (mặc định form sẽ gửi trống).
+      </small>
+      <label for="webhookSecret">Webhook Secret (optional)</label>
+      <input id="webhookSecret" type="text" placeholder="Ví dụ: 123" />
+      <div class="row">
+        <button id="btnSendWebhook">Gửi webhook test</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Kết quả & Nhật ký</h2>
+      <div class="row">
+        <button id="btnClearLog">Xóa log</button>
+      </div>
+      <pre id="logConsole"></pre>
+      <small>
+        Để kiểm tra credit sau khi webhook chạy, dùng công cụ khác (Postman, curl…) gọi
+        <code>/wallet/credit</code> kèm JWT.
+      </small>
+    </section>
+
+    <script>
+      const state = {
+        depositMetadata: null,
+      };
+
+      const el = (id) => document.getElementById(id);
+      const logConsole = el('logConsole');
+
+      const log = (message, data, isError = false) => {
+        const timestamp = new Date().toISOString();
+        const entry = { timestamp, message, data };
+        const current = logConsole.textContent.trim();
+        const next = `${isError ? '[ERROR]' : '[INFO]'} ${JSON.stringify(
+          entry,
+          null,
+          2,
+        )}\n\n${current}`;
+        logConsole.textContent = next;
+      };
+
+      const notifySuccess = (message) => {
+        try {
+          alert(message);
+        } catch (error) {
+          console.info('Notification:', message);
+        }
+      };
+
+      const getBackendUrl = () => el('backendUrl').value.trim().replace(/\/$/, '');
+
+      const fetchJSON = async (path, options = {}) => {
+        const url = `${getBackendUrl()}${path}`;
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        };
+        const response = await fetch(url, {
+          ...options,
+          headers,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw { status: response.status, data };
+        }
+        return data;
+      };
+
+      el('btnCreateDeposit').addEventListener('click', async () => {
+        const walletAddress = el('walletAddress').value.trim();
+        const amount = Number(el('depositAmount').value);
+
+        if (!walletAddress) {
+          log('Wallet address is required', {}, true);
+          return;
+        }
+        if (!amount || amount <= 0) {
+          log('Amount must be greater than 0', { amount }, true);
+          return;
+        }
+
+        try {
+          const response = await fetchJSON('/wallet/deposit', {
+            method: 'POST',
+            body: JSON.stringify({ walletAddress, amount }),
+          });
+          state.depositMetadata = response?.data || response;
+          el('depositMetadata').value = JSON.stringify(state.depositMetadata, null, 2);
+          log('Deposit metadata received', response);
+          notifySuccess('Đã lấy metadata thành công.');
+        } catch (error) {
+          log('Create deposit failed', error, true);
+        }
+      });
+
+      el('btnSendWebhook').addEventListener('click', async () => {
+        try {
+          const raw = el('webhookPayload').value;
+          const body = JSON.parse(raw);
+          const secret = el('webhookSecret').value.trim();
+          const headers = secret ? { 'x-webhook-secret': secret } : {};
+          const response = await fetchJSON('/webhook/deposit', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+          });
+          log('Webhook sent successfully', response);
+          notifySuccess('Đã gửi webhook test thành công.');
+        } catch (error) {
+          log('Send webhook failed', error, true);
+        }
+      });
+
+      el('btnClearLog').addEventListener('click', () => {
+        logConsole.textContent = '';
+      });
+    </script>
+  </body>
+</html>

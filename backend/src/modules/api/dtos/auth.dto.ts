@@ -68,7 +68,7 @@ export class AuthTokensDto {
   @ApiProperty({ description: 'Refresh token for renewing access tokens' })
   @IsString()
   refreshToken: string;
-
+  
   @ApiProperty({
     description: 'Timestamp when refresh token expires',
     example: '2025-01-01T00:00:00.000Z',
@@ -79,7 +79,7 @@ export class AuthTokensDto {
 
 export class AuthUserDto {
   @ApiProperty({ description: 'Unique user identifier', example: 'b46d9d39-8c16-4d86-9b54-4a7f5ddf5e04' })
-  id: string;
+    id: string;
 
   @ApiProperty({ description: 'Primary wallet address used during login' })
   walletAddress: string;

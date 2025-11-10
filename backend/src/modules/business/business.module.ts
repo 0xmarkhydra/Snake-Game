@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { DatabaseModule } from '../database/database.module';
-import { AuthService, GameService, OpenAIService } from './services';
+import { AuthService, GameService, OpenAIService, WalletService } from './services';
 
-const services = [AuthService, GameService, OpenAIService];
+const services = [AuthService, GameService, OpenAIService, WalletService];
 
 @Module({
   imports: [

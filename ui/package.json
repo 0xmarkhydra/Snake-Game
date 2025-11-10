@@ -9,12 +9,14 @@
     "build-nolog": "vite build --config vite/config.prod.mjs"
   },
   "dependencies": {
+    "@solana-payment/sdk": "^1.0.0",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-phantom": "^0.9.28",
     "@solana/wallet-adapter-wallets": "^0.19.37",
     "@solana/web3.js": "^1.98.4",
     "axios": "^1.8.1",
     "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
     "colyseus.js": "^0.16.9",
     "phaser": "^3.88.2",
     "react": "^18.2.0",
