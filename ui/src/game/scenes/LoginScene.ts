@@ -14,6 +14,9 @@ export class LoginScene extends Scene {
     }
     
     create() {
+        // Reset state when scene restarts (after logout, etc.)
+        this.isConnecting = false;
+        
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         
@@ -28,7 +31,7 @@ export class LoginScene extends Scene {
         
         // Check if already authenticated
         if (authService.isAuthenticated()) {
-            this.showStatus('Already logged in! Redirecting...', 0x4CAF50);
+            console.log('✅ Already logged in! Redirecting to menu...');
             this.time.delayedCall(1000, () => {
                 this.scene.start('MenuScene', { isAuthenticated: true });
             });
