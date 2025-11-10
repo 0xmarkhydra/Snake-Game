@@ -178,6 +178,14 @@
         logConsole.textContent = next;
       };
 
+      const notifySuccess = (message) => {
+        try {
+          alert(message);
+        } catch (error) {
+          console.info('Notification:', message);
+        }
+      };
+
       const getBackendUrl = () => el('backendUrl').value.trim().replace(/\/$/, '');
 
       const setWalletInfo = () => {
@@ -229,32 +237,18 @@
         return data;
       };
 
-      const BASE58_ALPHABET =
-        '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-
-      const toBase58 = (bytes) => {
-        if (!bytes || !bytes.length) return '';
-        const digits = [0];
-        for (let i = 0; i < bytes.length; i += 1) {
-          let carry = bytes[i];
-          for (let j = 0; j < digits.length; j += 1) {
-            const value = digits[j] * 256 + carry;
-            digits[j] = value % 58;
-            carry = Math.floor(value / 58);
-          }
-          while (carry > 0) {
-            digits.push(carry % 58);
-            carry = Math.floor(carry / 58);
-          }
+      let bs58Module = null;
+      const loadBs58 = async () => {
+        if (bs58Module) return bs58Module;
+        try {
+          const mod = await import('https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm');
+          bs58Module = mod.default || mod;
+          log('bs58 library loaded', {});
+          return bs58Module;
+        } catch (error) {
+          log('Không tải được bs58 từ CDN', error, true);
+          throw error;
         }
-        let result = '';
-        for (let i = 0; bytes[i] === 0 && i < bytes.length - 1; i += 1) {
-          result += '1';
-        }
-        for (let i = digits.length - 1; i >= 0; i -= 1) {
-          result += BASE58_ALPHABET[digits[i]];
-        }
-        return result;
       };
 
       el('btnCheckPhantom').addEventListener('click', checkPhantom);
@@ -294,6 +288,7 @@
           el('nonceInput').value = state.nonce || '';
           el('btnSignNonce').disabled = !state.nonce;
           log('Nonce received', data);
+          notifySuccess('Đã lấy nonce thành công.');
         } catch (error) {
           log('Request nonce failed', error, true);
         }
@@ -311,13 +306,15 @@
             );
             return;
           }
+          const bs58 = await loadBs58();
           const encoded = new TextEncoder().encode(state.nonce);
           const { signature } = await provider.signMessage(encoded, 'utf8');
-          const base58Signature = toBase58(signature);
+          const base58Signature = bs58.encode(signature);
           state.signedMessage = base58Signature;
           el('signatureInput').value = base58Signature;
           el('btnVerify').disabled = false;
           log('Nonce signed', { signature: base58Signature });
+          notifySuccess('Ký nonce thành công.');
         } catch (error) {
           log('Sign nonce failed', error, true);
         }
@@ -339,6 +336,7 @@
           state.refreshExpiresAt = data?.data?.tokens?.refreshTokenExpiresAt;
           updateTokensUI();
           log('Verify success', data);
+          notifySuccess('Đăng nhập thành công!');
         } catch (error) {
           log('Verify signature failed', error, true);
         }
@@ -355,6 +353,7 @@
           state.refreshExpiresAt = data?.data?.tokens?.refreshTokenExpiresAt;
           updateTokensUI();
           log('Refresh success', data);
+          notifySuccess('Refresh token thành công.');
         } catch (error) {
           log('Refresh failed', error, true);
         }
@@ -369,6 +368,7 @@
             },
           });
           log('Profile success', data);
+          notifySuccess('Lấy thông tin người dùng thành công.');
         } catch (error) {
           log('Profile failed', error, true);
         }
@@ -388,6 +388,7 @@
           state.refreshToken = null;
           state.refreshExpiresAt = null;
           updateTokensUI();
+          notifySuccess('Đăng xuất thành công.');
         } catch (error) {
           log('Logout failed', error, true);
         }
@@ -401,6 +402,9 @@
         checkPhantom();
         setWalletInfo();
         updateTokensUI();
+        loadBs58().catch(() => {
+          /* error already logged */
+        });
       })();
     </script>
   </body>

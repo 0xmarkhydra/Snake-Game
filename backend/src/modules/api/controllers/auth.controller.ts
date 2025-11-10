@@ -60,8 +60,8 @@ export class AuthController {
   ): Promise<AuthResponseDto> {
     const result = await this.authService.verifySignature(
       payload.walletAddress,
-      payload.signature,
       payload.nonce,
+      payload.signature,
       {
         userAgent: request.headers['user-agent'] ?? undefined,
         ipAddress: request.ip,

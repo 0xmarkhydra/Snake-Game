@@ -37,6 +37,10 @@ export class AuthService {
   private readonly nonceTtl: number;
   private readonly accessTtl: number;
   private readonly refreshTtl: number;
+  private readonly nonceMemoryStore = new Map<
+    string,
+    { value: string; expiresAt: number }
+  >();
 
   constructor(
     private readonly userRepository: UserRepository,
@@ -60,15 +64,22 @@ export class AuthService {
   async generateNonce(walletAddress: string): Promise<{ nonce: string }> {
     const normalizedWallet = this.normalizeWallet(walletAddress);
     const nonce = randomBytes(16).toString('hex');
+    const expiresAt = Date.now() + this.nonceTtl * 1000;
+    this.nonceMemoryStore.set(normalizedWallet, { value: nonce, expiresAt });
     const cacheKey = this.buildNonceCacheKey(normalizedWallet);
-    await this.cacheManager.set(cacheKey, nonce, this.nonceTtl);
+    const ttlMs = Math.max(1000, Math.floor(this.nonceTtl * 1000));
+    try {
+      await this.cacheManager.set(cacheKey, nonce, ttlMs);
+    } catch (error) {
+      // swallow cache errors, rely on memory store fallback
+    }
     return { nonce };
   }
 
   async verifySignature(
     walletAddress: string,
-    signature: string,
     nonce: string,
+    signature: string,
     metadata?: { userAgent?: string; ipAddress?: string },
   ): Promise<LoginResult> {
     const normalizedWallet = this.normalizeWallet(walletAddress);
@@ -90,7 +101,7 @@ export class AuthService {
     await this.userRepository.save(user);
 
     const tokens = await this.issueTokens(user, metadata);
-    await this.cacheManager.del(this.buildNonceCacheKey(normalizedWallet));
+    await this.clearNonce(normalizedWallet);
 
     return {
       user,
@@ -208,10 +219,35 @@ export class AuthService {
   }
 
   private async ensureNonceValid(walletAddress: string, nonce: string) {
+    const now = Date.now();
+    const entry = this.nonceMemoryStore.get(walletAddress);
+    if (entry) {
+      if (entry.expiresAt < now) {
+        this.nonceMemoryStore.delete(walletAddress);
+      } else if (entry.value === nonce) {
+        return;
+      }
+    }
+
     const cacheKey = this.buildNonceCacheKey(walletAddress);
-    const cachedNonce = await this.cacheManager.get<string>(cacheKey);
-    if (!cachedNonce || cachedNonce !== nonce) {
-      throw new UnauthorizedException('Nonce is invalid or expired');
+    try {
+      const cachedNonce = await this.cacheManager.get<string>(cacheKey);
+      if (cachedNonce && cachedNonce === nonce) {
+        return;
+      }
+    } catch (error) {
+      // ignore cache errors, fallback to memory store check only
+    }
+
+    throw new UnauthorizedException('Nonce is invalid or expired');
+  }
+
+  private async clearNonce(walletAddress: string) {
+    this.nonceMemoryStore.delete(walletAddress);
+    try {
+      await this.cacheManager.del(this.buildNonceCacheKey(walletAddress));
+    } catch (error) {
+      // ignore cache errors
     }
   }
 
