@@ -94,11 +94,11 @@ class AuthService {
      */
     async requestNonce(walletAddress: string): Promise<string> {
         try {
-            const response = await apiService.post<{ data: NonceResponse }>('/auth/nonce', {
+            const response = await apiService.post<NonceResponse>('/auth/nonce', {
                 walletAddress
             });
-            
-            return response.data.nonce;
+
+            return response?.nonce;
         } catch (error) {
             console.error('❌ Error requesting nonce:', error);
             throw new Error('Failed to request nonce from server');
@@ -134,13 +134,13 @@ class AuthService {
      */
     async verifyAndLogin(walletAddress: string, nonce: string, signature: string): Promise<LoginResult> {
         try {
-            const response = await apiService.post<{ data: LoginResult }>('/auth/verify', {
+            const response = await apiService.post<LoginResult>('/auth/verify', {
                 walletAddress,
                 nonce,
                 signature
             });
             
-            const loginResult = response.data;
+            const loginResult = response
             
             // Save tokens and user info
             this.saveAuth(loginResult);
@@ -187,11 +187,11 @@ class AuthService {
                 throw new Error('No refresh token available');
             }
             
-            const response = await apiService.post<{ data: LoginResult }>('/auth/refresh', {
+            const response = await apiService.post<LoginResult>('/auth/refresh', {
                 refreshToken
             });
             
-            this.saveAuth(response.data);
+            this.saveAuth(response);
             console.log('✅ Token refreshed successfully');
         } catch (error) {
             console.error('❌ Error refreshing token:', error);
@@ -313,4 +313,6 @@ class AuthService {
 
 // Export singleton instance
 export const authService = new AuthService();
+
+
 
