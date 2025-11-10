@@ -331,10 +331,19 @@
             method: 'POST',
             body: JSON.stringify(payload),
           });
-          state.accessToken = data?.data?.tokens?.accessToken;
-          state.refreshToken = data?.data?.tokens?.refreshToken;
-          state.refreshExpiresAt = data?.data?.tokens?.refreshTokenExpiresAt;
+          const tokens =
+            data?.data?.tokens || data?.tokens || {
+              accessToken: null,
+              refreshToken: null,
+              refreshTokenExpiresAt: null,
+            };
+          state.accessToken = tokens.accessToken ?? null;
+          state.refreshToken = tokens.refreshToken ?? null;
+          state.refreshExpiresAt = tokens.refreshTokenExpiresAt ?? null;
           updateTokensUI();
+          el('btnRefresh').disabled = !state.refreshToken;
+          el('btnMe').disabled = !state.accessToken;
+          el('btnLogout').disabled = !state.accessToken;
           log('Verify success', data);
           notifySuccess('Đăng nhập thành công!');
         } catch (error) {
@@ -348,10 +357,20 @@
             method: 'POST',
             body: JSON.stringify({ refreshToken: state.refreshToken }),
           });
-          state.accessToken = data?.data?.tokens?.accessToken;
-          state.refreshToken = data?.data?.tokens?.refreshToken;
-          state.refreshExpiresAt = data?.data?.tokens?.refreshTokenExpiresAt;
+          const tokens =
+            data?.data?.tokens || data?.tokens || {
+              accessToken: null,
+              refreshToken: null,
+              refreshTokenExpiresAt: null,
+            };
+          state.accessToken = tokens.accessToken ?? state.accessToken;
+          state.refreshToken = tokens.refreshToken ?? state.refreshToken;
+          state.refreshExpiresAt =
+            tokens.refreshTokenExpiresAt ?? state.refreshExpiresAt;
           updateTokensUI();
+          el('btnRefresh').disabled = !state.refreshToken;
+          el('btnMe').disabled = !state.accessToken;
+          el('btnLogout').disabled = !state.accessToken;
           log('Refresh success', data);
           notifySuccess('Refresh token thành công.');
         } catch (error) {
