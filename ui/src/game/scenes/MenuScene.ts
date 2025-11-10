@@ -718,7 +718,6 @@ export class MenuScene extends Scene {
             this.walletInfoContainer = undefined;
         }
 
-        // Remove previous credit updater if exists
         if (this.creditUpdateHandler) {
             this.events.off('update', this.creditUpdateHandler);
             this.creditUpdateHandler = undefined;
@@ -773,7 +772,7 @@ export class MenuScene extends Scene {
         
         // Update credit every frame
         this.creditUpdateHandler = () => {
-            if (this.creditText) {
+            if (this.creditText && this.creditText.active) {
                 this.creditText.setText(walletService.formatCredit());
             }
         };
@@ -800,7 +799,11 @@ export class MenuScene extends Scene {
             await authService.logout();
             walletService.clearCredit();
             this.isAuthenticated = false;
-            this.scene.start('MenuScene', { isAuthenticated: false });
+            if (this.creditUpdateHandler) {
+                this.events.off('update', this.creditUpdateHandler);
+                this.creditUpdateHandler = undefined;
+            }
+            this.scene.restart({ isAuthenticated: false });
         });
         walletContainer.add(logoutBtn);
         
@@ -862,8 +865,17 @@ export class MenuScene extends Scene {
             }
         };
 
-        updateVipInfo();
         this.events.on('update', updateVipInfo);
+
+        const clearVipInfoListener = () => {
+            this.events.off('update', updateVipInfo);
+            if (vipInfo.active) {
+                vipInfo.destroy();
+            }
+        };
+
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, clearVipInfoListener);
+        this.events.once(Phaser.Scenes.Events.DESTROY, clearVipInfoListener);
     }
     
     private async handleVipPlay(): Promise<void> {
@@ -1574,5 +1586,9 @@ export class MenuScene extends Scene {
     shutdown() {
         // Clean up when scene is shut down
         walletService.stopPolling();
+        if (this.creditUpdateHandler) {
+            this.events.off('update', this.creditUpdateHandler);
+            this.creditUpdateHandler = undefined;
+        }
     }
 } 

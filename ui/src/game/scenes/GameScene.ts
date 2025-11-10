@@ -419,6 +419,8 @@ export class GameScene extends Scene {
     }
     
     private createUI() {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
         // Create stats card container
         this.statsPanel = this.add.container(20, 20)
             .setScrollFactor(0)
@@ -502,10 +504,8 @@ export class GameScene extends Scene {
         // Create minimap
         this.createMinimap();
         
-        // Add Menu button at bottom left
-        const width = this.cameras.main.width;
-        const height = this.cameras.main.height;
-        this.createMenuButton(20, height - 20);
+        // Quit button
+        this.createQuitButton(20, height - 20);
     }
     
     private createLeaderboard() {
@@ -1981,56 +1981,35 @@ export class GameScene extends Scene {
         }
     }
     
-    private createMenuButton(x: number, y: number) {
-        const btnWidth = 100;
-        const btnHeight = 40;
-        
-        // Create button background (simple rectangle, not in container)
-        const buttonBg = this.add.rectangle(x + btnWidth/2, y - btnHeight/2, btnWidth, btnHeight, 0xFF8C00, 0.95)
-            .setOrigin(0.5)
-            .setScrollFactor(0)
-            .setDepth(100000)
-            .setStrokeStyle(3, 0xFFA500, 1)
+    private createQuitButton(x: number, y: number) {
+        const btnWidth = 140;
+        const btnHeight = 50;
+        const buttonBg = this.add.rectangle(x, y, btnWidth, btnHeight, 0xff4c4c, 0.9)
+            .setOrigin(0).setDepth(1000)
+            .setStrokeStyle(2, 0xffffff, 0.8)
             .setInteractive({ useHandCursor: true });
-        
-        // Button text (directly positioned, not in container)
-        const buttonText = this.add.text(x + btnWidth/2, y - btnHeight/2, '📋 Menu', {
+        const buttonText = this.add.text(x + btnWidth/2, y - btnHeight/2, '⏻ Quit Game', {
             fontFamily: 'Arial',
-            fontSize: '18px',
-            fontStyle: 'bold',
+            fontSize: '20px',
             color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 3
-        })
-            .setOrigin(0.5)
-            .setScrollFactor(0)
-            .setDepth(100001);
-        
-        // Make text also interactive (for larger click area)
-        buttonText.setInteractive({ useHandCursor: true });
-        
-        // Store original colors
-        const originalBgColor = 0xFF8C00;
-        const originalStrokeColor = 0xFFA500;
-        const hoverBgColor = 0xFFA500;
-        const hoverStrokeColor = 0xFFFFFF;
-        
-        // Hover effect for background
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        buttonText.setDepth(1001);
+ 
+        this.add.existing(buttonBg);
+        this.add.existing(buttonText);
+ 
         buttonBg.on('pointerover', () => {
-            buttonBg.setFillStyle(hoverBgColor, 1);
-            buttonBg.setStrokeStyle(3, hoverStrokeColor, 1);
             this.tweens.add({
                 targets: [buttonBg, buttonText],
-                scaleX: 1.1,
-                scaleY: 1.1,
+                scaleX: 1.05,
+                scaleY: 1.05,
                 duration: 200,
                 ease: 'Back.easeOut'
             });
         });
         
         buttonBg.on('pointerout', () => {
-            buttonBg.setFillStyle(originalBgColor, 0.95);
-            buttonBg.setStrokeStyle(3, originalStrokeColor, 1);
             this.tweens.add({
                 targets: [buttonBg, buttonText],
                 scaleX: 1,
@@ -2040,75 +2019,41 @@ export class GameScene extends Scene {
             });
         });
         
-        // Click handler for background
         buttonBg.on('pointerdown', () => {
-            this.handleMenuClick(buttonBg, buttonText);
+            this.handleQuitClick(buttonBg, buttonText);
         });
         
-        // Hover effect for text
-        buttonText.on('pointerover', () => {
-            buttonBg.setFillStyle(hoverBgColor, 1);
-            buttonBg.setStrokeStyle(3, hoverStrokeColor, 1);
-            this.tweens.add({
-                targets: [buttonBg, buttonText],
-                scaleX: 1.1,
-                scaleY: 1.1,
-                duration: 200,
-                ease: 'Back.easeOut'
-            });
-        });
-        
-        buttonText.on('pointerout', () => {
-            buttonBg.setFillStyle(originalBgColor, 0.95);
-            buttonBg.setStrokeStyle(3, originalStrokeColor, 1);
-            this.tweens.add({
-                targets: [buttonBg, buttonText],
-                scaleX: 1,
-                scaleY: 1,
-                duration: 200,
-                ease: 'Back.easeIn'
-            });
-        });
-        
-        // Click handler for text
-        buttonText.on('pointerdown', () => {
-            this.handleMenuClick(buttonBg, buttonText);
-        });
-        
-        // Animate entrance
-        buttonBg.setAlpha(0);
-        buttonText.setAlpha(0);
-        this.tweens.add({
-            targets: [buttonBg, buttonText],
-            alpha: 1,
-            duration: 500,
-            delay: 1000
-        });
+        buttonText.setInteractive({ useHandCursor: true })
+            .on('pointerdown', () => {
+                this.handleQuitClick(buttonBg, buttonText);
+            })
+            .on('pointerover', () => buttonBg.emit('pointerover'))
+            .on('pointerout', () => buttonBg.emit('pointerout'));
     }
     
-    private handleMenuClick(buttonBg: Phaser.GameObjects.Rectangle, buttonText: Phaser.GameObjects.Text) {
-        // Scale down effect
+    private handleQuitClick(buttonBg: Phaser.GameObjects.Rectangle, buttonText: Phaser.GameObjects.Text) {
         this.tweens.add({
-            targets: [buttonBg, buttonText],
-            scaleX: 0.9,
-            scaleY: 0.9,
+            targets: buttonBg,
+            fillAlpha: 0.7,
             duration: 100,
             yoyo: true,
-            onComplete: () => {
-                // Confirm before leaving game
-                const confirmed = confirm('Leave game and go to menu?');
-                if (confirmed) {
-                    // Disconnect from room
+            onComplete: async () => {
+                try {
+                    buttonText.setText('Leaving...');
+                    buttonBg.disableInteractive();
+                    buttonText.disableInteractive();
+ 
                     if (this.room) {
-                        this.room.leave();
+                        await this.room.leave(true);
+                        console.log('Left the game room');
                     }
                     
-                    // Go back to menu scene
-                    this.cameras.main.fade(300, 0, 0, 0, false, (_camera: any, progress: any) => {
-                        if (progress === 1) {
                             this.scene.start('MenuScene');
-                        }
-                    });
+                } catch (error) {
+                    console.error('Error leaving room:', error);
+                    buttonText.setText('Retry?');
+                    buttonBg.setInteractive();
+                    buttonText.setInteractive({ useHandCursor: true });
                 }
             }
         });
