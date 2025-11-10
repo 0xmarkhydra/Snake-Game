@@ -7,10 +7,9 @@ Tài liệu này mô tả cách sử dụng tính năng đăng nhập Phantom wa
 ## 🎯 Tính Năng Đã Triển Khai
 
 ### ✅ UI Components:
-1. **LoginScene** - Màn hình đăng nhập với Phantom wallet
-2. **MenuScene (Updated)** - Hiển thị wallet info, credit và nút Free/VIP
-3. **AuthService** - Xử lý authentication với Phantom
-4. **WalletService** - Quản lý credit và polling
+1. **MenuScene (Updated)** - Vừa là màn hình chính, hiển thị connect prompt, wallet info, credit và nút Free/VIP
+2. **AuthService** - Xử lý authentication với Phantom
+3. **WalletService** - Quản lý credit và polling
 
 ### ✅ Features:
 - ✨ Kết nối Phantom wallet
@@ -18,8 +17,8 @@ Tài liệu này mô tả cách sử dụng tính năng đăng nhập Phantom wa
 - 💾 Lưu JWT token (access + refresh)
 - 💎 Hiển thị credit real-time
 - 🎮 2 chế độ chơi: Free và VIP
-- 🚪 Logout và quay về màn hình login
-- 👤 Play as Guest (không cần đăng nhập)
+- 🚪 Logout và quay lại menu chính
+- 👤 Có thể chơi Free mà không cần đăng nhập; VIP yêu cầu Phantom + credit
 
 ---
 
@@ -28,46 +27,45 @@ Tài liệu này mô tả cách sử dụng tính năng đăng nhập Phantom wa
 ```
 LoadingScene 
     ↓
-LoginScene
-    ├─ Connect Phantom → Sign → JWT → MenuScene (Authenticated)
-    └─ Play as Guest → MenuScene (Guest)
+MenuScene (màn hình chính)
+    ├─ Chơi Free ngay lập tức
+    └─ Chọn VIP → (nếu chưa login) Connect Phantom → Sign → JWT → Nạp credit → Vào VIP
 ```
 
 ### Chi Tiết Flow:
 
-#### **1. LoginScene:**
-- Kiểm tra Phantom extension có cài không
-- 2 options:
-  - **Connect Phantom**: Full authentication flow
-  - **Play as Guest**: Vào Free room, không cần đăng nhập
+#### **1. MenuScene (khởi đầu):**
+- LoadingScene sau khi hoàn tất sẽ chuyển thẳng sang MenuScene.
+- Ngay trung tâm: 2 lựa chọn `PLAY FREE` và `PLAY VIP`.
+- Top-right:
+  - Nếu chưa đăng nhập: panel nhỏ “Kết nối Phantom” với nút connect.
+  - Nếu đã đăng nhập: panel wallet hiển thị địa chỉ + credit + nút Logout.
 
-#### **2. Connect Phantom Flow:**
-1. Click "Connect Phantom Wallet"
-2. Phantom popup yêu cầu connect
-3. User approve → lấy wallet address
-4. Client gọi `POST /auth/nonce` → nhận nonce
-5. Phantom popup yêu cầu sign message
-6. User sign → gửi `POST /auth/verify` với signature
-7. Server verify → trả JWT (access + refresh token)
-8. Lưu tokens vào localStorage
-9. Chuyển sang MenuScene với `isAuthenticated: true`
+#### **2. Connect Phantom Flow (kích hoạt từ panel hoặc khi chọn VIP):**
+1. Click nút **Kết nối Phantom**.
+2. Phantom popup yêu cầu connect.
+3. User approve → lấy wallet address.
+4. Client gọi `POST /auth/nonce` → nhận nonce.
+5. Phantom popup yêu cầu sign message.
+6. User sign → gửi `POST /auth/verify` với signature.
+7. Server verify → trả JWT (access + refresh token).
+8. Lưu tokens vào localStorage và panel top-right chuyển sang trạng thái đã đăng nhập.
+9. Tự động gọi `GET /wallet/credit` để hiển thị credit.
 
 #### **3. MenuScene (Authenticated):**
-- Top right: Wallet info panel
-  - Wallet address (rút gọn)
-  - Credit balance (real-time update)
-  - Logout button
-- Form nhập tên + chọn skin (như cũ)
-- 2 nút play:
-  - **Play Free** (màu xanh): Ai cũng chơi được
-  - **Play VIP** (màu cam): Cần login + có credit ≥ 1
+- Panel top-right: wallet address (rút gọn), credit real-time, nút Logout.
+- Nút `PLAY VIP` mở modal nạp tiền nếu credit < 1:
+  - Nhập `Amount` và bấm `Deposit`.
+  - Client gọi `POST /wallet/deposit`, build giao dịch, ký & gửi qua Phantom.
+  - Sau khi confirm, tự động gọi `GET /wallet/credit` để kiểm tra số dư → đủ ≥ 1 sẽ vào VIP.
+- Nút `PLAY FREE` vẫn hoạt động bình thường (không tốn credit).
 
-#### **4. MenuScene (Guest):**
-- Không hiển thị wallet panel
-- Form nhập tên + chọn skin
-- 2 nút play:
-  - **Play Free**: Chơi bình thường
-  - **Play VIP**: Bị disable, hiện "🔒 Login required"
+#### **4. MenuScene (Chưa login / free mode):**
+- Không hiển thị panel credit, chỉ có nút kết nối Phantom.
+- Người chơi vẫn có thể:
+  - Nhập tên, chọn skin.
+  - Bấm `PLAY FREE` để vào phòng free ngay lập tức.
+  - Nếu bấm `PLAY VIP`, modal sẽ yêu cầu kết nối Phantom trước khi nạp credit.
 
 ---
 
@@ -82,7 +80,7 @@ ui/src/
 │   ├── AuthService.ts         # Phantom authentication service
 │   └── WalletService.ts       # Credit management service
 └── game/scenes/
-    └── LoginScene.ts          # Login screen
+    └── (không còn LoginScene riêng, MenuScene đảm nhiệm luôn)
 ```
 
 ### Đã Cập Nhật:
@@ -91,10 +89,10 @@ ui/src/
 ├── services/
 │   └── ApiService.ts          # Thêm auth header interceptor
 ├── game/
-│   ├── main.ts                # Thêm LoginScene vào scene list
+│   ├── main.ts                # Chạy LoadingScene → MenuScene trực tiếp
 │   └── scenes/
-│       ├── LoadingScene.ts    # Chuyển sang LoginScene thay vì MenuScene
-│       └── MenuScene.ts       # Thêm wallet info + Free/VIP buttons
+│       ├── LoadingScene.ts    # Sau loading chuyển thẳng vào MenuScene
+│       └── MenuScene.ts       # Tích hợp connect Prompt + deposit modal
 └── configs/
     └── game.ts                # Thêm version number
 ```
@@ -117,34 +115,22 @@ Dữ liệu được lưu trong `localStorage`:
 
 ## 🎨 UI Design
 
-### LoginScene:
-- **Theme**: Dark blue gradient với hexagon pattern (giống MenuScene)
-- **Particles**: Food particles floating
-- **Buttons**: 
-  - Connect Phantom (màu cam #FF9500)
-  - Play as Guest (màu xanh #4CAF50)
-- **Status**: Hiển thị trạng thái connection real-time
+### MenuScene – khu trung tâm:
+- Hai nút `PLAY FREE` (xanh) và `PLAY VIP` (cam) chiếm vị trí chính.
+- Free luôn hoạt động; VIP sẽ mở modal login/nạp nếu thiếu điều kiện.
+- Ô nhập tên và chọn skin giữ phong cách sáng – xanh dương.
 
-### MenuScene Wallet Panel (Top Right):
-```
-┌─────────────────────────┐
-│ 🔗 CWZDCm...2TrNz      │
-│                         │
-│ 💎 Credit: 12.50       │
-│                         │
-│ 🚪 Logout              │
-└─────────────────────────┘
-```
+### MenuScene – panel top-right:
+- Khi chưa đăng nhập: panel nhỏ với nút **Kết nối Phantom**.
+- Khi đã đăng nhập:
+  - Hiển thị wallet rút gọn.
+  - Credit realtime (polling 3s).
+  - Nút Logout (đưa về trạng thái chưa đăng nhập).
 
-### Play Buttons:
-```
-┌─────────────┐  ┌─────────────┐
-│  PLAY FREE  │  │  PLAY VIP   │
-│   (Green)   │  │  (Orange)   │
-└─────────────┘  └─────────────┘
-                    ↓ (nếu không đủ credit)
-               Need 1+ credit
-```
+### Modal nạp tiền (VIP):
+- Nhập `Amount` và bấm `Deposit` → client tự động lấy metadata, ký & gửi giao dịch bằng Phantom.
+- Sau khi confirm, modal gọi lại `GET /wallet/credit` để kiểm tra số dư mới.
+- Credit ≥ 1 sẽ đóng modal và vào VIP; nếu chưa tăng, hiển thị thông báo chờ webhook.
 
 ---
 
@@ -163,28 +149,26 @@ pnpm start:dev
 
 ### Testing:
 
-#### **1. Test Guest Mode:**
-1. Vào game
-2. Click "Play as Guest"
-3. Nhập tên, chọn skin
-4. Click "PLAY FREE"
-5. ✅ Vào được free room
+#### **1. Test Free Mode (không login):**
+1. Vào game → MenuScene xuất hiện cùng panel “Kết nối Phantom”.
+2. Bỏ qua phần connect, nhập tên & chọn skin.
+3. Click `PLAY FREE`.
+4. ✅ Vào được free room mà không cần ví.
 
 #### **2. Test Phantom Login:**
 1. Cài Phantom extension: https://phantom.app/
 2. Tạo hoặc import wallet
-3. Vào game
-4. Click "Connect Phantom Wallet"
-5. Approve connection trong Phantom
-6. Sign message trong Phantom
-7. ✅ Vào MenuScene với wallet info hiển thị
+3. Vào game, click nút **Kết nối Phantom** ở góc trên phải hoặc trong modal VIP.
+4. Approve connection trong Phantom
+5. Sign message trong Phantom
+6. ✅ Panel top-right đổi sang hiển thị wallet + credit
 
 #### **3. Test VIP Room (cần có credit):**
-1. Đăng nhập Phantom
-2. Nạp credit (tạm thời cần API backend)
-3. Trong MenuScene, credit >= 1
-4. Click "PLAY VIP"
-5. ✅ Vào được VIP room
+1. Đăng nhập Phantom.
+2. Nhấn `PLAY VIP` → nếu credit < 1, dùng modal để nạp trực tiếp.
+3. Sau khi giao dịch confirm, bấm `Tôi đã nạp xong` → credit >= 1.
+4. Modal đóng và tự động join VIP room.
+5. ✅ Vào được VIP room (hiện dùng chung phòng với Free tới khi backend tách riêng).
 
 ---
 

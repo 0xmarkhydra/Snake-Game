@@ -1,8 +1,23 @@
 import { Scene } from 'phaser';
+import { Connection, PublicKey } from '@solana/web3.js';
+import { PROGRAM_ID, VaultSDK } from '@solana-payment/sdk';
 import { EventBus } from '../EventBus';
 import { GAME_INFO } from '../../configs/game';
 import { authService } from '../../services/AuthService';
 import { walletService } from '../../services/WalletService';
+import { apiService } from '../../services/ApiService';
+import type { PhantomProvider } from '../../types/Auth.types';
+
+const DEFAULT_RPC_ENDPOINT = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+
+interface DepositMetadata {
+    raw: Record<string, unknown>;
+    tokenMint: string;
+    decimals: number;
+    amount: number;
+    memo?: string;
+    referenceCode?: string;
+}
 
 interface MenuSceneData {
     isAuthenticated?: boolean;
@@ -13,10 +28,22 @@ export class MenuScene extends Scene {
     private selectedSkin: number = 0;
     private skins: number[] = [0, 1, 2, 3, 4, 5, 6, 7]; // Skin IDs
     private skinImages: Phaser.GameObjects.Image[] = [];
-    private backgroundParticles: Phaser.GameObjects.Particles.ParticleEmitterManager;
-    private titleTween: Phaser.Tweens.Tween;
+    private menuContainer?: Phaser.GameObjects.Container;
+    private nameInputDom?: Phaser.GameObjects.DOMElement;
+    private nameInputElement?: HTMLInputElement | null;
+    private instructionsText?: Phaser.GameObjects.Text;
+    private versionText?: Phaser.GameObjects.Text;
     private isAuthenticated: boolean = false;
     private creditText: Phaser.GameObjects.Text;
+    private walletInfoContainer?: Phaser.GameObjects.Container;
+    private connectPromptContainer?: Phaser.GameObjects.Container;
+
+    private vipModalOverlay?: Phaser.GameObjects.Rectangle;
+    private vipModalContainer?: Phaser.GameObjects.Container;
+    private vipDomElement?: Phaser.GameObjects.DOMElement;
+    private vipProcessing: boolean = false;
+    private readonly rpcEndpoint: string = DEFAULT_RPC_ENDPOINT;
+    private creditUpdateHandler?: () => void;
     
     constructor() {
         super('MenuScene');
@@ -47,16 +74,13 @@ export class MenuScene extends Scene {
         // Add decorative elements
         this.createDecorations(width, height);
         
-        // Add wallet info at top if authenticated
-        if (this.isAuthenticated) {
-            this.createWalletInfo(width, height);
-        }
+        // Render wallet/connect controls
+        this.renderWalletControls(width, height);
         
-        // Add Back button at bottom left
-        this.createBackButton(20, height - 20);
         
         // Create a container for the menu content
         const menuContainer = this.add.container(width / 2, height / 2);
+        this.menuContainer = menuContainer;
         
         // Add title with animation
         this.createAnimatedTitle(menuContainer, 0, -height / 4);
@@ -101,13 +125,14 @@ export class MenuScene extends Scene {
         menuContainer.add(underline);
         
         // Create a DOM element for name input with better styling
-        const nameInput = this.add.dom(0, -80).createFromHTML(`
+        this.nameInputDom = this.add.dom(0, -80).createFromHTML(`
             <input type="text" id="nameInput" maxlength="15" placeholder="Enter your name" 
                    style="padding: 12px; width: 240px; text-align: center; border-radius: 8px; 
                    border: 2px solid #3e92cc; background-color: rgba(10,36,99,0.7); color: white; 
                    font-size: 18px; font-family: Arial; outline: none; box-shadow: 0 0 10px #3e92cc;">
         `);
-        menuContainer.add(nameInput);
+        menuContainer.add(this.nameInputDom);
+        this.nameInputElement = this.nameInputDom.node.querySelector('input');
         
         // Set default value
         setTimeout(() => {
@@ -138,7 +163,7 @@ export class MenuScene extends Scene {
         this.createPlayButtons(menuContainer);
         
         // Instructions with better styling
-        const instructions = this.add.text(width / 2, height - 40, 'Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!', {
+        this.instructionsText = this.add.text(width / 2, height - 40, 'Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!', {
             fontFamily: 'Arial',
             fontSize: '16px',
             color: '#ffffff',
@@ -149,7 +174,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5);
         
         // Add version info
-        const version = this.add.text(width - 10, height - 10, `v${GAME_INFO.version}`, {
+        this.versionText = this.add.text(width - 10, height - 10, `v${GAME_INFO.version}`, {
             fontFamily: 'Arial',
             fontSize: '12px',
             color: '#aaaaaa'
@@ -182,7 +207,7 @@ export class MenuScene extends Scene {
         bg.fillRect(0, 0, width, height);
         
         // Add grid pattern similar to LoadingScene
-        const grid = this.add.grid(
+        this.add.grid(
             width / 2, height / 2,
             width, height,
             32, 32,  // Same grid size as LoadingScene
@@ -193,7 +218,7 @@ export class MenuScene extends Scene {
         // Add particles for background with colors that match the new theme
         if (this.textures.exists('food')) {
             // Create particle emitters using the correct API
-            const particles1 = this.add.particles(0, 0, 'food', {
+            this.add.particles(0, 0, 'food', {
                 x: { min: 0, max: width },
                 y: { min: 0, max: height },
                 scale: { start: 0.2, end: 0.1 },
@@ -208,7 +233,7 @@ export class MenuScene extends Scene {
             });
             
             // Add floating food particles
-            const particles2 = this.add.particles(0, 0, 'food', {
+            this.add.particles(0, 0, 'food', {
                 x: { min: 0, max: width },
                 y: height + 50,
                 scale: { start: 0.5, end: 0.2 },
@@ -325,7 +350,7 @@ export class MenuScene extends Scene {
         container.add(subtitle);
         
         // Animate title
-        this.titleTween = this.tweens.add({
+        this.tweens.add({
             targets: [title, titleShadow, titleGlow],
             y: y - 10,
             duration: 2000,
@@ -555,7 +580,150 @@ export class MenuScene extends Scene {
         return colors[skinId % colors.length];
     }
     
-    private createWalletInfo(width: number, height: number) {
+    private setMenuVisibility(visible: boolean): void {
+        this.menuContainer?.setVisible(visible);
+        this.instructionsText?.setVisible(visible);
+        this.versionText?.setVisible(visible);
+
+        if (this.nameInputDom) {
+            this.nameInputDom.setVisible(visible);
+            const domNode = this.nameInputDom.node as HTMLElement;
+            if (domNode) {
+                domNode.style.display = visible ? 'block' : 'none';
+            }
+        }
+
+        if (this.nameInputElement) {
+            this.nameInputElement.style.visibility = visible ? 'visible' : 'hidden';
+            if (!visible) {
+                this.nameInputElement.blur();
+            }
+        }
+    }
+
+    private renderWalletControls(width: number, height: number): void {
+        if (authService.isAuthenticated()) {
+            this.isAuthenticated = true;
+            this.createWalletInfo(width, height);
+        } else {
+            this.isAuthenticated = false;
+            this.createConnectPrompt(width, height);
+        }
+    }
+
+    private destroyConnectPrompt(): void {
+        if (this.connectPromptContainer) {
+            this.connectPromptContainer.destroy();
+            this.connectPromptContainer = undefined;
+        }
+    }
+
+    private createConnectPrompt(width: number, _height: number): void {
+        this.destroyConnectPrompt();
+        if (this.walletInfoContainer) {
+            this.walletInfoContainer.destroy();
+            this.walletInfoContainer = undefined;
+        }
+
+        const container = this.add.container(width - 20, 20)
+            .setScrollFactor(0)
+            .setDepth(1000);
+
+        const panelWidth = 260;
+        const panelHeight = 120;
+        const panelBg = this.add.graphics();
+        panelBg.fillGradientStyle(0x0d1828, 0x0d1828, 0x081020, 0x081020, 0.95, 0.95, 0.95, 0.95);
+        panelBg.fillRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 10);
+        panelBg.lineStyle(2, 0x3e92cc, 0.8);
+        panelBg.strokeRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 10);
+        container.add(panelBg);
+
+        const promptText = this.add.text(-panelWidth + 15, 15, 'Chưa kết nối Phantom', {
+            fontFamily: 'Arial',
+            fontSize: '14px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        });
+        container.add(promptText);
+
+        const subText = this.add.text(-panelWidth + 15, 40, 'Đăng nhập để mở khóa phòng VIP và nạp credit ngay trong game.', {
+            fontFamily: 'Arial',
+            fontSize: '12px',
+            color: '#9ad6ff',
+            wordWrap: { width: panelWidth - 30 }
+        });
+        container.add(subText);
+
+        const buttonWidth = panelWidth - 30;
+        const buttonHeight = 40;
+        const buttonX = -panelWidth + 15;
+        const buttonY = 70;
+
+        const buttonBg = this.add.graphics();
+        buttonBg.fillGradientStyle(0xff9500, 0xffb347, 0xff7a00, 0xff9500, 1, 1, 1, 1);
+        buttonBg.fillRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
+        buttonBg.lineStyle(2, 0xffffff, 0.9);
+        buttonBg.strokeRoundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
+        buttonBg.setInteractive(new Phaser.Geom.Rectangle(buttonX, buttonY, buttonWidth, buttonHeight), Phaser.Geom.Rectangle.Contains);
+        container.add(buttonBg);
+
+        const buttonLabel = this.add.text(
+            buttonX + buttonWidth / 2,
+            buttonY + buttonHeight / 2,
+            'Kết nối Phantom',
+            {
+                fontFamily: 'Arial',
+                fontSize: '15px',
+                fontStyle: 'bold',
+                color: '#ffffff'
+            }
+        ).setOrigin(0.5);
+        container.add(buttonLabel);
+
+        buttonBg.on('pointerover', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 1.03,
+                duration: 150,
+                ease: 'Back.easeOut'
+            });
+        });
+
+        buttonBg.on('pointerout', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 1,
+                duration: 150,
+                ease: 'Back.easeIn'
+            });
+        });
+
+        buttonBg.on('pointerdown', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 0.97,
+                duration: 100,
+                yoyo: true,
+                onComplete: () => this.showVipLoginModal()
+            });
+        });
+
+        this.connectPromptContainer = container;
+    }
+
+    private createWalletInfo(width: number, _height: number) {
+        this.destroyConnectPrompt();
+        if (this.walletInfoContainer) {
+            this.walletInfoContainer.destroy();
+            this.walletInfoContainer = undefined;
+        }
+
+        // Remove previous credit updater if exists
+        if (this.creditUpdateHandler) {
+            this.events.off('update', this.creditUpdateHandler);
+            this.creditUpdateHandler = undefined;
+        }
+
         // Create wallet info container at top right
         const walletContainer = this.add.container(width - 20, 20)
             .setScrollFactor(0)
@@ -604,11 +772,12 @@ export class MenuScene extends Scene {
         walletContainer.add(this.creditText);
         
         // Update credit every frame
-        this.events.on('update', () => {
+        this.creditUpdateHandler = () => {
             if (this.creditText) {
                 this.creditText.setText(walletService.formatCredit());
             }
-        });
+        };
+        this.events.on('update', this.creditUpdateHandler);
         
         // Logout button
         const logoutBtn = this.add.text(-panelWidth + 15, 75, '🚪 Logout', {
@@ -629,7 +798,9 @@ export class MenuScene extends Scene {
         .on('pointerdown', async () => {
             walletService.stopPolling();
             await authService.logout();
-            this.scene.start('LoginScene');
+            walletService.clearCredit();
+            this.isAuthenticated = false;
+            this.scene.start('MenuScene', { isAuthenticated: false });
         });
         walletContainer.add(logoutBtn);
         
@@ -644,6 +815,8 @@ export class MenuScene extends Scene {
             ease: 'Back.easeOut',
             delay: 500
         });
+
+        this.walletInfoContainer = walletContainer;
     }
     
     private createPlayButtons(container: Phaser.GameObjects.Container) {
@@ -661,12 +834,10 @@ export class MenuScene extends Scene {
             130, 250,
             'PLAY VIP',
             0xFF9500, // Orange/Gold
-            () => this.startGame('vip')
+            () => this.handleVipPlay()
         );
         container.add(vipButton);
         
-        // Add VIP lock icon if not enough credit
-        if (this.isAuthenticated) {
             const vipInfo = this.add.text(130, 320, '', {
                 fontFamily: 'Arial',
                 fontSize: '12px',
@@ -675,29 +846,595 @@ export class MenuScene extends Scene {
             }).setOrigin(0.5);
             container.add(vipInfo);
             
-            // Update VIP button state based on credit
-            this.events.on('update', () => {
+        const updateVipInfo = () => {
+            if (authService.isAuthenticated()) {
                 const hasCredit = walletService.hasEnoughCredit(1);
-                if (!hasCredit) {
-                    vipButton.setAlpha(0.5);
-                    vipInfo.setText('Need 1+ credit');
+                if (hasCredit) {
+                    vipInfo.setText('Ready to play VIP!');
+                    vipInfo.setColor('#9ad6ff');
                 } else {
-                    vipButton.setAlpha(1);
-                    vipInfo.setText('');
+                    vipInfo.setText('Cần ≥1 credit – nhấn để nạp');
+                    vipInfo.setColor('#ffaa00');
                 }
+            } else {
+                vipInfo.setText('🔒 Đăng nhập Phantom để chơi VIP');
+                vipInfo.setColor('#ff6666');
+            }
+        };
+
+        updateVipInfo();
+        this.events.on('update', updateVipInfo);
+    }
+    
+    private async handleVipPlay(): Promise<void> {
+        if (this.vipProcessing) {
+            return;
+        }
+
+        if (!authService.isAuthenticated()) {
+            this.showVipLoginModal();
+            return;
+        }
+
+        this.isAuthenticated = true;
+
+        if (!this.walletInfoContainer) {
+            this.createWalletInfo(this.cameras.main.width, this.cameras.main.height);
+        }
+
+        try {
+            this.vipProcessing = true;
+            const credit = await walletService.getCredit();
+            if (credit >= 1) {
+                this.hideVipModal();
+                this.startGame('vip');
+            } else {
+                this.showVipDepositModal('Credit is still below the requirement. Please deposit to join VIP rooms.');
+            }
+        } catch (error) {
+            console.error('Không thể lấy credit hiện tại', error);
+            this.showVipDepositModal('Không thể kiểm tra credit. Vui lòng thử nạp lại.');
+        } finally {
+            this.vipProcessing = false;
+        }
+    }
+
+    private showVipLoginModal(): void {
+        this.hideVipModal();
+        this.setMenuVisibility(false);
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        this.vipModalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+            .setScrollFactor(0)
+            .setDepth(2000)
+            .setInteractive();
+
+        this.vipModalContainer = this.add.container(width / 2, height / 2 - 40).setDepth(2001);
+
+        const panel = this.add.rectangle(0, 0, 420, 260, 0x0a2463, 0.95)
+            .setOrigin(0.5)
+            .setStrokeStyle(3, 0x3e92cc, 0.8);
+        this.vipModalContainer.add(panel);
+
+        const title = this.add.text(0, -90, 'Chơi VIP cần Phantom', {
+            fontFamily: 'Arial',
+            fontSize: '22px',
+            fontStyle: 'bold',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+
+        const description = this.add.text(0, -40, 'Kết nối Phantom wallet để tham gia phòng VIP và nhận thưởng.', {
+            fontFamily: 'Arial',
+            fontSize: '14px',
+            color: '#9ad6ff',
+            align: 'center',
+            wordWrap: { width: 360 }
+        }).setOrigin(0.5);
+
+        const statusText = this.add.text(0, 10, '', {
+            fontFamily: 'Arial',
+            fontSize: '13px',
+            color: '#ffcb05',
+            align: 'center',
+            wordWrap: { width: 360 }
+        }).setOrigin(0.5);
+
+        const connectButton = this.createModalButton(0, 70, 'Kết nối Phantom', async () => {
+            if (this.vipProcessing) return;
+            await this.handleVipLoginFlow(statusText);
+        });
+
+        const cancelButton = this.createModalButton(0, 120, 'Để sau', () => this.hideVipModal(), 0x4A5568, 0x718096);
+
+        this.vipModalContainer.add([title, description, statusText, connectButton, cancelButton]);
+    }
+
+    private async handleVipLoginFlow(statusText: Phaser.GameObjects.Text): Promise<void> {
+        try {
+            this.vipProcessing = true;
+            statusText.setColor('#ffcb05');
+            statusText.setText('Đang mở Phantom...');
+
+            await authService.login();
+            this.isAuthenticated = true;
+            statusText.setText('Đăng nhập thành công! Đang kiểm tra credit...');
+
+            walletService.startPolling(3000);
+            if (!this.walletInfoContainer) {
+                this.createWalletInfo(this.cameras.main.width, this.cameras.main.height);
+            }
+
+            const credit = await walletService.getCredit();
+            if (credit >= 1) {
+                statusText.setColor('#4caf50');
+                statusText.setText('Đã đủ credit! Vào phòng VIP thôi.');
+                this.time.delayedCall(500, () => {
+                    this.hideVipModal();
+                    this.startGame('vip');
             });
         } else {
-            // Show login prompt for guests
-            const vipLock = this.add.text(130, 320, '🔒 Login required', {
+                statusText.setColor('#ffcb05');
+                statusText.setText('Credit is still below the requirement. Please deposit to join VIP rooms.');
+                this.time.delayedCall(400, () => this.showVipDepositModal());
+            }
+        } catch (error: any) {
+            console.error('Kết nối Phantom thất bại', error);
+            statusText.setColor('#ff6666');
+            const message = error?.message || 'Kết nối thất bại. Vui lòng thử lại.';
+            statusText.setText(message);
+        } finally {
+            this.vipProcessing = false;
+        }
+    }
+
+    private showVipDepositModal(initialStatusMessage?: string): void {
+        this.hideVipModal();
+        this.setMenuVisibility(false);
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        this.vipModalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+            .setScrollFactor(0)
+            .setDepth(2000)
+            .setInteractive();
+
+        this.vipModalContainer = this.add.container(width / 2, height / 2).setDepth(2001);
+
+        const panelWidth = 420;
+        const panelHeight = 340;
+
+        const shadow = this.add.rectangle(0, 12, panelWidth + 30, panelHeight + 30, 0x000000, 0.35).setOrigin(0.5);
+        this.vipModalContainer.add(shadow);
+
+        const panel = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x0b2a6b, 0.96)
+            .setOrigin(0.5)
+            .setStrokeStyle(2, 0x52a8ff, 0.85);
+        this.vipModalContainer.add(panel);
+
+        const title = this.add.text(0, -panelHeight / 2 + 40, 'Deposit Tokens', {
                 fontFamily: 'Arial',
-                fontSize: '12px',
-                color: '#ff6666',
+            fontSize: '22px',
+            fontStyle: 'bold',
+            color: '#ffffff',
+        })
+            .setOrigin(0.5)
+            .setShadow(0, 2, '#05173d', 0.8, true, false);
+        this.vipModalContainer.add(title);
+
+        const currentCredit = walletService.getCachedCredit();
+        const creditDisplay = this.add.text(0, title.y + 26, `Current credit: ${walletService.formatCredit(currentCredit)} credit`, {
+            fontFamily: 'Arial',
+            fontSize: '14px',
+            color: '#9ad6ff',
+        }).setOrigin(0.5);
+        this.vipModalContainer.add(creditDisplay);
+
+        const formHtml = `
+            <div style="display:flex;flex-direction:column;align-items:stretch;gap:18px;width:280px;font-family:Arial;">
+                <label style="display:flex;flex-direction:column;gap:6px;color:#ffffff;font-size:14px;text-align:left;">
+                    <span>Amount</span>
+                    <input id="vip-deposit-amount" type="number" min="0.000001" step="0.000001" value="1"
+                        style="padding:10px;border-radius:8px;border:2px solid #3e92cc;background:rgba(8,24,60,0.9);color:#ffffff;font-size:15px;outline:none;" />
+                </label>
+                <button id="vip-deposit-action" type="button"
+                    style="padding:12px;border-radius:8px;background:#ff9500;color:#ffffff;border:none;font-weight:bold;font-size:15px;cursor:pointer;">
+                    Deposit
+                </button>
+                <div id="vip-deposit-status" style="min-height:54px;font-size:13px;color:#ffcb05;text-align:center;line-height:1.4;"></div>
+                <button id="vip-cancel" type="button"
+                    style="padding:10px;border-radius:8px;background:#4a5568;color:#ffffff;border:none;font-weight:bold;cursor:pointer;">
+                    Close
+                </button>
+            </div>
+        `;
+
+        this.vipDomElement = this.add.dom(0, creditDisplay.y + 110).createFromHTML(formHtml).setOrigin(0.5);
+        this.vipModalContainer.add(this.vipDomElement);
+
+        const node = this.vipDomElement.node as HTMLElement;
+        const amountInput = node.querySelector('#vip-deposit-amount') as HTMLInputElement;
+        const statusElement = node.querySelector('#vip-deposit-status') as HTMLElement;
+        const depositButton = node.querySelector('#vip-deposit-action') as HTMLButtonElement;
+        const cancelButton = node.querySelector('#vip-cancel') as HTMLButtonElement;
+
+        if (statusElement) {
+            statusElement.style.color = '#ffcb05';
+            statusElement.innerText = initialStatusMessage ?? 'Enter the amount and press Deposit.';
+        }
+
+        depositButton?.addEventListener('click', async () => {
+            if (!amountInput || !statusElement || !depositButton) return;
+            await this.handleVipDepositFlow(amountInput, statusElement, depositButton, creditDisplay);
+        });
+
+        cancelButton?.addEventListener('click', () => this.hideVipModal());
+    }
+
+    private async handleVipDepositFlow(
+        amountInput: HTMLInputElement,
+        statusElement: HTMLElement,
+        depositButton: HTMLButtonElement,
+        creditDisplay: Phaser.GameObjects.Text
+    ): Promise<void> {
+        if (this.vipProcessing) {
+            return;
+        }
+
+        const walletAddress = authService.getWalletAddress();
+        if (!walletAddress) {
+            statusElement.style.color = '#ff6666';
+            statusElement.innerText = 'Wallet not found. Please connect Phantom first.';
+            this.showVipLoginModal();
+            return;
+        }
+
+        const amount = Number(amountInput.value);
+        if (!amount || amount <= 0) {
+            statusElement.style.color = '#ff6666';
+            statusElement.innerText = 'Amount must be greater than 0.';
+            return;
+        }
+
+        const provider = this.getPhantomProvider();
+        if (!provider?.publicKey || typeof provider.signTransaction !== 'function') {
+            statusElement.style.color = '#ff6666';
+            statusElement.innerText = 'Phantom wallet is not available. Please reconnect.';
+            return;
+        }
+
+        try {
+            this.vipProcessing = true;
+            depositButton.disabled = true;
+
+            const previousCredit = walletService.getCachedCredit();
+
+            statusElement.style.color = '#ffcb05';
+            statusElement.innerText = 'Generating deposit metadata...';
+
+            const response = await apiService.post('/wallet/deposit', {
+                walletAddress,
+                amount
+            });
+
+            const metadata = this.extractDepositMetadata(response, amount);
+            if (!metadata.tokenMint) {
+                throw new Error('Token mint is missing in metadata.');
+            }
+
+            statusElement.innerText = 'Building transaction...';
+
+            const connection = new Connection(this.rpcEndpoint || DEFAULT_RPC_ENDPOINT, 'confirmed');
+            const sdk = new VaultSDK({ connection, programId: PROGRAM_ID });
+
+            const mint = new PublicKey(metadata.tokenMint);
+            const rawAmount = Math.round(metadata.amount * (10 ** metadata.decimals));
+
+            const transaction = await sdk.buildDepositTransaction({
+                amount: rawAmount,
+                user: provider.publicKey,
+                mint,
+            });
+
+            transaction.feePayer = provider.publicKey;
+            const { blockhash } = await connection.getLatestBlockhash('confirmed');
+            transaction.recentBlockhash = blockhash;
+
+            statusElement.innerText = 'Signing transaction in Phantom...';
+            const signed = await provider.signTransaction(transaction);
+
+            statusElement.innerText = 'Sending transaction to Solana...';
+            const signature = await connection.sendRawTransaction(signed.serialize());
+
+            statusElement.innerText = 'Confirming transaction...';
+            await connection.confirmTransaction(signature, 'confirmed');
+
+            const solscanUrl = this.getSolscanTxUrl(signature);
+            statusElement.innerHTML = this.buildWaitingHtml(signature, solscanUrl, 'Checking credit balance...');
+
+            const newCredit = await walletService.getCredit();
+            const formattedCredit = walletService.formatCredit(newCredit);
+            creditDisplay.setText(`Current credit: ${formattedCredit} credit`);
+
+            if (newCredit > previousCredit) {
+                this.showDepositSuccess(statusElement, signature, solscanUrl, formattedCredit);
+            } else {
+                await this.pollCreditForUpdate(previousCredit, signature, creditDisplay, statusElement, solscanUrl);
+            }
+        } catch (error: any) {
+            console.error('Deposit failed', error);
+            statusElement.style.color = '#ff6666';
+            const message = error?.message ?? 'Deposit failed. Please try again.';
+            statusElement.innerText = message;
+        } finally {
+            this.vipProcessing = false;
+            depositButton.disabled = false;
+        }
+    }
+
+    private extractDepositMetadata(response: any, fallbackAmount: number): DepositMetadata {
+        const payload = (response?.data ?? response) as Record<string, unknown>;
+        const rawMetadata = (payload?.['metadata'] ?? payload) as Record<string, unknown>;
+
+        const tokenMint = String(rawMetadata.tokenMint ?? rawMetadata.mint ?? '');
+        const decimalsValue = Number(
+            rawMetadata.decimals ??
+            rawMetadata.decimal ??
+            payload?.['decimals'] ??
+            payload?.['decimal'] ??
+            6
+        );
+        const amountValue = Number(
+            rawMetadata.amount ??
+            rawMetadata.value ??
+            rawMetadata.rawAmount ??
+            rawMetadata.formattedAmount ??
+            payload?.['amount'] ??
+            payload?.['value'] ??
+            payload?.['rawAmount'] ??
+            fallbackAmount
+        );
+
+        const memo = String(rawMetadata.memo ?? payload?.['memo'] ?? '');
+        const referenceCode = String(rawMetadata.referenceCode ?? payload?.['referenceCode'] ?? '');
+
+        return {
+            raw: rawMetadata,
+            tokenMint,
+            decimals: Number.isNaN(decimalsValue) ? 6 : decimalsValue,
+            amount: Number.isNaN(amountValue) ? fallbackAmount : amountValue,
+            memo: memo || undefined,
+            referenceCode: referenceCode || undefined
+        };
+    }
+
+    private hideVipModal(): void {
+        if (this.vipDomElement) {
+            this.vipDomElement.destroy();
+            this.vipDomElement = undefined;
+        }
+
+        if (this.vipModalContainer) {
+            this.vipModalContainer.destroy();
+            this.vipModalContainer = undefined;
+        }
+
+        if (this.vipModalOverlay) {
+            this.vipModalOverlay.destroy();
+            this.vipModalOverlay = undefined;
+        }
+
+        this.setMenuVisibility(true);
+    }
+
+    private async pollCreditForUpdate(
+        previousCredit: number,
+        signature: string,
+        creditDisplay: Phaser.GameObjects.Text,
+        statusElement: HTMLElement,
+        solscanUrl: string
+    ): Promise<void> {
+        const maxAttempts = 10;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await this.delay(3000);
+            const refreshedCredit = await walletService.getCredit();
+            const formattedCredit = walletService.formatCredit(refreshedCredit);
+            creditDisplay.setText(`Current credit: ${formattedCredit} credit`);
+
+        if (refreshedCredit > previousCredit) {
+            this.showDepositSuccess(statusElement, signature, solscanUrl, formattedCredit);
+                return;
+            }
+
+            const remaining = maxAttempts - attempt - 1;
+            const waitingMessage =
+                remaining > 0
+                    ? `Waiting for credit update from webhook... (${remaining} more tries)`
+                    : 'Waiting for credit update from webhook...';
+            statusElement.innerHTML = this.buildWaitingHtml(signature, solscanUrl, waitingMessage);
+        }
+
+        statusElement.innerHTML = `
+            <div style="color:#ff6666;font-weight:bold;">Credit has not updated yet.</div>
+            <div style="margin-top:6px;color:#9ad6ff;">${this.buildSolscanLink(signature, solscanUrl)}</div>
+            <div style="margin-top:6px;color:#ffffff;">You can still join VIP manually once credit updates.</div>
+            ${this.renderJoinVipButton(false)}
+        `;
+    }
+
+    private createModalButton(
+        x: number,
+        y: number,
+        text: string,
+        onClick: () => void | Promise<void>,
+        backgroundColor: number = 0xFF9500,
+        borderColor: number = 0xFFFFFF
+    ): Phaser.GameObjects.Container {
+        const container = this.add.container(x, y);
+
+        const buttonWidth = 240;
+        const buttonHeight = 48;
+
+        const bg = this.add.graphics();
+        bg.fillGradientStyle(
+            backgroundColor,
+            backgroundColor,
+            Phaser.Display.Color.GetColor(
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).r * 0.8,
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).g * 0.8,
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).b * 0.8
+            ),
+            Phaser.Display.Color.GetColor(
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).r * 0.6,
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).g * 0.6,
+                Phaser.Display.Color.IntegerToRGB(backgroundColor).b * 0.6
+            ),
+            1, 1, 1, 1
+        );
+        bg.fillRoundedRect(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight, 12);
+        bg.lineStyle(2, borderColor, 0.9);
+        bg.strokeRoundedRect(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight, 12);
+        bg.setInteractive(
+            new Phaser.Geom.Rectangle(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight),
+            Phaser.Geom.Rectangle.Contains
+        );
+        container.add(bg);
+
+        const label = this.add.text(0, 0, text, {
+            fontFamily: 'Arial',
+            fontSize: '16px',
+            fontStyle: 'bold',
+            color: '#ffffff',
                 align: 'center'
             }).setOrigin(0.5);
-            container.add(vipLock);
-            
-            vipButton.setAlpha(0.5);
+        container.add(label);
+
+        bg.on('pointerover', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 1.05,
+                duration: 150,
+                ease: 'Back.easeOut'
+            });
+        });
+
+        bg.on('pointerout', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 1,
+                duration: 150,
+                ease: 'Back.easeIn'
+            });
+        });
+
+        bg.on('pointerdown', () => {
+            this.tweens.add({
+                targets: container,
+                scale: 0.95,
+                duration: 100,
+                yoyo: true,
+                onComplete: () => {
+                    Promise.resolve(onClick()).catch((error) => {
+                        console.error('Modal button action error', error);
+                    });
+                }
+            });
+        });
+
+        return container;
+    }
+
+    private buildSuccessHtml(signature: string, solscanUrl: string, formattedCredit: string): string {
+        return `
+            <div style="color:#4caf50;font-weight:bold;">Deposit confirmed!</div>
+            <div style="color:#ffffff;">Signature: ${this.buildSolscanLink(signature, solscanUrl)}</div>
+            <div style="color:#ffcb05;">Credit: ${formattedCredit} credit</div>
+        `;
+    }
+
+    private buildWaitingHtml(signature: string, solscanUrl: string, message: string): string {
+        return `
+            <div style="color:#ffcb05;">${message}</div>
+            <div style="margin-top:6px;color:#9ad6ff;">${this.buildSolscanLink(signature, solscanUrl)}</div>
+        `;
+    }
+
+    private buildSolscanLink(signature: string, solscanUrl: string): string {
+        return `<a href="${solscanUrl}" target="_blank" rel="noopener noreferrer" style="color:#9ad6ff;text-decoration:underline;word-break:break-all;">${signature}</a>`;
+    }
+
+    private getSolscanTxUrl(signature: string): string {
+        const cluster = this.resolveSolanaCluster();
+        const suffix = cluster === 'mainnet-beta' ? '' : `?cluster=${cluster}`;
+        return `https://solscan.io/tx/${signature}${suffix}`;
+    }
+
+    private resolveSolanaCluster(): string {
+        const endpoint = (this.rpcEndpoint || DEFAULT_RPC_ENDPOINT).toLowerCase();
+        if (endpoint.includes('devnet')) return 'devnet';
+        if (endpoint.includes('testnet')) return 'testnet';
+        return 'mainnet-beta';
+    }
+
+    private async delay(ms: number): Promise<void> {
+        await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    private renderJoinVipButton(enabled: boolean = true): string {
+        const buttonId = enabled ? 'vip-success-join' : 'vip-success-join-disabled';
+        return `
+            <div style="margin-top:12px;display:flex;justify-content:center;">
+                <button id="${buttonId}" style="
+                    padding:10px 18px;
+                    border-radius:8px;
+                    border:none;
+                    background:${enabled ? '#4caf50' : '#4a5568'};
+                    color:#ffffff;
+                    font-weight:bold;
+                    cursor:${enabled ? 'pointer' : 'default'};
+                " ${enabled ? '' : 'disabled'}>
+                    Play VIP Now
+                </button>
+            </div>
+        `;
+    }
+
+    private showDepositSuccess(
+        statusElement: HTMLElement,
+        signature: string,
+        solscanUrl: string,
+        formattedCredit: string
+    ): void {
+        statusElement.innerHTML = this.buildSuccessHtml(signature, solscanUrl, formattedCredit);
+        statusElement.innerHTML += this.renderJoinVipButton(true);
+
+        this.addVipSuccessListeners();
+    }
+
+    private addVipSuccessListeners(): void {
+        const joinButton = document.getElementById('vip-success-join');
+        joinButton?.addEventListener('click', () => {
+            this.hideVipModal();
+            this.startGame('vip');
+        });
+    }
+
+    private getPhantomProvider(): (PhantomProvider & { publicKey?: PublicKey; signTransaction?: (transaction: any) => Promise<any> }) | null {
+        if (typeof window === 'undefined') {
+            return null;
         }
+
+        const provider = window.solana as (PhantomProvider & { publicKey?: PublicKey; signTransaction?: (transaction: any) => Promise<any> }) | undefined;
+        if (provider?.isPhantom) {
+            return provider;
+        }
+
+        const legacyProvider = window.phantom?.solana as (PhantomProvider & { publicKey?: PublicKey; signTransaction?: (transaction: any) => Promise<any> }) | undefined;
+        if (legacyProvider) {
+            return legacyProvider;
+        }
+
+        return null;
     }
     
     private createGameButton(
@@ -822,7 +1559,7 @@ export class MenuScene extends Scene {
         walletService.stopPolling();
         
         // Transition to game
-        this.cameras.main.fade(500, 0, 0, 0, false, (camera, progress) => {
+        this.cameras.main.fade(500, 0, 0, 0, false, (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
             if (progress === 1) {
                 this.scene.start('GameScene', {
                     playerName: this.playerName,
@@ -837,92 +1574,5 @@ export class MenuScene extends Scene {
     shutdown() {
         // Clean up when scene is shut down
         walletService.stopPolling();
-    }
-    
-    private createBackButton(x: number, y: number) {
-        const backContainer = this.add.container(x, y)
-            .setScrollFactor(0)
-            .setDepth(1000);
-        
-        // Button background
-        const btnWidth = 100;
-        const btnHeight = 40;
-        const buttonBg = this.add.graphics();
-        buttonBg.fillStyle(0x4A5568, 0.9); // Gray
-        buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-        buttonBg.lineStyle(2, 0x718096, 0.8);
-        buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-        buttonBg.setInteractive(
-            new Phaser.Geom.Rectangle(0, -btnHeight, btnWidth, btnHeight),
-            Phaser.Geom.Rectangle.Contains
-        );
-        backContainer.add(buttonBg);
-        
-        // Button text
-        const buttonText = this.add.text(btnWidth / 2, -btnHeight / 2, '← Back', {
-            fontFamily: 'Arial',
-            fontSize: '16px',
-            fontStyle: 'bold',
-            color: '#ffffff'
-        }).setOrigin(0.5);
-        backContainer.add(buttonText);
-        
-        // Button effects
-        buttonBg.on('pointerover', () => {
-            this.tweens.add({
-                targets: backContainer,
-                scale: 1.1,
-                duration: 200,
-                ease: 'Back.easeOut'
-            });
-            buttonBg.clear();
-            buttonBg.fillStyle(0x718096, 1);
-            buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-            buttonBg.lineStyle(2, 0xFFFFFF, 1);
-            buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-        });
-        
-        buttonBg.on('pointerout', () => {
-            this.tweens.add({
-                targets: backContainer,
-                scale: 1,
-                duration: 200,
-                ease: 'Back.easeIn'
-            });
-            buttonBg.clear();
-            buttonBg.fillStyle(0x4A5568, 0.9);
-            buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-            buttonBg.lineStyle(2, 0x718096, 0.8);
-            buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
-        });
-        
-        buttonBg.on('pointerdown', () => {
-            this.tweens.add({
-                targets: backContainer,
-                scale: 0.95,
-                duration: 100,
-                yoyo: true,
-                onComplete: () => {
-                    // Stop polling credit
-                    walletService.stopPolling();
-                    
-                    // Go back to login scene
-                    this.cameras.main.fade(300, 0, 0, 0, false, (camera, progress) => {
-                        if (progress === 1) {
-                            this.scene.start('LoginScene');
-                        }
-                    });
-                }
-            });
-        });
-        
-        // Animate entrance
-        backContainer.setAlpha(0);
-        this.tweens.add({
-            targets: backContainer,
-            alpha: 1,
-            duration: 500,
-            delay: 500
-        });
     }
 } 

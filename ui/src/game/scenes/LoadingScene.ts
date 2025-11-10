@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
+import { authService } from '../../services/AuthService';
 
 export class LoadingScene extends Scene {
     constructor() {
@@ -42,8 +43,8 @@ export class LoadingScene extends Scene {
             // Create dummy sound objects
             // this.createDummySounds();
             
-            // Move to the login scene
-            this.scene.start('LoginScene');
+            // Move to the menu scene directly
+            this.scene.start('MenuScene', { isAuthenticated: authService.isAuthenticated() });
         });
 
         // Load audio files
