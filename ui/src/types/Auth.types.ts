@@ -24,7 +24,7 @@ export interface NonceResponse {
 }
 
 export interface WalletBalance {
-    credit: number;
+    credit: number | string;
 }
 
 export interface AuthState {

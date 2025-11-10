@@ -235,7 +235,7 @@ const DepositTestPage = () => {
 
   const handleSendWithSdk = async () => {
     if (!metadata) {
-      appendLog('Run step ① to fetch metadata first', undefined, true);
+      appendLog('Chạy bước ② để lấy metadata trước', undefined, true);
       return;
     }
 
@@ -352,6 +352,31 @@ const DepositTestPage = () => {
       </header>
 
       <section className="card">
+        <h2>① Kết nối Phantom</h2>
+        <p>
+          Bật Phantom extension, chọn đúng mạng (ví dụ Devnet) và kết nối ví trước khi thực hiện các bước
+          tiếp theo.
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            onClick={handleConnectWallet}
+            disabled={!phantomAvailable || connectingWallet}
+          >
+            {phantomAvailable ? (connectingWallet ? 'Đang kết nối...' : 'Kết nối Phantom') : 'Phantom chưa cài đặt'}
+          </button>
+        </div>
+        <small>
+          Trạng thái ví:{' '}
+          {phantomAvailable
+            ? walletPublicKey
+              ? `Đã kết nối (${walletPublicKey})`
+              : 'Chưa kết nối'
+            : 'Không phát hiện Phantom (hãy dùng Chrome và cài extension)'}
+        </small>
+      </section>
+
+      <section className="card">
         <h2>⚙️ Cấu hình chung</h2>
         <label>
           Backend Base URL
@@ -390,7 +415,7 @@ const DepositTestPage = () => {
       </section>
 
       <section className="card">
-        <h2>① Gọi <code>/wallet/deposit</code></h2>
+        <h2>② Gọi <code>/wallet/deposit</code></h2>
         <label>
           Số lượng token muốn nạp
           <input
@@ -429,19 +454,12 @@ const DepositTestPage = () => {
       </section>
 
       <section className="card">
-        <h2>② Gửi giao dịch số với SDK</h2>
+        <h2>③ Gửi giao dịch số với SDK</h2>
         <p>
           Bước này dùng Phantom để ký giao dịch tạo bởi <code>@solana-payment/sdk</code>. Bạn cần
           chắc chắn vault đã được initialize trước đó.
         </p>
         <div className="actions">
-          <button
-            type="button"
-            onClick={handleConnectWallet}
-            disabled={!phantomAvailable || connectingWallet}
-          >
-            {phantomAvailable ? 'Kết nối Phantom' : 'Phantom chưa cài đặt'}
-          </button>
           <button
             type="button"
             onClick={handleSendWithSdk}
@@ -450,14 +468,6 @@ const DepositTestPage = () => {
             Gửi transaction (SDK)
           </button>
         </div>
-        <small>
-          Trạng thái ví:{' '}
-          {phantomAvailable
-            ? walletPublicKey
-              ? `Đã kết nối (${walletPublicKey})`
-              : 'Chưa kết nối'
-            : 'Không phát hiện Phantom (hãy dùng Chrome và cài extension)'}
-        </small>
         {metadata && (
           <small>
             Metadata đã chuẩn hóa: mint {metadata.tokenMint || 'N/A'}, amount {metadata.amount}, decimals{' '}
@@ -471,7 +481,7 @@ pnpm ts-node docs/task/deposit/deposit.ts`}
       </section>
 
       <section className="card">
-        <h2>③ Gửi webhook giả lập</h2>
+        <h2>④ Gửi webhook giả lập</h2>
         <label>
           Payload JSON
           <textarea

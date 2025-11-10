@@ -19,8 +19,13 @@ class WalletService {
      */
     async getCredit(): Promise<number> {
         try {
-            const response = await apiService.get<{ data: WalletBalance }>('/wallet/credit');
-            this.credit = response.data.credit;
+            const response = await apiService.get<{ data?: WalletBalance } | WalletBalance>('/wallet/credit');
+            const payload = (response as { data?: WalletBalance }).data ?? (response as WalletBalance);
+
+            const rawCredit = payload?.credit ?? this.credit;
+            const parsedCredit = typeof rawCredit === 'string' ? parseFloat(rawCredit) : rawCredit;
+
+            this.credit = Number.isFinite(parsedCredit) ? parsedCredit : this.credit;
             
             // Save to storage
             this.saveCredit(this.credit);
@@ -124,7 +129,15 @@ class WalletService {
      */
     formatCredit(credit?: number): string {
         const value = credit !== undefined ? credit : this.credit;
-        return value.toFixed(2);
+        const normalized = Number.isFinite(value) ? Number(value) : 0;
+
+        if (Number.isInteger(normalized)) {
+            return normalized.toFixed(1);
+        }
+
+        // Keep up to 6 decimals from backend but strip unnecessary zeros
+        const trimmed = parseFloat(normalized.toFixed(6));
+        return trimmed.toString();
     }
 }
 
