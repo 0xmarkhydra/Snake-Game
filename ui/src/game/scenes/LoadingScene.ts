@@ -42,8 +42,8 @@ export class LoadingScene extends Scene {
             // Create dummy sound objects
             // this.createDummySounds();
             
-            // Move to the menu scene
-            this.scene.start('MenuScene');
+            // Move to the login scene
+            this.scene.start('LoginScene');
         });
 
         // Load audio files
@@ -128,7 +128,7 @@ export class LoadingScene extends Scene {
         headGraphics.fillCircle(22, 22, 4);
         
         // Generate texture
-        headGraphics.generateTexture('snake-head', 32, 32);
+        headGraphics.generateTexture('snake-head', 28, 28);
         headGraphics.destroy();
     }
     

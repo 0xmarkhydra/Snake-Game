@@ -426,7 +426,7 @@ export class GameScene extends Scene {
         
         // Add background with gradient and rounded corners
         const cardWidth = 200;
-        const cardHeight = 120;
+        const cardHeight = 130;
         const cardBg = this.add.graphics();
         cardBg.fillGradientStyle(
             0x0d2828, 0x0d2828,  // Dark teal at top
@@ -501,6 +501,11 @@ export class GameScene extends Scene {
         
         // Create minimap
         this.createMinimap();
+        
+        // Add Menu button at bottom left
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        this.createMenuButton(20, height - 20);
     }
     
     private createLeaderboard() {
@@ -918,10 +923,10 @@ export class GameScene extends Scene {
                     headObj.fillCircle(0, 0, headRadius * 1.3);
                 }
                 
-                // Draw main head circle with outline
-                headObj.lineStyle(4, 0x000000, 1); // Black outline
+                // Draw main head circle with outline (thinner outline for rounder appearance)
                 headObj.fillStyle(colorInt, 1);
                 headObj.fillCircle(0, 0, headRadius);
+                headObj.lineStyle(2, 0x000000, 1); // Reduced outline from 4px to 2px for smoother circle
                 headObj.strokeCircle(0, 0, headRadius);
                 
                 // Draw eyes
@@ -964,10 +969,10 @@ export class GameScene extends Scene {
                         // Clear and redraw segment
                         segmentObj.clear();
                         
-                        // Draw body segment with outline
-                        segmentObj.lineStyle(3, 0x000000, 1); // Black outline
+                        // Draw body segment with outline (thinner for smoother appearance)
                         segmentObj.fillStyle(colorInt, 1);
                         segmentObj.fillCircle(0, 0, segmentRadius);
+                        segmentObj.lineStyle(2, 0x000000, 1); // Reduced outline from 3px to 2px
                         segmentObj.strokeCircle(0, 0, segmentRadius);
                     }
                 }
@@ -1207,7 +1212,7 @@ export class GameScene extends Scene {
         }
         
         // Add background with gradient and rounded corners
-        const bgWidth = 220;
+        const bgWidth = 240;
         const bgHeight = 300;
         const bg = this.add.graphics();
         bg.fillGradientStyle(
@@ -1974,5 +1979,138 @@ export class GameScene extends Scene {
             this.room.send('respawn');
             console.log('Sent respawn message to server');
         }
+    }
+    
+    private createMenuButton(x: number, y: number) {
+        const btnWidth = 100;
+        const btnHeight = 40;
+        
+        // Create button background (simple rectangle, not in container)
+        const buttonBg = this.add.rectangle(x + btnWidth/2, y - btnHeight/2, btnWidth, btnHeight, 0xFF8C00, 0.95)
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(100000)
+            .setStrokeStyle(3, 0xFFA500, 1)
+            .setInteractive({ useHandCursor: true });
+        
+        // Button text (directly positioned, not in container)
+        const buttonText = this.add.text(x + btnWidth/2, y - btnHeight/2, '📋 Menu', {
+            fontFamily: 'Arial',
+            fontSize: '18px',
+            fontStyle: 'bold',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(100001);
+        
+        // Make text also interactive (for larger click area)
+        buttonText.setInteractive({ useHandCursor: true });
+        
+        // Store original colors
+        const originalBgColor = 0xFF8C00;
+        const originalStrokeColor = 0xFFA500;
+        const hoverBgColor = 0xFFA500;
+        const hoverStrokeColor = 0xFFFFFF;
+        
+        // Hover effect for background
+        buttonBg.on('pointerover', () => {
+            buttonBg.setFillStyle(hoverBgColor, 1);
+            buttonBg.setStrokeStyle(3, hoverStrokeColor, 1);
+            this.tweens.add({
+                targets: [buttonBg, buttonText],
+                scaleX: 1.1,
+                scaleY: 1.1,
+                duration: 200,
+                ease: 'Back.easeOut'
+            });
+        });
+        
+        buttonBg.on('pointerout', () => {
+            buttonBg.setFillStyle(originalBgColor, 0.95);
+            buttonBg.setStrokeStyle(3, originalStrokeColor, 1);
+            this.tweens.add({
+                targets: [buttonBg, buttonText],
+                scaleX: 1,
+                scaleY: 1,
+                duration: 200,
+                ease: 'Back.easeIn'
+            });
+        });
+        
+        // Click handler for background
+        buttonBg.on('pointerdown', () => {
+            this.handleMenuClick(buttonBg, buttonText);
+        });
+        
+        // Hover effect for text
+        buttonText.on('pointerover', () => {
+            buttonBg.setFillStyle(hoverBgColor, 1);
+            buttonBg.setStrokeStyle(3, hoverStrokeColor, 1);
+            this.tweens.add({
+                targets: [buttonBg, buttonText],
+                scaleX: 1.1,
+                scaleY: 1.1,
+                duration: 200,
+                ease: 'Back.easeOut'
+            });
+        });
+        
+        buttonText.on('pointerout', () => {
+            buttonBg.setFillStyle(originalBgColor, 0.95);
+            buttonBg.setStrokeStyle(3, originalStrokeColor, 1);
+            this.tweens.add({
+                targets: [buttonBg, buttonText],
+                scaleX: 1,
+                scaleY: 1,
+                duration: 200,
+                ease: 'Back.easeIn'
+            });
+        });
+        
+        // Click handler for text
+        buttonText.on('pointerdown', () => {
+            this.handleMenuClick(buttonBg, buttonText);
+        });
+        
+        // Animate entrance
+        buttonBg.setAlpha(0);
+        buttonText.setAlpha(0);
+        this.tweens.add({
+            targets: [buttonBg, buttonText],
+            alpha: 1,
+            duration: 500,
+            delay: 1000
+        });
+    }
+    
+    private handleMenuClick(buttonBg: Phaser.GameObjects.Rectangle, buttonText: Phaser.GameObjects.Text) {
+        // Scale down effect
+        this.tweens.add({
+            targets: [buttonBg, buttonText],
+            scaleX: 0.9,
+            scaleY: 0.9,
+            duration: 100,
+            yoyo: true,
+            onComplete: () => {
+                // Confirm before leaving game
+                const confirmed = confirm('Leave game and go to menu?');
+                if (confirmed) {
+                    // Disconnect from room
+                    if (this.room) {
+                        this.room.leave();
+                    }
+                    
+                    // Go back to menu scene
+                    this.cameras.main.fade(300, 0, 0, 0, false, (_camera: any, progress: any) => {
+                        if (progress === 1) {
+                            this.scene.start('MenuScene');
+                        }
+                    });
+                }
+            }
+        });
     }
 } 

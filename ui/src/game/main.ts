@@ -1,6 +1,7 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { GAME_INFO } from '../configs/game';
 import { LoadingScene } from './scenes/LoadingScene';
+import { LoginScene } from './scenes/LoginScene';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
 
@@ -21,6 +22,7 @@ const config: Phaser.Types.Core.GameConfig = {
     title: GAME_INFO.name,
     scene: [
         LoadingScene,
+        LoginScene,
         MenuScene,
         GameScene
     ],

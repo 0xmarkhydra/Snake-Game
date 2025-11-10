@@ -1,6 +1,12 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { GAME_INFO } from '../../configs/game';
+import { authService } from '../../services/AuthService';
+import { walletService } from '../../services/WalletService';
+
+interface MenuSceneData {
+    isAuthenticated?: boolean;
+}
 
 export class MenuScene extends Scene {
     private playerName: string = 'Player';
@@ -9,9 +15,26 @@ export class MenuScene extends Scene {
     private skinImages: Phaser.GameObjects.Image[] = [];
     private backgroundParticles: Phaser.GameObjects.Particles.ParticleEmitterManager;
     private titleTween: Phaser.Tweens.Tween;
+    private isAuthenticated: boolean = false;
+    private creditText: Phaser.GameObjects.Text;
     
     constructor() {
         super('MenuScene');
+    }
+    
+    init(data: MenuSceneData) {
+        this.isAuthenticated = data.isAuthenticated || authService.isAuthenticated();
+        
+        // Load user profile if authenticated
+        if (this.isAuthenticated) {
+            const profile = authService.getUserProfile();
+            if (profile && profile.displayName) {
+                this.playerName = profile.displayName;
+            }
+            
+            // Start polling credit
+            walletService.startPolling(3000);
+        }
     }
     
     create() {
@@ -23,6 +46,14 @@ export class MenuScene extends Scene {
         
         // Add decorative elements
         this.createDecorations(width, height);
+        
+        // Add wallet info at top if authenticated
+        if (this.isAuthenticated) {
+            this.createWalletInfo(width, height);
+        }
+        
+        // Add Back button at bottom left
+        this.createBackButton(20, height - 20);
         
         // Create a container for the menu content
         const menuContainer = this.add.container(width / 2, height / 2);
@@ -103,127 +134,8 @@ export class MenuScene extends Scene {
         // Add skin selection with improved visuals
         this.createEnhancedSkinSelection(menuContainer, 0, 70);
         
-        // Play button with glow effect
-        const playButtonContainer = this.add.container(0, 250);
-        menuContainer.add(playButtonContainer);
-        
-        // Button glow effect
-        const buttonGlow = this.add.graphics();
-        buttonGlow.fillStyle(0x4CAF50, 0.5);
-        buttonGlow.fillRoundedRect(-100, -25, 200, 60, 16);
-        buttonGlow.setAlpha(0);
-        playButtonContainer.add(buttonGlow);
-        
-        // Play button with gradient
-        const playButton = this.add.text(0, 0, 'PLAY', {
-            fontFamily: 'Arial',
-            fontSize: '36px',
-            fontStyle: 'bold',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 4,
-            padding: {
-                left: 40,
-                right: 40,
-                top: 10,
-                bottom: 10
-            }
-        }).setOrigin(0.5);
-        
-        // Create button background
-        const buttonBg = this.add.graphics();
-        buttonBg.fillGradientStyle(
-            0x4CAF50, 0x4CAF50,  // Green at top
-            0x2E7D32, 0x2E7D32,  // Darker green at bottom
-            1, 1, 1, 1
-        );
-        buttonBg.fillRoundedRect(-100, -25, 200, 60, 16);
-        buttonBg.lineStyle(3, 0xFFFFFF, 0.8);
-        buttonBg.strokeRoundedRect(-100, -25, 200, 60, 16);
-        
-        playButtonContainer.add(buttonBg);
-        playButtonContainer.add(playButton);
-        
-        // Make button interactive
-        buttonBg.setInteractive(new Phaser.Geom.Rectangle(-100, -25, 200, 60), Phaser.Geom.Rectangle.Contains);
-        
-        // Button effects
-        buttonBg.on('pointerover', () => {
-            this.tweens.add({
-                targets: playButtonContainer,
-                scale: 1.1,
-                duration: 200,
-                ease: 'Back.easeOut'
-            });
-            
-            this.tweens.add({
-                targets: buttonGlow,
-                alpha: 1,
-                duration: 200
-            });
-            
-            // Add pulsing effect to glow
-            this.tweens.add({
-                targets: buttonGlow,
-                scaleX: 1.1,
-                scaleY: 1.1,
-                duration: 800,
-                yoyo: true,
-                repeat: -1
-            });
-        });
-        
-        buttonBg.on('pointerout', () => {
-            this.tweens.add({
-                targets: playButtonContainer,
-                scale: 1,
-                duration: 200,
-                ease: 'Back.easeIn'
-            });
-            
-            this.tweens.add({
-                targets: buttonGlow,
-                alpha: 0,
-                duration: 200,
-                onComplete: () => {
-                    this.tweens.killTweensOf(buttonGlow);
-                    buttonGlow.setScale(1);
-                }
-            });
-        });
-        
-        buttonBg.on('pointerdown', () => {
-            // Add click effect
-            this.tweens.add({
-                targets: playButtonContainer,
-                scale: 0.95,
-                duration: 100,
-                yoyo: true,
-                onComplete: () => {
-                    // Get the final name from input
-                    const inputElement = document.getElementById('nameInput') as HTMLInputElement;
-                    if (inputElement) {
-                        this.playerName = inputElement.value || 'Player';
-                    }
-                    
-                    // Add transition effect
-                    this.cameras.main.fade(500, 0, 0, 0, false, (camera, progress) => {
-                        if (progress === 1) {
-                            // Start the game
-                            this.scene.start('GameScene', { 
-                                playerName: this.playerName,
-                                skinId: this.selectedSkin
-                            });
-                        }
-                    });
-                }
-            });
-            
-            // Play sound effect
-            if (this.sound.get('select')) {
-                this.sound.play('select', { volume: 0.5 });
-            }
-        });
+        // Add play buttons (Free and VIP)
+        this.createPlayButtons(menuContainer);
         
         // Instructions with better styling
         const instructions = this.add.text(width / 2, height - 40, 'Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!', {
@@ -641,5 +553,376 @@ export class MenuScene extends Scene {
             0xFF3333  // Red (skin 7)
         ];
         return colors[skinId % colors.length];
+    }
+    
+    private createWalletInfo(width: number, height: number) {
+        // Create wallet info container at top right
+        const walletContainer = this.add.container(width - 20, 20)
+            .setScrollFactor(0)
+            .setDepth(1000);
+        
+        // Background panel
+        const panelWidth = 280;
+        const panelHeight = 120;
+        const panelBg = this.add.graphics();
+        panelBg.fillGradientStyle(
+            0x0d2828, 0x0d2828,
+            0x081818, 0x081818,
+            0.95, 0.95, 0.95, 0.95
+        );
+        panelBg.fillRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 10);
+        panelBg.lineStyle(2, 0x3e92cc, 0.8);
+        panelBg.strokeRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 10);
+        walletContainer.add(panelBg);
+        
+        // Wallet address
+        const walletAddress = authService.getWalletAddress();
+        if (walletAddress) {
+            const walletText = this.add.text(-panelWidth + 15, 15, '🔗 ' + authService.formatWalletAddress(walletAddress), {
+                fontFamily: 'Arial',
+                fontSize: '14px',
+                color: '#ffffff',
+                fontStyle: 'bold'
+            });
+            walletContainer.add(walletText);
+        }
+        
+        // Credit display
+        const creditLabel = this.add.text(-panelWidth + 15, 45, '💎 Credit:', {
+            fontFamily: 'Arial',
+            fontSize: '14px',
+            color: '#aaaaaa'
+        });
+        walletContainer.add(creditLabel);
+        
+        this.creditText = this.add.text(-panelWidth + 90, 45, walletService.formatCredit(), {
+            fontFamily: 'Arial',
+            fontSize: '18px',
+            color: '#FFD700',
+            fontStyle: 'bold'
+        });
+        walletContainer.add(this.creditText);
+        
+        // Update credit every frame
+        this.events.on('update', () => {
+            if (this.creditText) {
+                this.creditText.setText(walletService.formatCredit());
+            }
+        });
+        
+        // Logout button
+        const logoutBtn = this.add.text(-panelWidth + 15, 75, '🚪 Logout', {
+            fontFamily: 'Arial',
+            fontSize: '14px',
+            color: '#ff6666',
+            fontStyle: 'bold'
+        })
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => {
+            logoutBtn.setColor('#ff0000');
+            logoutBtn.setScale(1.1);
+        })
+        .on('pointerout', () => {
+            logoutBtn.setColor('#ff6666');
+            logoutBtn.setScale(1);
+        })
+        .on('pointerdown', async () => {
+            walletService.stopPolling();
+            await authService.logout();
+            this.scene.start('LoginScene');
+        });
+        walletContainer.add(logoutBtn);
+        
+        // Animate entrance
+        walletContainer.setAlpha(0);
+        walletContainer.setX(width + 50);
+        this.tweens.add({
+            targets: walletContainer,
+            alpha: 1,
+            x: width - 20,
+            duration: 500,
+            ease: 'Back.easeOut',
+            delay: 500
+        });
+    }
+    
+    private createPlayButtons(container: Phaser.GameObjects.Container) {
+        // Free button (left)
+        const freeButton = this.createGameButton(
+            -130, 250,
+            'PLAY FREE',
+            0x4CAF50, // Green
+            () => this.startGame('free')
+        );
+        container.add(freeButton);
+        
+        // VIP button (right)
+        const vipButton = this.createGameButton(
+            130, 250,
+            'PLAY VIP',
+            0xFF9500, // Orange/Gold
+            () => this.startGame('vip')
+        );
+        container.add(vipButton);
+        
+        // Add VIP lock icon if not enough credit
+        if (this.isAuthenticated) {
+            const vipInfo = this.add.text(130, 320, '', {
+                fontFamily: 'Arial',
+                fontSize: '12px',
+                color: '#ffaa00',
+                align: 'center'
+            }).setOrigin(0.5);
+            container.add(vipInfo);
+            
+            // Update VIP button state based on credit
+            this.events.on('update', () => {
+                const hasCredit = walletService.hasEnoughCredit(1);
+                if (!hasCredit) {
+                    vipButton.setAlpha(0.5);
+                    vipInfo.setText('Need 1+ credit');
+                } else {
+                    vipButton.setAlpha(1);
+                    vipInfo.setText('');
+                }
+            });
+        } else {
+            // Show login prompt for guests
+            const vipLock = this.add.text(130, 320, '🔒 Login required', {
+                fontFamily: 'Arial',
+                fontSize: '12px',
+                color: '#ff6666',
+                align: 'center'
+            }).setOrigin(0.5);
+            container.add(vipLock);
+            
+            vipButton.setAlpha(0.5);
+        }
+    }
+    
+    private createGameButton(
+        x: number,
+        y: number,
+        text: string,
+        color: number,
+        onClick: () => void
+    ): Phaser.GameObjects.Container {
+        const buttonContainer = this.add.container(x, y);
+        
+        // Button glow
+        const buttonGlow = this.add.graphics();
+        buttonGlow.fillStyle(color, 0.5);
+        buttonGlow.fillRoundedRect(-90, -25, 180, 60, 16);
+        buttonGlow.setAlpha(0);
+        buttonContainer.add(buttonGlow);
+        
+        // Button background
+        const buttonBg = this.add.graphics();
+        buttonBg.fillGradientStyle(
+            color, color,
+            Phaser.Display.Color.GetColor(
+                Phaser.Display.Color.IntegerToRGB(color).r * 0.7,
+                Phaser.Display.Color.IntegerToRGB(color).g * 0.7,
+                Phaser.Display.Color.IntegerToRGB(color).b * 0.7
+            ),
+            Phaser.Display.Color.GetColor(
+                Phaser.Display.Color.IntegerToRGB(color).r * 0.7,
+                Phaser.Display.Color.IntegerToRGB(color).g * 0.7,
+                Phaser.Display.Color.IntegerToRGB(color).b * 0.7
+            ),
+            1, 1, 1, 1
+        );
+        buttonBg.fillRoundedRect(-90, -25, 180, 60, 16);
+        buttonBg.lineStyle(3, 0xFFFFFF, 0.8);
+        buttonBg.strokeRoundedRect(-90, -25, 180, 60, 16);
+        buttonBg.setInteractive(
+            new Phaser.Geom.Rectangle(-90, -25, 180, 60),
+            Phaser.Geom.Rectangle.Contains
+        );
+        buttonContainer.add(buttonBg);
+        
+        // Button text
+        const buttonText = this.add.text(0, 0, text, {
+            fontFamily: 'Arial',
+            fontSize: '22px',
+            fontStyle: 'bold',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 4
+        }).setOrigin(0.5);
+        buttonContainer.add(buttonText);
+        
+        // Button effects
+        buttonBg.on('pointerover', () => {
+            if (buttonContainer.alpha === 1) {
+                this.tweens.add({
+                    targets: buttonContainer,
+                    scale: 1.1,
+                    duration: 200,
+                    ease: 'Back.easeOut'
+                });
+                this.tweens.add({
+                    targets: buttonGlow,
+                    alpha: 1,
+                    duration: 200
+                });
+            }
+        });
+        
+        buttonBg.on('pointerout', () => {
+            this.tweens.add({
+                targets: buttonContainer,
+                scale: 1,
+                duration: 200,
+                ease: 'Back.easeIn'
+            });
+            this.tweens.add({
+                targets: buttonGlow,
+                alpha: 0,
+                duration: 200
+            });
+        });
+        
+        buttonBg.on('pointerdown', () => {
+            if (buttonContainer.alpha === 1) {
+                this.tweens.add({
+                    targets: buttonContainer,
+                    scale: 0.95,
+                    duration: 100,
+                    yoyo: true,
+                    onComplete: onClick
+                });
+            }
+        });
+        
+        return buttonContainer;
+    }
+    
+    private startGame(roomType: 'free' | 'vip') {
+        // Get player name from input
+        const inputElement = document.getElementById('nameInput') as HTMLInputElement;
+        if (inputElement) {
+            this.playerName = inputElement.value || 'Player';
+        }
+        
+        // Check VIP requirements
+        if (roomType === 'vip') {
+            if (!this.isAuthenticated) {
+                alert('Please login with Phantom wallet to play VIP rooms');
+                return;
+            }
+            
+            if (!walletService.hasEnoughCredit(1)) {
+                alert('You need at least 1 credit to play VIP rooms');
+                return;
+            }
+        }
+        
+        // Stop polling credit
+        walletService.stopPolling();
+        
+        // Transition to game
+        this.cameras.main.fade(500, 0, 0, 0, false, (camera, progress) => {
+            if (progress === 1) {
+                this.scene.start('GameScene', {
+                    playerName: this.playerName,
+                    skinId: this.selectedSkin,
+                    roomType: roomType,
+                    isAuthenticated: this.isAuthenticated
+                });
+            }
+        });
+    }
+    
+    shutdown() {
+        // Clean up when scene is shut down
+        walletService.stopPolling();
+    }
+    
+    private createBackButton(x: number, y: number) {
+        const backContainer = this.add.container(x, y)
+            .setScrollFactor(0)
+            .setDepth(1000);
+        
+        // Button background
+        const btnWidth = 100;
+        const btnHeight = 40;
+        const buttonBg = this.add.graphics();
+        buttonBg.fillStyle(0x4A5568, 0.9); // Gray
+        buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+        buttonBg.lineStyle(2, 0x718096, 0.8);
+        buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+        buttonBg.setInteractive(
+            new Phaser.Geom.Rectangle(0, -btnHeight, btnWidth, btnHeight),
+            Phaser.Geom.Rectangle.Contains
+        );
+        backContainer.add(buttonBg);
+        
+        // Button text
+        const buttonText = this.add.text(btnWidth / 2, -btnHeight / 2, '← Back', {
+            fontFamily: 'Arial',
+            fontSize: '16px',
+            fontStyle: 'bold',
+            color: '#ffffff'
+        }).setOrigin(0.5);
+        backContainer.add(buttonText);
+        
+        // Button effects
+        buttonBg.on('pointerover', () => {
+            this.tweens.add({
+                targets: backContainer,
+                scale: 1.1,
+                duration: 200,
+                ease: 'Back.easeOut'
+            });
+            buttonBg.clear();
+            buttonBg.fillStyle(0x718096, 1);
+            buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+            buttonBg.lineStyle(2, 0xFFFFFF, 1);
+            buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+        });
+        
+        buttonBg.on('pointerout', () => {
+            this.tweens.add({
+                targets: backContainer,
+                scale: 1,
+                duration: 200,
+                ease: 'Back.easeIn'
+            });
+            buttonBg.clear();
+            buttonBg.fillStyle(0x4A5568, 0.9);
+            buttonBg.fillRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+            buttonBg.lineStyle(2, 0x718096, 0.8);
+            buttonBg.strokeRoundedRect(0, -btnHeight, btnWidth, btnHeight, 8);
+        });
+        
+        buttonBg.on('pointerdown', () => {
+            this.tweens.add({
+                targets: backContainer,
+                scale: 0.95,
+                duration: 100,
+                yoyo: true,
+                onComplete: () => {
+                    // Stop polling credit
+                    walletService.stopPolling();
+                    
+                    // Go back to login scene
+                    this.cameras.main.fade(300, 0, 0, 0, false, (camera, progress) => {
+                        if (progress === 1) {
+                            this.scene.start('LoginScene');
+                        }
+                    });
+                }
+            });
+        });
+        
+        // Animate entrance
+        backContainer.setAlpha(0);
+        this.tweens.add({
+            targets: backContainer,
+            alpha: 1,
+            duration: 500,
+            delay: 500
+        });
     }
 } 
