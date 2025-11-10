@@ -54,6 +54,7 @@ export class WalletService {
       this.configService.get<number>('wallet.tokenDecimals') ?? 6,
     );
     this.webhookSecret = this.configService.get<string>('wallet.webhookSecret');
+    console.log('[WalletService] tokenDecimals:', this.tokenDecimals);
   }
 
   async createDepositMetadata(
@@ -125,7 +126,12 @@ export class WalletService {
 
     const user = await this.getOrCreateUserByWallet(userWallet);
 
-    const amountInTokens = this.toTokenAmount(rawAmount);
+    const normalizedAmount = this.normalizeWebhookAmount(rawAmount);
+    if (normalizedAmount.tokens <= 0) {
+      throw new UnauthorizedException('Invalid webhook amount');
+    }
+
+    const amountInTokens = normalizedAmount.tokens;
     const transaction = this.transactionRepository.create({
       user,
       type: TransactionType.DEPOSIT,
@@ -133,7 +139,8 @@ export class WalletService {
       amount: this.formatAmount(amountInTokens),
       signature,
       metadata: {
-        rawAmount,
+        rawAmount: normalizedAmount.raw.toString(),
+        rawAmountSource: rawAmount,
         decimals: this.tokenDecimals,
         timestamp: payload.timestamp,
         indexerVersion: payload.indexerVersion,
@@ -206,6 +213,27 @@ export class WalletService {
       return 0;
     }
     return rawNumber / Math.pow(10, this.tokenDecimals);
+  }
+
+  private normalizeWebhookAmount(amount: string | number): { raw: number; tokens: number } {
+    if (amount === null || amount === undefined) {
+      return { raw: 0, tokens: 0 };
+    }
+    const numericValue = Number(amount);
+    if (Number.isNaN(numericValue)) {
+      return { raw: 0, tokens: 0 };
+    }
+
+    const hasDecimalPoint = typeof amount === 'string' && amount.includes('.');
+    if (hasDecimalPoint) {
+      const tokens = numericValue;
+      const raw = Math.round(tokens * Math.pow(10, this.tokenDecimals));
+      return { raw, tokens };
+    }
+
+    const raw = Math.trunc(numericValue);
+    const tokens = raw / Math.pow(10, this.tokenDecimals);
+    return { raw, tokens };
   }
 
   private formatAmount(value: number): string {
