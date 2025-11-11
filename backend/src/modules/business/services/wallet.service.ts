@@ -155,6 +155,25 @@ export class WalletService {
     return { processed: true };
   }
 
+  async resetWalletBalanceByAddress(
+    walletAddress: string,
+  ): Promise<{ walletAddress: string; availableAmount: string; lockedAmount: string }> {
+    const user = await this.getOrCreateUserByWallet(walletAddress);
+    const balance = await this.getOrCreateWalletBalance(user.id);
+
+    balance.availableAmount = this.formatAmount(0);
+    balance.lockedAmount = this.formatAmount(0);
+    balance.lastTransactionId = null;
+
+    const savedBalance = await this.walletBalanceRepository.save(balance);
+
+    return {
+      walletAddress: user.walletAddress,
+      availableAmount: savedBalance.availableAmount,
+      lockedAmount: savedBalance.lockedAmount,
+    };
+  }
+
   private async getUser(userId: string): Promise<UserEntity> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {

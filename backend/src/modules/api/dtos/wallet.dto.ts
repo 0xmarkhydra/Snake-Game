@@ -105,3 +105,27 @@ export class CreditResponseDto {
   @ApiProperty({ description: 'Available credit for the user', example: '15.000000' })
   credit: string;
 }
+
+export class ResetWalletBalanceRequestDto {
+  @ApiProperty({
+    description: 'Wallet address whose balance will be reset',
+    example: 'F1r5tAaAA3jSGbqZMoCpeXXv1Ld1z1uS7WALLET',
+  })
+  @IsString()
+  @IsNotEmpty()
+  walletAddress: string;
+}
+
+export class ResetWalletBalanceResponseDto {
+  @ApiProperty({
+    description: 'Wallet address after reset',
+    example: 'F1r5tAaAA3jSGbqZMoCpeXXv1Ld1z1uS7WALLET',
+  })
+  walletAddress: string;
+
+  @ApiProperty({ description: 'Available amount after reset', example: '0.000000' })
+  availableAmount: string;
+
+  @ApiProperty({ description: 'Locked amount after reset', example: '0.000000' })
+  lockedAmount: string;
+}

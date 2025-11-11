@@ -19,6 +19,8 @@ import {
   DepositRequestDto,
   DepositResponseDto,
   DepositWebhookDto,
+  ResetWalletBalanceRequestDto,
+  ResetWalletBalanceResponseDto,
 } from '@/api/dtos';
 import { WalletService } from '@/business/services';
 import { ResponseMessage } from '@/shared/decorators/response-message.decorator';
@@ -43,6 +45,19 @@ export class WalletController {
       payload.amount,
     );
     return { metadata };
+  }
+
+  @Post('reset-balance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset wallet balance to zero by address' })
+  @ApiResponse({ status: HttpStatus.OK, type: ResetWalletBalanceResponseDto })
+  @ResponseMessage('Wallet balance reset successfully')
+  async resetWalletBalance(
+    @Body() payload: ResetWalletBalanceRequestDto,
+  ): Promise<ResetWalletBalanceResponseDto> {
+    return this.walletService.resetWalletBalanceByAddress(
+      payload.walletAddress,
+    );
   }
 
   @Get('credit')
