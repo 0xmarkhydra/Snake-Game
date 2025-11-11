@@ -3,3 +3,6 @@ export * from './transaction.repository';
 export * from './user.repository';
 export * from './user-session.repository';
 export * from './wallet-balance.repository';
+export * from './vip-room-config.repository';
+export * from './vip-ticket.repository';
+export * from './kill-log.repository';

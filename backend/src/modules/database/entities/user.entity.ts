@@ -1,9 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  OneToMany,
-} from 'typeorm';
+import { Column, Entity, Index, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { UserSessionEntity } from './user-session.entity';
 

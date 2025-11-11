@@ -1,6 +1,11 @@
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { DatabaseModule } from '@/database';
-import { AuthController, HealthController, WalletController } from '@/api/controllers';
+import {
+  AuthController,
+  GameController,
+  HealthController,
+  WalletController,
+} from '@/api/controllers';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { QueueModule } from '@/queue/queue.module';
@@ -11,12 +16,19 @@ import { CacheModule, CacheStore } from '@nestjs/cache-manager';
 import { configAuth } from './configs/auth';
 import { configCache } from './configs/cache';
 import { configWallet } from './configs/wallet';
+import { configGame } from './configs/game';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
 import { WebSocketModule } from '../websocket/websocket.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
 
-const controllers = [AuthController, HealthController, WalletController];
+const controllers = [
+  AuthController,
+  HealthController,
+  WalletController,
+  GameController,
+];
 
 @Module({
   imports: [
@@ -48,7 +60,7 @@ const controllers = [AuthController, HealthController, WalletController];
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
-      load: [configAuth, configCache, configWallet],
+      load: [configAuth, configCache, configWallet, configGame],
     }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
@@ -70,6 +82,7 @@ const controllers = [AuthController, HealthController, WalletController];
       useClass: HttpCacheInterceptor,
     },
     JwtAuthGuard,
+    InternalApiKeyGuard,
   ],
   exports: [],
 })

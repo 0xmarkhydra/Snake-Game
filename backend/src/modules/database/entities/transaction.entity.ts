@@ -1,10 +1,4 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { UserEntity } from './user.entity';
 
@@ -33,13 +27,23 @@ export class TransactionEntity extends BaseEntity {
   @Column({ type: 'enum', enum: TransactionType })
   type: TransactionType;
 
-  @Column({ type: 'enum', enum: TransactionStatus, default: TransactionStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    default: TransactionStatus.PENDING,
+  })
   status: TransactionStatus;
 
   @Column({ type: 'numeric', precision: 18, scale: 6 })
   amount: string;
 
-  @Column({ name: 'fee_amount', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  @Column({
+    name: 'fee_amount',
+    type: 'numeric',
+    precision: 18,
+    scale: 6,
+    default: 0,
+  })
   feeAmount: string;
 
   @Column({ unique: true, nullable: true })
@@ -47,6 +51,10 @@ export class TransactionEntity extends BaseEntity {
 
   @Column({ name: 'reference_code', unique: true, nullable: true })
   referenceCode?: string;
+
+  @Column({ name: 'reference_id', type: 'uuid', nullable: true })
+  @Index('IDX_transactions_reference_id')
+  referenceId?: string;
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown>;

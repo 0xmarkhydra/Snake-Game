@@ -12,7 +12,9 @@ import { Type } from 'class-transformer';
 import { IsSolanaAddress } from '@/shared/validator/decorators/isSolanaAddress';
 
 export class DepositRequestDto {
-  @ApiProperty({ description: 'Wallet address that will originate the deposit' })
+  @ApiProperty({
+    description: 'Wallet address that will originate the deposit',
+  })
   @IsString()
   @IsNotEmpty()
   walletAddress: string;
@@ -31,7 +33,10 @@ export class DepositMetadataDto {
   @ApiProperty({ description: 'Number of decimals for the token', example: 6 })
   decimals: number;
 
-  @ApiProperty({ description: 'Amount formatted according to decimals', example: '10.000000' })
+  @ApiProperty({
+    description: 'Amount formatted according to decimals',
+    example: '10.000000',
+  })
   amount: string;
 
   @ApiProperty({ description: 'Reference code for the deposit request' })
@@ -70,12 +75,14 @@ export class WithdrawRequestDto {
 export class WithdrawResponseDto {
   @ApiProperty({
     description: 'Signature returned by the payment service',
-    example: '3pnv7WY4zpw1XNGY29n79w1vvWr69WyDxzxgyRv7tN7LgXbcP88ToXQyzD7zt8jF2ZyR1PiCkt9EXutXe8fb4Up2',
+    example:
+      '3pnv7WY4zpw1XNGY29n79w1vvWr69WyDxzxgyRv7tN7LgXbcP88ToXQyzD7zt8jF2ZyR1PiCkt9EXutXe8fb4Up2',
   })
   signature: string;
 
   @ApiProperty({
-    description: 'External transaction identifier provided by the payment service',
+    description:
+      'External transaction identifier provided by the payment service',
     example: '6912f9c75f9f5b08e2a3638f',
   })
   transactionId: string;
@@ -105,13 +112,15 @@ export class WithdrawResponseDto {
   senderAddress: string;
 
   @ApiProperty({
-    description: 'Flag indicating whether a token account was created for the recipient',
+    description:
+      'Flag indicating whether a token account was created for the recipient',
     example: false,
   })
   tokenAccountCreated: boolean;
 
   @ApiProperty({
-    description: 'User available balance after the withdrawal, formatted with token decimals',
+    description:
+      'User available balance after the withdrawal, formatted with token decimals',
     example: '8.000000',
   })
   availableAmount: string;
@@ -123,7 +132,10 @@ export class WebhookDepositDataDto {
   @IsNotEmpty()
   user: string;
 
-  @ApiProperty({ description: 'Amount sent on-chain as a string', example: '1000000' })
+  @ApiProperty({
+    description: 'Amount sent on-chain as a string',
+    example: '1000000',
+  })
   @IsString()
   @IsNotEmpty()
   amount: string;
@@ -143,7 +155,10 @@ export class WebhookDepositEventDto {
   @IsOptional()
   blockTime?: number;
 
-  @ApiProperty({ description: 'Event type from indexer', example: 'DepositEvent' })
+  @ApiProperty({
+    description: 'Event type from indexer',
+    example: 'DepositEvent',
+  })
   @IsString()
   eventType: string;
 
@@ -163,7 +178,10 @@ export class DepositWebhookDto {
   @Type(() => WebhookDepositEventDto)
   event: WebhookDepositEventDto;
 
-  @ApiPropertyOptional({ description: 'Indexer timestamp', example: 1762601253479 })
+  @ApiPropertyOptional({
+    description: 'Indexer timestamp',
+    example: 1762601253479,
+  })
   @IsOptional()
   timestamp?: number;
 
@@ -173,7 +191,10 @@ export class DepositWebhookDto {
 }
 
 export class CreditResponseDto {
-  @ApiProperty({ description: 'Available credit for the user', example: '15.000000' })
+  @ApiProperty({
+    description: 'Available credit for the user',
+    example: '15.000000',
+  })
   credit: string;
 }
 
@@ -194,9 +215,15 @@ export class ResetWalletBalanceResponseDto {
   })
   walletAddress: string;
 
-  @ApiProperty({ description: 'Available amount after reset', example: '0.000000' })
+  @ApiProperty({
+    description: 'Available amount after reset',
+    example: '0.000000',
+  })
   availableAmount: string;
 
-  @ApiProperty({ description: 'Locked amount after reset', example: '0.000000' })
+  @ApiProperty({
+    description: 'Locked amount after reset',
+    example: '0.000000',
+  })
   lockedAmount: string;
 }

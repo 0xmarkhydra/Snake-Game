@@ -131,7 +131,10 @@ export class WalletService {
     return balance.availableAmount;
   }
 
-  async handleDepositWebhook(payload: DepositWebhookPayload, secretHeader?: string): Promise<{ processed: boolean }> {
+  async handleDepositWebhook(
+    payload: DepositWebhookPayload,
+    secretHeader?: string,
+  ): Promise<{ processed: boolean }> {
     if (this.webhookSecret && secretHeader !== this.webhookSecret) {
       throw new UnauthorizedException('Invalid webhook secret');
     }
@@ -197,14 +200,20 @@ export class WalletService {
     });
 
     const savedTransaction = await this.transactionRepository.save(transaction);
-    await this.updateWalletBalance(user.id, amountInTokens, savedTransaction.id);
+    await this.updateWalletBalance(
+      user.id,
+      amountInTokens,
+      savedTransaction.id,
+    );
 
     return { processed: true };
   }
 
-  async resetWalletBalanceByAddress(
-    walletAddress: string,
-  ): Promise<{ walletAddress: string; availableAmount: string; lockedAmount: string }> {
+  async resetWalletBalanceByAddress(walletAddress: string): Promise<{
+    walletAddress: string;
+    availableAmount: string;
+    lockedAmount: string;
+  }> {
     const user = await this.getOrCreateUserByWallet(walletAddress);
     const balance = await this.getOrCreateWalletBalance(user.id);
 
@@ -263,7 +272,9 @@ export class WalletService {
     return user;
   }
 
-  private async getOrCreateUserByWallet(walletAddress: string): Promise<UserEntity> {
+  private async getOrCreateUserByWallet(
+    walletAddress: string,
+  ): Promise<UserEntity> {
     let user = await this.userRepository.findOne({ where: { walletAddress } });
     if (!user) {
       user = this.userRepository.create({
@@ -275,7 +286,9 @@ export class WalletService {
     return user;
   }
 
-  private async getOrCreateWalletBalance(userId: string): Promise<WalletBalanceEntity> {
+  private async getOrCreateWalletBalance(
+    userId: string,
+  ): Promise<WalletBalanceEntity> {
     let balance = await this.walletBalanceRepository.findOne({
       where: { user: { id: userId } },
       relations: ['user'],
@@ -294,7 +307,11 @@ export class WalletService {
     return balance;
   }
 
-  private async updateWalletBalance(userId: string, delta: number, transactionId?: string) {
+  private async updateWalletBalance(
+    userId: string,
+    delta: number,
+    transactionId?: string,
+  ) {
     const balance = await this.getOrCreateWalletBalance(userId);
     const currentAvailable = Number(balance.availableAmount);
     const nextValue = currentAvailable + delta;
@@ -315,7 +332,10 @@ export class WalletService {
     return rawNumber / Math.pow(10, this.tokenDecimals);
   }
 
-  private normalizeWebhookAmount(amount: string | number): { raw: number; tokens: number } {
+  private normalizeWebhookAmount(amount: string | number): {
+    raw: number;
+    tokens: number;
+  } {
     if (amount === null || amount === undefined) {
       return { raw: 0, tokens: 0 };
     }
@@ -349,14 +369,13 @@ export class WalletService {
   private assertValidAmount(amount: number) {
     const numeric = Number(amount);
     if (!Number.isFinite(numeric) || numeric <= 0) {
-      throw new BadRequestException('Withdrawal amount must be greater than zero');
+      throw new BadRequestException(
+        'Withdrawal amount must be greater than zero',
+      );
     }
   }
 
-  private assertSufficientBalance(
-    availableAmount: string,
-    amount: number,
-  ) {
+  private assertSufficientBalance(availableAmount: string, amount: number) {
     const current = Number(availableAmount);
     if (Number.isNaN(current) || current < amount) {
       throw new BadRequestException('Insufficient balance');
@@ -472,7 +491,8 @@ export class WalletService {
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message:
-            data?.message ?? 'Duplicate request detected, please try again later',
+            data?.message ??
+            'Duplicate request detected, please try again later',
           retryAfter: data?.retryAfter,
         },
         HttpStatus.TOO_MANY_REQUESTS,

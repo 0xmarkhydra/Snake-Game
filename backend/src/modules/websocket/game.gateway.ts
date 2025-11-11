@@ -3,8 +3,9 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Room, Server } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { Server as HttpServer } from 'http';
-import { GameService } from '../business/services';
-import { FreeGameRoom } from '../game/rooms';
+import { JwtService } from '@nestjs/jwt';
+import { GameService, VipGameService } from '../business/services';
+import { FreeGameRoom, VipGameRoom } from '../game/rooms';
 
 type RoomConstructor<T extends Room = Room> = new (...args: any[]) => T;
 
@@ -15,6 +16,8 @@ export class GameGateway implements OnModuleDestroy {
 
   constructor(
     private readonly gameService: GameService,
+    private readonly vipGameService: VipGameService,
+    private readonly jwtService: JwtService,
     @InjectPinoLogger(GameGateway.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -24,7 +27,11 @@ export class GameGateway implements OnModuleDestroy {
     this.gameService.attachServer(gameServer);
   }
 
-  registerRoom<T extends Room>(roomName: string, roomClass: RoomConstructor<T>, defaultOptions?: Record<string, unknown>): void {
+  registerRoom<T extends Room>(
+    roomName: string,
+    roomClass: RoomConstructor<T>,
+    defaultOptions?: Record<string, unknown>,
+  ): void {
     this.logger.info({ roomName }, 'Registering room via GameGateway.');
     this.gameService.registerRoom(roomName, roomClass, defaultOptions);
   }
@@ -54,7 +61,9 @@ export class GameGateway implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    this.logger.info('Shutting down GameGateway and underlying Colyseus server.');
+    this.logger.info(
+      'Shutting down GameGateway and underlying Colyseus server.',
+    );
     await this.gameService.shutdown();
     this.server = null;
     this.httpServer = null;
@@ -64,6 +73,13 @@ export class GameGateway implements OnModuleDestroy {
     if (!this.hasRegisteredRoom('snake_game')) {
       this.registerRoom('snake_game', FreeGameRoom);
     }
+
+    if (!this.hasRegisteredRoom('snake_game_vip')) {
+      VipGameRoom.configure({
+        vipGameService: this.vipGameService,
+        jwtService: this.jwtService,
+      });
+      this.registerRoom('snake_game_vip', VipGameRoom);
+    }
   }
 }
-
