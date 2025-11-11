@@ -22,6 +22,8 @@ import {
   DepositWebhookDto,
   ResetWalletBalanceRequestDto,
   ResetWalletBalanceResponseDto,
+  WithdrawRequestDto,
+  WithdrawResponseDto,
 } from '@/api/dtos';
 import { WalletService } from '@/business/services';
 import { ResponseMessage } from '@/shared/decorators/response-message.decorator';
@@ -46,6 +48,26 @@ export class WalletController {
       payload.amount,
     );
     return { metadata };
+  }
+
+  @Post('withdraw')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Transfer tokens from the platform wallet to a recipient address',
+  })
+  @ApiResponse({ status: HttpStatus.OK, type: WithdrawResponseDto })
+  @ResponseMessage('Withdrawal processed successfully')
+  async withdraw(
+    @CurrentUserId() userId: string,
+    @Body() payload: WithdrawRequestDto,
+  ): Promise<WithdrawResponseDto> {
+    return this.walletService.withdraw({
+      userId,
+      recipientAddress: payload.recipientAddress,
+      amount: payload.amount,
+    });
   }
 
   @Post('reset-balance')
