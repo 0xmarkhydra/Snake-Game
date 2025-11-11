@@ -896,12 +896,14 @@ export class MenuScene extends Scene {
             this.createWalletInfo(this.cameras.main.width, this.cameras.main.height);
         }
 
+        let shouldStartVip = false;
+
         try {
             this.vipProcessing = true;
             const credit = await walletService.getCredit();
             if (credit >= 1) {
                 this.hideVipModal();
-                this.startGame('vip');
+                shouldStartVip = true;
             } else {
                 this.showVipDepositModal('Credit is still below the requirement. Please deposit to join VIP rooms.');
             }
@@ -910,6 +912,9 @@ export class MenuScene extends Scene {
             this.showVipDepositModal('Không thể kiểm tra credit. Vui lòng thử nạp lại.');
         } finally {
             this.vipProcessing = false;
+            if (shouldStartVip) {
+                this.startGame('vip');
+            }
         }
     }
 

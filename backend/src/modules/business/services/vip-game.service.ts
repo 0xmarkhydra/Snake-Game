@@ -6,7 +6,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource, FindOneOptions } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  FindOneOptions,
+  Repository,
+} from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import {
@@ -47,7 +52,7 @@ export type VipTicketValidationResult = {
 export type VipTicketConsumptionResult = {
   credit: string;
   ticket: VipTicketEntity;
-  transaction: TransactionEntity;
+  transaction?: TransactionEntity | null;
 };
 
 export type VipKillRewardResult = {
@@ -75,6 +80,12 @@ type ProcessKillRewardParams = {
 @Injectable()
 export class VipGameService {
   private readonly tokenDecimals: number;
+  private readonly defaultEntryFee: number;
+  private readonly defaultRewardPlayer: number;
+  private readonly defaultRewardTreasury: number;
+  private readonly defaultRespawnCost: number;
+  private readonly defaultMaxClients: number;
+  private readonly defaultTickRate: number;
 
   constructor(
     private readonly vipRoomConfigRepository: VipRoomConfigRepository,
@@ -90,6 +101,18 @@ export class VipGameService {
   ) {
     this.tokenDecimals =
       Number(this.configService.get<number>('wallet.tokenDecimals')) || 6;
+    this.defaultEntryFee =
+      Number(this.configService.get<number>('vip.entryFee')) || 1;
+    this.defaultRewardPlayer =
+      Number(this.configService.get<number>('vip.rewardRatePlayer')) || 0.9;
+    this.defaultRewardTreasury =
+      Number(this.configService.get<number>('vip.rewardRateTreasury')) || 0.1;
+    this.defaultRespawnCost =
+      Number(this.configService.get<number>('vip.respawnCost')) || 0;
+    this.defaultMaxClients =
+      Number(this.configService.get<number>('vip.maxClients')) || 20;
+    this.defaultTickRate =
+      Number(this.configService.get<number>('vip.tickRate')) || 60;
   }
 
   async getRoomConfig(
@@ -193,24 +216,9 @@ export class VipGameService {
   ): Promise<VipTicketConsumptionResult> {
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const ticketRepository = manager.withRepository(
-          this.vipTicketRepository,
-        );
-        const walletRepository = manager.withRepository(
-          this.walletBalanceRepository,
-        );
-        const transactionRepository = manager.withRepository(
-          this.transactionRepository,
-        );
-
-        const ticket = await this.findTicketOrThrow(
-          {
-            where: { id: ticketId },
-            relations: ['user'],
-          },
-          ticketRepository,
-          true,
-        );
+        const ticketRepository = manager.getRepository(VipTicketEntity);
+        const walletRepository = manager.getRepository(WalletBalanceEntity);
+        const ticket = await this.findTicketWithLock(ticketId, manager);
 
         if (ticket.status !== VipTicketStatus.ISSUED) {
           throw new BadRequestException('Ticket cannot be consumed twice');
@@ -230,41 +238,22 @@ export class VipGameService {
           );
         }
 
-        balance.availableAmount = this.formatAmount(
-          this.toNumber(balance.availableAmount) - entryFee,
-        );
-        balance.lastTransactionId = null;
+        if (entryFee > 0) {
+          balance.lockedAmount = this.formatAmount(
+            this.toNumber(balance.lockedAmount) + entryFee,
+          );
+          await walletRepository.save(balance);
+        }
 
         ticket.status = VipTicketStatus.CONSUMED;
         ticket.roomInstanceId = roomInstanceId;
         ticket.consumedAt = new Date();
 
-        const transaction = transactionRepository.create({
-          user: balance.user,
-          type: TransactionType.PENALTY,
-          status: TransactionStatus.CONFIRMED,
-          amount: this.formatAmount(entryFee),
-          feeAmount: this.formatAmount(0),
-          referenceId: ticket.id,
-          metadata: {
-            source: 'vip-entry',
-            ticketId,
-            roomInstanceId,
-          },
-          processedAt: new Date(),
-          occurredAt: new Date(),
-        });
-
-        const savedTransaction = await transactionRepository.save(transaction);
-        balance.lastTransactionId = savedTransaction.id;
-
-        await walletRepository.save(balance);
         const savedTicket = await ticketRepository.save(ticket);
 
         return {
           credit: balance.availableAmount,
           ticket: savedTicket,
-          transaction: savedTransaction,
         };
       });
     } catch (error) {
@@ -284,18 +273,11 @@ export class VipGameService {
   ): Promise<VipKillRewardResult> {
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const killLogRepository = manager.withRepository(
-          this.killLogRepository,
-        );
-        const ticketRepository = manager.withRepository(
-          this.vipTicketRepository,
-        );
-        const walletRepository = manager.withRepository(
-          this.walletBalanceRepository,
-        );
-        const transactionRepository = manager.withRepository(
-          this.transactionRepository,
-        );
+        const killLogRepository = manager.getRepository(KillLogEntity);
+        const ticketRepository = manager.getRepository(VipTicketEntity);
+        const walletRepository = manager.getRepository(WalletBalanceEntity);
+        const transactionRepository =
+          manager.getRepository(TransactionEntity);
 
         const existingLog = await killLogRepository.findOne({
           where: { killReference: params.killReference },
@@ -326,21 +308,13 @@ export class VipGameService {
           };
         }
 
-        const killerTicket = await this.findTicketOrThrow(
-          {
-            where: { id: params.killerTicketId },
-            relations: ['user'],
-          },
-          ticketRepository,
-          true,
+        const killerTicket = await this.findTicketWithLock(
+          params.killerTicketId,
+          manager,
         );
-        const victimTicket = await this.findTicketOrThrow(
-          {
-            where: { id: params.victimTicketId },
-            relations: ['user'],
-          },
-          ticketRepository,
-          true,
+        const victimTicket = await this.findTicketWithLock(
+          params.victimTicketId,
+          manager,
         );
 
         const config = await this.getActiveConfig(
@@ -556,23 +530,12 @@ export class VipGameService {
     roomType: VipRoomType,
     manager = this.dataSource.manager,
   ): Promise<VipRoomConfigEntity> {
-    const repository = manager.withRepository(this.vipRoomConfigRepository);
-    const config = await repository.findOne({
-      where: { roomType, isActive: true },
-    });
-
-    if (!config) {
-      throw new NotFoundException(
-        `VIP configuration not found for room type ${roomType}`,
-      );
-    }
-
-    return config;
+    return this.ensureVipConfig(roomType, manager);
   }
 
   private async getOrCreateWalletBalance(
     userId: string,
-    repository: WalletBalanceRepository = this.walletBalanceRepository,
+    repository: Repository<WalletBalanceEntity> = this.walletBalanceRepository,
     lock = false,
   ): Promise<{ balance: WalletBalanceEntity; user: UserEntity }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -604,7 +567,7 @@ export class VipGameService {
 
   private async findTicketOrThrow(
     options: FindOneOptions<VipTicketEntity>,
-    repository: VipTicketRepository = this.vipTicketRepository,
+    repository: Repository<VipTicketEntity> = this.vipTicketRepository,
     lock = false,
   ): Promise<VipTicketEntity> {
     if (lock) {
@@ -618,9 +581,28 @@ export class VipGameService {
     return ticket;
   }
 
+  private async findTicketWithLock(
+    ticketId: string,
+    manager: EntityManager,
+  ): Promise<VipTicketEntity> {
+    const repository = manager.getRepository(VipTicketEntity);
+    const ticket = await repository
+      .createQueryBuilder('ticket')
+      .setLock('pessimistic_write')
+      .innerJoinAndSelect('ticket.user', 'user')
+      .where('ticket.id = :id', { id: ticketId })
+      .getOne();
+
+    if (!ticket) {
+      throw new NotFoundException('VIP ticket not found');
+    }
+
+    return ticket;
+  }
+
   private async getWalletBalanceAmount(
     user: UserEntity | undefined,
-    repository: WalletBalanceRepository,
+    repository: Repository<WalletBalanceEntity>,
   ): Promise<string> {
     if (!user) {
       return this.formatAmount(0);
@@ -635,6 +617,40 @@ export class VipGameService {
 
   private formatAmount(value: number): string {
     return value.toFixed(this.tokenDecimals);
+  }
+
+  private async ensureVipConfig(
+    roomType: VipRoomType,
+    manager?: EntityManager,
+  ): Promise<VipRoomConfigEntity> {
+    const repository = manager
+      ? manager.getRepository(VipRoomConfigEntity)
+      : this.vipRoomConfigRepository;
+
+    let config = await repository.findOne({
+      where: { roomType, isActive: true },
+    });
+
+    if (config) {
+      return config;
+    }
+
+    config = repository.create({
+      roomType,
+      entryFee: this.formatAmount(this.defaultEntryFee),
+      rewardRatePlayer: this.formatAmount(this.defaultRewardPlayer),
+      rewardRateTreasury: this.formatAmount(this.defaultRewardTreasury),
+      respawnCost: this.formatAmount(this.defaultRespawnCost),
+      maxClients: this.defaultMaxClients,
+      tickRate: this.defaultTickRate,
+      isActive: true,
+      metadata: {
+        autoGenerated: true,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+
+    return repository.save(config);
   }
 
   private toNumber(value: string | number | null | undefined): number {
