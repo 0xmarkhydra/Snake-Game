@@ -99,7 +99,9 @@ export class VipGameService {
       return await this.getActiveConfig(roomType);
     } catch (error) {
       this.logger.error(error, 'Failed to load VIP room configuration');
-      throw new InternalServerErrorException('Unable to load VIP room configuration');
+      throw new InternalServerErrorException(
+        'Unable to load VIP room configuration',
+      );
     }
   }
 

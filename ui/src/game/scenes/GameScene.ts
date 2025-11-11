@@ -2,11 +2,19 @@ import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
 import { colyseusClient } from '../../services/ColyseusClient';
 import { Room } from 'colyseus.js';
-import { Player } from "../../types/SchemaTypes";
+import { Player } from '../../types/SchemaTypes';
+import { authService } from '../../services/AuthService';
+import type { RoomType, VipRoomConfig } from '../../types/Game.types';
 
 interface GameSceneData {
     playerName: string;
     skinId: number;
+    roomType?: RoomType;
+    vipTicketId?: string;
+    vipTicketCode?: string;
+    vipConfig?: VipRoomConfig;
+    vipCredit?: number;
+    isAuthenticated?: boolean;
 }
 
 export class GameScene extends Scene {
@@ -16,6 +24,11 @@ export class GameScene extends Scene {
     private playerName: string;
     private skinId: number;
     private gameState: any;
+    private roomType: RoomType = 'free';
+    private vipTicketId?: string;
+    private vipTicketCode?: string;
+    private vipCredit: number = 0;
+    private vipConfig?: VipRoomConfig;
     private lastUpdateTime: number = 0;
     
     // Game objects
@@ -32,6 +45,8 @@ export class GameScene extends Scene {
     private leaderboardPanel: Phaser.GameObjects.Container;
     private minimap: Phaser.GameObjects.Graphics;
     private deathOverlay: Phaser.GameObjects.Container;
+    private vipCreditText?: Phaser.GameObjects.Text;
+    private vipInfoText?: Phaser.GameObjects.Text;
     
     // Input
     private pointer: Phaser.Input.Pointer;
@@ -100,6 +115,11 @@ export class GameScene extends Scene {
     init(data: GameSceneData) {
         this.playerName = data.playerName || 'Player';
         this.skinId = data.skinId || 0;
+        this.roomType = data.roomType ?? 'free';
+        this.vipTicketId = data.vipTicketId;
+        this.vipTicketCode = data.vipTicketCode;
+        this.vipConfig = data.vipConfig;
+        this.vipCredit = data.vipCredit ?? 0;
     }
     
     async create() {
@@ -121,6 +141,11 @@ export class GameScene extends Scene {
         
         // Set up UI
         this.createUI();
+
+        if (this.roomType === 'vip') {
+            this.updateVipCreditDisplay(this.vipCredit);
+            this.updateVipInfoText();
+        }
         
         // Set up audio
         this.setupAudio();
@@ -139,10 +164,25 @@ export class GameScene extends Scene {
         
         // Connect to server
         try {
-            this.room = await colyseusClient.joinOrCreate('snake_game', {
+            const roomName = this.roomType === 'vip' ? 'snake_game_vip' : 'snake_game';
+            const joinOptions: Record<string, unknown> = {
                 name: this.playerName,
-                skinId: this.skinId
-            });
+                skinId: this.skinId,
+            };
+
+            if (this.roomType === 'vip') {
+                if (!this.vipTicketId) {
+                    throw new Error('Missing VIP ticket. Please rejoin from the menu.');
+                }
+                joinOptions.ticketId = this.vipTicketId;
+                joinOptions.ticketCode = this.vipTicketCode;
+                const token = authService.getAccessToken();
+                if (token) {
+                    joinOptions.jwt = token;
+                }
+            }
+
+            this.room = await colyseusClient.joinOrCreate(roomName, joinOptions);
             
             this.playerId = this.room.sessionId;
             
@@ -350,6 +390,36 @@ export class GameScene extends Scene {
             this.invulnerableUntil = this.time.now + 3000;
             console.log('Player is invulnerable until:', this.invulnerableUntil);
         });
+
+        if (this.roomType === 'vip') {
+            this.setupVipHandlers();
+        }
+    }
+
+    private setupVipHandlers() {
+        this.room.onMessage('vip:credit-updated', (message: { playerId: string; credit: number | string }) => {
+            if (message?.playerId === this.playerId) {
+                const credit = this.toNumber(message.credit);
+                this.updateVipCreditDisplay(credit);
+            }
+        });
+
+        this.room.onMessage('vip:reward', (message) => {
+            this.handleVipReward(message);
+        });
+
+        this.room.onMessage('vip:error', (message) => {
+            if (message?.message) {
+                this.showVipNotification(message.message, 0xff5555);
+            }
+        });
+
+        this.room.onMessage('vip:config', (message) => {
+            if (message) {
+                this.vipConfig = this.normalizeVipConfig(message);
+                this.updateVipInfoText();
+            }
+        });
     }
     
     private createBackground() {
@@ -428,7 +498,7 @@ export class GameScene extends Scene {
         
         // Add background with gradient and rounded corners
         const cardWidth = 200;
-        const cardHeight = 130;
+        const cardHeight = this.roomType === 'vip' ? 170 : 130;
         const cardBg = this.add.graphics();
         cardBg.fillGradientStyle(
             0x0d2828, 0x0d2828,  // Dark teal at top
@@ -500,6 +570,31 @@ export class GameScene extends Scene {
             strokeThickness: 2
         }).setOrigin(0, 0.5);
         this.statsPanel.add(this.fpsText);
+
+        if (this.roomType === 'vip') {
+            const vipIcon = this.add.image(20, 140, 'food')
+                .setTint(0xffcc00)
+                .setScale(1.2);
+            this.statsPanel.add(vipIcon);
+
+            this.vipCreditText = this.add.text(45, 140, 'Credit: 0', {
+                fontFamily: 'Arial',
+                fontSize: '16px',
+                color: '#ffeb8a',
+                stroke: '#000000',
+                strokeThickness: 2,
+            }).setOrigin(0, 0.5);
+            this.statsPanel.add(this.vipCreditText);
+
+            this.vipInfoText = this.add.text(10, cardHeight - 10, '', {
+                fontFamily: 'Arial',
+                fontSize: '12px',
+                color: '#ffe9b5',
+                stroke: '#000000',
+                strokeThickness: 2,
+            }).setOrigin(0, 1);
+            this.statsPanel.add(this.vipInfoText);
+        }
         
         // Create minimap
         this.createMinimap();
@@ -1195,7 +1290,126 @@ export class GameScene extends Scene {
         const player = this.gameState.players.get(this.playerId);
         if (player) {
             this.scoreText.setText(`Score: ${player.score}`);
+            if (this.roomType === 'vip') {
+                const creditValue = typeof player.credit === 'number'
+                    ? player.credit
+                    : this.vipCredit;
+                this.updateVipCreditDisplay(creditValue);
+            }
         }
+    }
+
+    private updateVipCreditDisplay(credit: number): void {
+        this.vipCredit = credit;
+        if (this.vipCreditText) {
+            this.vipCreditText.setText(`Credit: ${this.formatCredit(credit)}`);
+        }
+    }
+
+    private updateVipInfoText(): void {
+        if (!this.vipInfoText) {
+            return;
+        }
+
+        if (!this.vipConfig) {
+            this.vipInfoText.setText('');
+            return;
+        }
+
+        const entryFee = this.formatCredit(this.vipConfig.entryFee);
+        const reward = this.formatCredit(this.vipConfig.rewardRatePlayer);
+        const fee = this.formatCredit(this.vipConfig.rewardRateTreasury);
+
+        this.vipInfoText.setText(`Entry ${entryFee} • Reward ${reward} • Fee ${fee}`);
+    }
+
+    private normalizeVipConfig(raw: any): VipRoomConfig {
+        return {
+            entryFee: this.toNumber(raw?.entryFee ?? this.vipConfig?.entryFee),
+            rewardRatePlayer: this.toNumber(raw?.rewardRatePlayer ?? this.vipConfig?.rewardRatePlayer),
+            rewardRateTreasury: this.toNumber(raw?.rewardRateTreasury ?? this.vipConfig?.rewardRateTreasury),
+            respawnCost: this.toNumber(raw?.respawnCost ?? this.vipConfig?.respawnCost),
+            maxClients: Number.isFinite(raw?.maxClients) ? raw.maxClients : this.vipConfig?.maxClients ?? 20,
+            tickRate: Number.isFinite(raw?.tickRate) ? raw.tickRate : this.vipConfig?.tickRate ?? 60,
+            metadata: raw?.metadata ?? this.vipConfig?.metadata ?? {},
+        };
+    }
+
+    private handleVipReward(message: any): void {
+        if (!message) {
+            return;
+        }
+
+        const rewardAmount = this.formatCredit(this.toNumber(message.rewardAmount));
+
+        if (message.killerId === this.playerId) {
+            this.showVipNotification(`+${rewardAmount} credit reward`, 0x66ff99);
+        } else if (message.victimId === this.playerId) {
+            this.showVipNotification(`-${rewardAmount} credit penalty`, 0xff6666);
+        }
+    }
+
+    private showVipNotification(text: string, tint: number = 0xffd700): void {
+        if (!text) {
+            return;
+        }
+
+        const notification = this.add.text(
+            this.cameras.main.centerX,
+            70,
+            text,
+            {
+                fontFamily: 'Arial',
+                fontSize: '20px',
+                fontStyle: 'bold',
+                color: this.toHexColor(tint),
+                stroke: '#000000',
+                strokeThickness: 3,
+            },
+        )
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(250);
+
+        this.tweens.add({
+            targets: notification,
+            alpha: 0,
+            duration: 400,
+            delay: 1600,
+            onComplete: () => notification.destroy(),
+        });
+    }
+
+    private formatCredit(value: number): string {
+        if (!Number.isFinite(value)) {
+            return '0';
+        }
+
+        if (value === 0) {
+            return '0';
+        }
+
+        if (value >= 1) {
+            return value.toFixed(2).replace(/\.?0+$/, '');
+        }
+
+        return value.toFixed(3).replace(/\.?0+$/, '');
+    }
+
+    private toNumber(value: unknown): number {
+        if (typeof value === 'number') {
+            return Number.isFinite(value) ? value : 0;
+        }
+        if (typeof value === 'string') {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+        return 0;
+    }
+
+    private toHexColor(value: number): string {
+        const color = Phaser.Display.Color.IntegerToColor(value);
+        return `#${color.color.toString(16).padStart(6, '0')}`;
     }
     
     private updateLeaderboard() {

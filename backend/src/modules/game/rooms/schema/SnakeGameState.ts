@@ -73,6 +73,9 @@ export class Player extends Schema {
   @type('boolean')
   invulnerable: boolean = false;
 
+  @type('number')
+  credit: number = 0;
+
   segments = new ArraySchema<SnakeSegment>();
 
   @type('number')

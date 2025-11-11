@@ -6,6 +6,8 @@ import { GAME_INFO } from '../../configs/game';
 import { authService } from '../../services/AuthService';
 import { walletService } from '../../services/WalletService';
 import { apiService } from '../../services/ApiService';
+import { vipRoomService } from '../../services/VipRoomService';
+import type { RoomType, VipAccessCheckResult } from '../../types/Game.types';
 import type { PhantomProvider } from '../../types/Auth.types';
 
 const DEFAULT_RPC_ENDPOINT = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
@@ -1549,7 +1551,7 @@ export class MenuScene extends Scene {
         return buttonContainer;
     }
     
-    private startGame(roomType: 'free' | 'vip') {
+    private async startGame(roomType: RoomType) {
         // Get player name from input
         const inputElement = document.getElementById('nameInput') as HTMLInputElement;
         if (inputElement) {
@@ -1557,15 +1559,35 @@ export class MenuScene extends Scene {
         }
         
         // Check VIP requirements
+        let vipAccess: VipAccessCheckResult | undefined;
+
         if (roomType === 'vip') {
+            if (this.vipProcessing) {
+                return;
+            }
+
             if (!this.isAuthenticated) {
                 alert('Please login with Phantom wallet to play VIP rooms');
                 return;
             }
-            
-            if (!walletService.hasEnoughCredit(1)) {
-                alert('You need at least 1 credit to play VIP rooms');
+
+            try {
+                this.vipProcessing = true;
+                vipAccess = await vipRoomService.checkAccess();
+
+                if (!vipAccess.canJoin || !vipAccess.ticket?.id) {
+                    const message =
+                        vipAccess.reason ??
+                        'You do not have enough credit to join the VIP room.';
+                    alert(message);
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Failed to prepare VIP access:', error);
+                alert('Unable to verify VIP access. Please try again.');
                 return;
+            } finally {
+                this.vipProcessing = false;
             }
         }
         
@@ -1573,13 +1595,28 @@ export class MenuScene extends Scene {
         walletService.stopPolling();
         
         // Transition to game
+        const sceneData =
+            roomType === 'vip' && vipAccess
+                ? {
+                      playerName: this.playerName,
+                      skinId: this.selectedSkin,
+                      roomType,
+                      vipTicketId: vipAccess.ticket?.id,
+                      vipTicketCode: vipAccess.ticket?.ticketCode,
+                      vipConfig: vipAccess.config,
+                      vipCredit: vipAccess.credit,
+                  }
+                : {
+                      playerName: this.playerName,
+                      skinId: this.selectedSkin,
+                      roomType,
+                  };
+
         this.cameras.main.fade(500, 0, 0, 0, false, (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
             if (progress === 1) {
                 this.scene.start('GameScene', {
-                    playerName: this.playerName,
-                    skinId: this.selectedSkin,
-                    roomType: roomType,
-                    isAuthenticated: this.isAuthenticated
+                    ...sceneData,
+                    isAuthenticated: this.isAuthenticated,
                 });
             }
         });
