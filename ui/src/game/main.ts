@@ -1,7 +1,7 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { GAME_INFO } from '../configs/game';
 import { LoadingScene } from './scenes/LoadingScene';
-import { MenuScene } from './scenes/MenuScene';
+// import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
 
 //  Find out more information about the Game Config at:
@@ -21,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
     title: GAME_INFO.name,
     scene: [
         LoadingScene,
-        MenuScene,
+        // MenuScene,
         GameScene
     ],
     // Enhanced graphics settings

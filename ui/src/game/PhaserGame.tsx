@@ -10,10 +10,11 @@ export interface IRefPhaserGame
 
 interface IProps
 {
-    currentActiveScene?: (scene_instance: Phaser.Scene) => void
+    currentActiveScene?: (scene_instance: Phaser.Scene) => void;
+    visible?: boolean;
 }
 
-export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame({ currentActiveScene }, ref)
+export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame({ currentActiveScene, visible = true }, ref)
 {
     const game = useRef<Phaser.Game | null>(null!);
 
@@ -83,6 +84,14 @@ export const PhaserGame = forwardRef<IRefPhaserGame, IProps>(function PhaserGame
     }, [currentActiveScene, ref]);
 
     return (
-        <div id="game-container" className="fullscreen"></div>
+        <div 
+            id="game-container" 
+            className="fullscreen"
+            style={{ 
+                display: visible ? 'block' : 'none',
+                position: visible ? 'relative' : 'absolute',
+                pointerEvents: visible ? 'auto' : 'none'
+            }}
+        ></div>
     );
 });

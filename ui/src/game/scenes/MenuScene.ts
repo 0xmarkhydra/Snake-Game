@@ -862,7 +862,7 @@ export class MenuScene extends Scene {
                     vipInfo.setColor('#ffaa00');
                 }
             } else {
-                vipInfo.setText('🔒 Đăng nhập Phantom để chơi VIP');
+                vipInfo.setText('🔒 Login to play VIP ');
                 vipInfo.setColor('#ff6666');
             }
         };

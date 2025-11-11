@@ -1,0 +1,309 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { authService } from '../services/AuthService';
+import { walletService } from '../services/WalletService';
+import { vipRoomService } from '../services/VipRoomService';
+import { WalletInfo } from '../components/WalletInfo';
+import { ConnectPrompt } from '../components/ConnectPrompt';
+import { SkinSelector } from '../components/SkinSelector';
+import { LoginModal } from '../components/LoginModal';
+import { DepositModal } from '../components/DepositModal';
+import { GAME_INFO } from '../configs/game';
+import type { RoomType, VipAccessCheckResult } from '../types/Game.types';
+
+interface MainMenuPageProps {
+  onStartGame: (data: GameStartData) => void;
+}
+
+export interface GameStartData {
+  playerName: string;
+  skinId: number;
+  roomType: RoomType;
+  vipTicketId?: string;
+  vipTicketCode?: string;
+  vipConfig?: any;
+  vipCredit?: number;
+}
+
+export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
+  const [playerName, setPlayerName] = useState('Player');
+  const [selectedSkin, setSelectedSkin] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositMessage, setDepositMessage] = useState<string | undefined>();
+  const [vipProcessing, setVipProcessing] = useState(false);
+  const [vipInfoText, setVipInfoText] = useState('');
+
+  useEffect(() => {
+    // Check authentication
+    const authenticated = authService.isAuthenticated();
+    setIsAuthenticated(authenticated);
+
+    // Load user profile if authenticated
+    if (authenticated) {
+      const profile = authService.getUserProfile();
+      if (profile && profile.displayName) {
+        setPlayerName(profile.displayName);
+      }
+      
+      // Start polling credit
+      walletService.startPolling(3000);
+    }
+
+    // Update VIP info text
+    const updateVipInfo = () => {
+      if (authService.isAuthenticated()) {
+        const hasCredit = walletService.hasEnoughCredit(1);
+        if (hasCredit) {
+          setVipInfoText('Ready to play VIP!');
+        } else {
+          setVipInfoText('Cần ≥1 credit – nhấn để nạp');
+        }
+      } else {
+        setVipInfoText('🔒 Login to play VIP');
+      }
+    };
+
+    updateVipInfo();
+    const interval = setInterval(updateVipInfo, 1000);
+
+    return () => {
+      clearInterval(interval);
+      walletService.stopPolling();
+    };
+  }, []);
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setPlayerName('Player');
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    const profile = authService.getUserProfile();
+    if (profile && profile.displayName) {
+      setPlayerName(profile.displayName);
+    }
+  };
+
+  const handleShowDeposit = (message?: string) => {
+    setDepositMessage(message);
+    setShowDepositModal(true);
+  };
+
+  const handleDepositSuccess = () => {
+    // Refresh credit info
+    walletService.getCredit();
+  };
+
+  const handlePlayFree = () => {
+    onStartGame({
+      playerName,
+      skinId: selectedSkin,
+      roomType: 'free',
+    });
+  };
+
+  const handlePlayVip = async () => {
+    if (vipProcessing) return;
+
+    // Check authentication
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    try {
+      setVipProcessing(true);
+      const credit = await walletService.getCredit();
+      
+      if (credit >= 1) {
+        // Get VIP access
+        const vipAccess: VipAccessCheckResult = await vipRoomService.checkAccess();
+
+        if (!vipAccess.canJoin || !vipAccess.ticket?.id) {
+          const message = vipAccess.reason ?? 'You do not have enough credit to join the VIP room.';
+          alert(message);
+          return;
+        }
+
+        // Start VIP game
+        onStartGame({
+          playerName,
+          skinId: selectedSkin,
+          roomType: 'vip',
+          vipTicketId: vipAccess.ticket.id,
+          vipTicketCode: vipAccess.ticket.ticketCode,
+          vipConfig: vipAccess.config,
+          vipCredit: vipAccess.credit,
+        });
+      } else {
+        handleShowDeposit('Credit is still below the requirement. Please deposit to join VIP rooms.');
+      }
+    } catch (error) {
+      console.error('❌ Failed to prepare VIP access:', error);
+      alert('Unable to verify VIP access. Please try again.');
+    } finally {
+      setVipProcessing(false);
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full overflow-hidden">
+      {/* Background Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-b from-game-dark to-game-blue" />
+
+      {/* Grid Pattern Overlay */}
+      <div 
+        className="absolute inset-0 opacity-10"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
+          `,
+          backgroundSize: '32px 32px'
+        }}
+      />
+
+      {/* Wallet Controls */}
+      {isAuthenticated ? (
+        <WalletInfo onLogout={handleLogout} />
+      ) : (
+        <ConnectPrompt onConnect={() => setShowLoginModal(true)} />
+      )}
+
+      {/* Main Content Container */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, delay: 0.3, ease: 'backOut' }}
+        className="absolute inset-0 flex items-center justify-center"
+      >
+        <div className="relative w-full max-w-2xl mx-auto px-4">
+          {/* Title */}
+          <motion.div
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className="text-center mb-12"
+          >
+            <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-lg">
+              {GAME_INFO.name}
+            </h1>
+            <p className="text-3xl font-bold text-white stroke-black">
+              Multiplayer Snake Game
+            </p>
+          </motion.div>
+
+          {/* Menu Panel */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="bg-game-dark/70 backdrop-blur-sm rounded-2xl border-4 border-game-blue/80 p-8 shadow-2xl"
+          >
+            {/* Player Name Input */}
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold text-white text-center mb-2">YOUR NAME</h3>
+              <div className="h-0.5 w-40 mx-auto bg-game-blue mb-4"></div>
+              <input
+                type="text"
+                maxLength={15}
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full max-w-[260px] mx-auto block px-4 py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
+              />
+            </div>
+
+            {/* Skin Selector */}
+            <div className="mb-8">
+              <SkinSelector
+                selectedSkin={selectedSkin}
+                onSelectSkin={setSelectedSkin}
+              />
+            </div>
+
+            {/* Play Buttons */}
+            <div className="flex gap-6 justify-center mb-6">
+              {/* Free Button */}
+              <motion.button
+                onClick={handlePlayFree}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative group"
+              >
+                <div className="absolute inset-0 bg-green-400/50 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-2xl py-4 px-12 rounded-2xl border-3 border-white/80 shadow-lg">
+                  PLAY FREE
+                </div>
+              </motion.button>
+
+              {/* VIP Button */}
+              <motion.button
+                onClick={handlePlayVip}
+                disabled={vipProcessing}
+                whileHover={{ scale: vipProcessing ? 1 : 1.1 }}
+                whileTap={{ scale: vipProcessing ? 1 : 0.95 }}
+                className="relative group"
+              >
+                <div className="absolute inset-0 bg-orange-400/50 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-2xl py-4 px-12 rounded-2xl border-3 border-white/80 shadow-lg">
+                  {vipProcessing ? 'LOADING...' : 'PLAY VIP'}
+                </div>
+              </motion.button>
+            </div>
+
+            {/* VIP Info Text */}
+            <p 
+              className={`text-center text-sm ${
+                vipInfoText.includes('Ready') 
+                  ? 'text-[#9ad6ff]' 
+                  : vipInfoText.includes('🔒') 
+                  ? 'text-red-400' 
+                  : 'text-yellow-400'
+              }`}
+            >
+              {vipInfoText}
+            </p>
+          </motion.div>
+
+          {/* Instructions */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="text-center text-white mt-6 text-base max-w-lg mx-auto"
+            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
+          >
+            Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!
+          </motion.p>
+
+          {/* Version */}
+          <p className="text-center text-gray-400 text-xs mt-2">
+            v{GAME_INFO.version}
+          </p>
+        </div>
+      </motion.div>
+
+      {/* Modals */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={handleLoginSuccess}
+        onShowDeposit={handleShowDeposit}
+      />
+
+      <DepositModal
+        isOpen={showDepositModal}
+        onClose={() => {
+          setShowDepositModal(false);
+          setDepositMessage(undefined);
+        }}
+        onDepositSuccess={handleDepositSuccess}
+        initialMessage={depositMessage}
+      />
+    </div>
+  );
+};
+
