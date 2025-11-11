@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { CacheTTL } from '@nestjs/cache-manager';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -63,6 +64,7 @@ export class WalletController {
   @Get('credit')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @CacheTTL(1)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get current credit balance' })
   @ApiResponse({ status: HttpStatus.OK, type: CreditResponseDto })
