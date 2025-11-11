@@ -3,3 +3,6 @@ export * from './transaction.entity';
 export * from './user.entity';
 export * from './user-session.entity';
 export * from './wallet-balance.entity';
+export * from './vip-room-config.entity';
+export * from './vip-ticket.entity';
+export * from './kill-log.entity';

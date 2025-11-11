@@ -24,7 +24,11 @@ export class GameGateway implements OnModuleDestroy {
     this.gameService.attachServer(gameServer);
   }
 
-  registerRoom<T extends Room>(roomName: string, roomClass: RoomConstructor<T>, defaultOptions?: Record<string, unknown>): void {
+  registerRoom<T extends Room>(
+    roomName: string,
+    roomClass: RoomConstructor<T>,
+    defaultOptions?: Record<string, unknown>,
+  ): void {
     this.logger.info({ roomName }, 'Registering room via GameGateway.');
     this.gameService.registerRoom(roomName, roomClass, defaultOptions);
   }
@@ -54,7 +58,9 @@ export class GameGateway implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    this.logger.info('Shutting down GameGateway and underlying Colyseus server.');
+    this.logger.info(
+      'Shutting down GameGateway and underlying Colyseus server.',
+    );
     await this.gameService.shutdown();
     this.server = null;
     this.httpServer = null;
@@ -66,4 +72,3 @@ export class GameGateway implements OnModuleDestroy {
     }
   }
 }
-

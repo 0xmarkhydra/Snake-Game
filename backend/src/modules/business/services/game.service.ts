@@ -16,7 +16,9 @@ export class GameService {
 
   attachServer(gameServer: Server): void {
     if (this.gameServer) {
-      this.logger.warn('Game server is already attached. Skipping re-attachment.');
+      this.logger.warn(
+        'Game server is already attached. Skipping re-attachment.',
+      );
       return;
     }
 
@@ -24,11 +26,18 @@ export class GameService {
     this.gameServer = gameServer;
   }
 
-  registerRoom<T extends Room>(roomName: string, roomClass: RoomConstructor<T>, defaultOptions?: Record<string, unknown>): void {
+  registerRoom<T extends Room>(
+    roomName: string,
+    roomClass: RoomConstructor<T>,
+    defaultOptions?: Record<string, unknown>,
+  ): void {
     const server = this.ensureGameServer();
 
     if (this.registeredRooms.has(roomName)) {
-      this.logger.warn({ roomName }, 'Room has already been registered. Skipping duplicate definition.');
+      this.logger.warn(
+        { roomName },
+        'Room has already been registered. Skipping duplicate definition.',
+      );
       return;
     }
 
@@ -59,11 +68,12 @@ export class GameService {
 
   private ensureGameServer(): Server {
     if (!this.gameServer) {
-      this.logger.error('Attempted to access game server before it was attached.');
+      this.logger.error(
+        'Attempted to access game server before it was attached.',
+      );
       throw new Error('Game server has not been attached yet.');
     }
 
     return this.gameServer;
   }
 }
-

@@ -86,7 +86,9 @@ export class CreateWalletAndTransactions1720640000000
     await queryRunner.query(
       'ALTER TABLE "transactions" DROP CONSTRAINT "FK_transactions_user_id"',
     );
-    await queryRunner.query('DROP INDEX "IDX_wallet_balances_last_transaction_id"');
+    await queryRunner.query(
+      'DROP INDEX "IDX_wallet_balances_last_transaction_id"',
+    );
     await queryRunner.query('DROP INDEX "IDX_wallet_balances_user_id"');
     await queryRunner.query('DROP INDEX "IDX_transactions_webhook_event_id"');
     await queryRunner.query('DROP INDEX "IDX_transactions_user_id"');

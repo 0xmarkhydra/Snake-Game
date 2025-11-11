@@ -4,16 +4,22 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   AdminConfigRepository,
+  KillLogRepository,
   TransactionRepository,
   UserRepository,
   UserSessionRepository,
+  VipRoomConfigRepository,
+  VipTicketRepository,
   WalletBalanceRepository,
 } from './repositories';
 import {
   AdminConfigEntity,
+  KillLogEntity,
   TransactionEntity,
   UserEntity,
   UserSessionEntity,
+  VipRoomConfigEntity,
+  VipTicketEntity,
   WalletBalanceEntity,
 } from './entities';
 import { SeedDatabase } from './seeders/seed.database';
@@ -21,8 +27,11 @@ import { SeedDatabase } from './seeders/seed.database';
 const repositories = [
   AdminConfigRepository,
   TransactionRepository,
+  KillLogRepository,
   UserRepository,
   UserSessionRepository,
+  VipRoomConfigRepository,
+  VipTicketRepository,
   WalletBalanceRepository,
 ];
 
@@ -31,8 +40,11 @@ const services = [];
 const entities = [
   AdminConfigEntity,
   TransactionEntity,
+  KillLogEntity,
   UserEntity,
   UserSessionEntity,
+  VipRoomConfigEntity,
+  VipTicketEntity,
   WalletBalanceEntity,
 ];
 

@@ -106,7 +106,10 @@ export class Player extends Schema {
 
   addSegment(): void {
     const lastSegment = this.segments[this.segments.length - 1];
-    const newSegment = new SnakeSegment(lastSegment.position.x, lastSegment.position.y);
+    const newSegment = new SnakeSegment(
+      lastSegment.position.x,
+      lastSegment.position.y,
+    );
     this.segments.push(newSegment);
   }
 
@@ -144,4 +147,3 @@ export class SnakeGameState extends Schema {
   @type('number')
   timestamp: number = 0;
 }
-

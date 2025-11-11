@@ -42,12 +42,14 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       }
     });
 
-    this.onMessage('respawn', client => {
+    this.onMessage('respawn', (client) => {
       this.respawnPlayer(client);
     });
 
     this.onMessage('eatFood', (client, message: { foodId: string }) => {
-      console.log(`Player ${client.sessionId} attempting to eat food ${message.foodId}`);
+      console.log(
+        `Player ${client.sessionId} attempting to eat food ${message.foodId}`,
+      );
 
       const player = this.state.players.get(client.sessionId);
       const food = this.state.foods.get(message.foodId);
@@ -72,7 +74,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       const maxDistance = 250;
 
       if (distance <= maxDistance) {
-        console.log(`Player ${client.sessionId} eating food ${message.foodId}, value: ${food.value}`);
+        console.log(
+          `Player ${client.sessionId} eating food ${message.foodId}, value: ${food.value}`,
+        );
 
         player.score += food.value;
         console.log(`New score: ${player.score}`);
@@ -99,31 +103,36 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       console.log(`Received message of type: ${type}`);
     });
 
-    this.onMessage('playerDied', (client, message: { killerSessionId?: string | null }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player || !player.alive) {
-        return;
-      }
-
-      this.killPlayer(player);
-
-      if (message.killerSessionId) {
-        const killer = this.state.players.get(message.killerSessionId);
-        if (killer) {
-          killer.score += Math.floor(player.score / 2);
-          killer.kills += 1;
-
-          this.broadcast('playerKilled', {
-            killed: player.id,
-            killer: message.killerSessionId,
-          });
-
-          console.log(`Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`);
+    this.onMessage(
+      'playerDied',
+      (client, message: { killerSessionId?: string | null }) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !player.alive) {
+          return;
         }
-      }
 
-      this.spawnFoodFromDeadPlayer(player);
-    });
+        this.killPlayer(player);
+
+        if (message.killerSessionId) {
+          const killer = this.state.players.get(message.killerSessionId);
+          if (killer) {
+            killer.score += Math.floor(player.score / 2);
+            killer.kills += 1;
+
+            this.broadcast('playerKilled', {
+              killed: player.id,
+              killer: message.killerSessionId,
+            });
+
+            console.log(
+              `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
+            );
+          }
+        }
+
+        this.spawnFoodFromDeadPlayer(player);
+      },
+    );
 
     this.initializeFood();
 
@@ -139,7 +148,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const skinId = options.skinId !== undefined ? options.skinId : 0;
     const color = this.colors[skinId % this.colors.length];
 
-    console.log(`Spawning player at position: ${spawnPosition.x}, ${spawnPosition.y} with color: ${color} and skin: ${skinId}`);
+    console.log(
+      `Spawning player at position: ${spawnPosition.x}, ${spawnPosition.y} with color: ${color} and skin: ${skinId}`,
+    );
 
     const player = new Player(
       client.sessionId,
@@ -152,7 +163,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.skinId = skinId;
 
     this.state.players.set(client.sessionId, player);
-    console.log(`Player created with ID: ${client.sessionId}, segments: ${player.segments.length}`);
+    console.log(
+      `Player created with ID: ${client.sessionId}, segments: ${player.segments.length}`,
+    );
 
     client.send('welcome', {
       id: client.sessionId,
@@ -160,7 +173,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       color,
     });
 
-    const initialFoods: Array<{ id: string; position: { x: number; y: number }; value: number }> = [];
+    const initialFoods: Array<{
+      id: string;
+      position: { x: number; y: number };
+      value: number;
+    }> = [];
     this.state.foods.forEach((food, foodId) => {
       initialFoods.push({
         id: foodId,
@@ -185,7 +202,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   private gameLoop(): void {
     const start = performance.now();
 
-    this.state.players.forEach(player => {
+    this.state.players.forEach((player) => {
       if (!player.alive) {
         return;
       }
@@ -236,8 +253,14 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const dx = Math.cos(angleRad) * player.speed * speedMultiplier;
     const dy = Math.sin(angleRad) * player.speed * speedMultiplier;
 
-    const newX = this.wrapCoordinate(head.position.x + dx, this.state.worldWidth);
-    const newY = this.wrapCoordinate(head.position.y + dy, this.state.worldHeight);
+    const newX = this.wrapCoordinate(
+      head.position.x + dx,
+      this.state.worldWidth,
+    );
+    const newY = this.wrapCoordinate(
+      head.position.y + dy,
+      this.state.worldHeight,
+    );
 
     for (let index = player.segments.length - 1; index > 0; index -= 1) {
       const segment = player.segments[index];
@@ -343,7 +366,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
     const initialSegments = 5;
     for (let index = 0; index < initialSegments; index += 1) {
-      player.segments.push(new SnakeSegment(spawnPosition.x - index * 20, spawnPosition.y));
+      player.segments.push(
+        new SnakeSegment(spawnPosition.x - index * 20, spawnPosition.y),
+      );
     }
   }
 
@@ -438,4 +463,3 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     return null;
   }
 }
-

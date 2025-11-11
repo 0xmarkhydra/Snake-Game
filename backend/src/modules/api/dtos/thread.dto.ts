@@ -5,7 +5,7 @@ export class CreateThreadDto {
   @ApiPropertyOptional({
     description: 'The title of the thread',
     example: 'Discussion about blockchain technologies',
-    maxLength: 100
+    maxLength: 100,
   })
   title: string;
 }
@@ -13,31 +13,31 @@ export class CreateThreadDto {
 export class ThreadResponseDto {
   @ApiProperty({
     description: 'Unique identifier of the thread',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   id: string;
 
   @ApiProperty({
     description: 'The title of the thread',
-    example: 'Discussion about blockchain technologies'
+    example: 'Discussion about blockchain technologies',
   })
   title: string;
 
   @ApiProperty({
     description: 'User ID who created the thread',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   user_id: string;
 
   @ApiProperty({
     description: 'Creation timestamp',
-    example: '2023-04-02T10:30:00Z'
+    example: '2023-04-02T10:30:00Z',
   })
   created_at: Date;
 
   @ApiProperty({
     description: 'Last update timestamp',
-    example: '2023-04-02T10:30:00Z'
+    example: '2023-04-02T10:30:00Z',
   })
   updated_at: Date;
 }
@@ -45,7 +45,7 @@ export class ThreadResponseDto {
 export class StreamMessageDto {
   @ApiProperty({
     description: 'The ID of the thread to stream messages from',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsString()
   @IsNotEmpty()
@@ -53,7 +53,7 @@ export class StreamMessageDto {
 
   @ApiProperty({
     description: 'The question or prompt to process',
-    example: 'How do blockchain technologies work?'
+    example: 'How do blockchain technologies work?',
   })
   @IsString()
   @IsNotEmpty()
@@ -65,7 +65,7 @@ export class StreamMessageDto {
 export class ThreadListResponseDto {
   @ApiProperty({
     description: 'Array of threads',
-    type: [ThreadResponseDto]
+    type: [ThreadResponseDto],
   })
   data: ThreadResponseDto[];
 
@@ -75,8 +75,8 @@ export class ThreadListResponseDto {
       current_page: 1,
       total_pages: 5,
       take: 10,
-      total: 45
-    }
+      total: 45,
+    },
   })
   pagination: {
     current_page: number;
@@ -89,50 +89,50 @@ export class ThreadListResponseDto {
 export class MessageResponseDto {
   @ApiProperty({
     description: 'Unique identifier of the message',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   id: string;
 
   @ApiProperty({
     description: 'The content of the message',
-    example: 'How do blockchain technologies work?'
+    example: 'How do blockchain technologies work?',
   })
   content: string;
 
   @ApiProperty({
     description: 'Thread ID the message belongs to',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   thread_id: string;
 
   @ApiProperty({
     description: 'User ID who sent the message',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   user_id: string;
 
   @ApiProperty({
     description: 'Whether the message is from AI',
-    example: false
+    example: false,
   })
   is_ai: boolean;
 
   @ApiProperty({
     description: 'Parent message ID if this is a reply',
     example: '123e4567-e89b-12d3-a456-426614174000',
-    nullable: true
+    nullable: true,
   })
   parent_id: string | null;
 
   @ApiProperty({
     description: 'Creation timestamp',
-    example: '2023-04-02T10:30:00Z'
+    example: '2023-04-02T10:30:00Z',
   })
   created_at: Date;
 
   @ApiProperty({
     description: 'Last update timestamp',
-    example: '2023-04-02T10:30:00Z'
+    example: '2023-04-02T10:30:00Z',
   })
   updated_at: Date;
 }
@@ -140,7 +140,7 @@ export class MessageResponseDto {
 export class MessageListResponseDto {
   @ApiProperty({
     description: 'Array of messages',
-    type: [MessageResponseDto]
+    type: [MessageResponseDto],
   })
   data: MessageResponseDto[];
 
@@ -150,8 +150,8 @@ export class MessageListResponseDto {
       current_page: 1,
       total_pages: 5,
       take: 10,
-      total: 45
-    }
+      total: 45,
+    },
   })
   pagination: {
     current_page: number;
@@ -159,4 +159,4 @@ export class MessageListResponseDto {
     take: number;
     total: number;
   };
-} 
+}

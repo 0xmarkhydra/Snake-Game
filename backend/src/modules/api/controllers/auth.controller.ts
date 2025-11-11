@@ -39,7 +39,10 @@ export class AuthController {
   @Post('nonce')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Generate nonce for wallet signature' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Nonce generated successfully' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Nonce generated successfully',
+  })
   @ResponseMessage('Nonce generated successfully')
   async createNonce(@Body() payload: NonceRequestDto) {
     return this.authService.generateNonce(payload.walletAddress);
@@ -79,7 +82,9 @@ export class AuthController {
     type: AuthResponseDto,
   })
   @ResponseMessage('Token refreshed successfully')
-  async refreshToken(@Body() payload: RefreshTokenDto): Promise<AuthResponseDto> {
+  async refreshToken(
+    @Body() payload: RefreshTokenDto,
+  ): Promise<AuthResponseDto> {
     const result = await this.authService.refresh(payload.refreshToken);
     return this.mapLoginResult(result);
   }

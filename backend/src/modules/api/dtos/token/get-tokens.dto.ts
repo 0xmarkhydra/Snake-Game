@@ -4,10 +4,10 @@ import { Transform } from 'class-transformer';
 import { IsSolanaAddress } from '@/shared/validator/decorators/isSolanaAddress';
 
 export class GetTokensDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Danh sách mint address của tokens',
     isArray: true,
-    example: ['address1', 'address2']
+    example: ['address1', 'address2'],
   })
   @IsNotEmpty()
   @Transform(({ value }) => {
@@ -18,7 +18,7 @@ export class GetTokensDto {
     } else if (typeof value === 'string') {
       addresses = [value];
     }
-    
+
     // Loại bỏ phần tử trùng nhau bằng Set
     return [...new Set(addresses)];
   })
@@ -26,4 +26,4 @@ export class GetTokensDto {
   @IsString({ each: true })
   @IsSolanaAddress()
   addresses: string[];
-} 
+}

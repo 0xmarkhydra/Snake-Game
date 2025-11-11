@@ -9,7 +9,7 @@ import {
 class IsSolanaAddressConstraint implements ValidatorConstraintInterface {
   validate(value: any) {
     if (Array.isArray(value)) {
-      return value.every(item => this.validateAddress(item));
+      return value.every((item) => this.validateAddress(item));
     }
     return this.validateAddress(value);
   }
