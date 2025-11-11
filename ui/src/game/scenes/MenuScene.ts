@@ -980,12 +980,14 @@ export class MenuScene extends Scene {
             const credit = await walletService.getCredit();
             if (credit >= 1) {
                 statusText.setColor('#4caf50');
-                statusText.setText('Đã đủ credit! Vào phòng VIP thôi.');
-                this.time.delayedCall(500, () => {
-                    this.hideVipModal();
-                    this.startGame('vip');
-            });
-        } else {
+                statusText.setText('Đã kết nối Phantom thành công!\nBạn đã sẵn sàng chơi VIP.\nNhấn PLAY VIP khi muốn tham gia.');
+                this.time.delayedCall(1200, () => {
+                    const scenePlugin = this.scene;
+                    if (scenePlugin && scenePlugin.isActive(scenePlugin.key)) {
+                        this.hideVipModal();
+                    }
+                });
+            } else {
                 statusText.setColor('#ffcb05');
                 statusText.setText('Credit is still below the requirement. Please deposit to join VIP rooms.');
                 this.time.delayedCall(400, () => this.showVipDepositModal());
