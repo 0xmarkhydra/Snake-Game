@@ -118,10 +118,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         this.handleKillEvent(player, killer, { reason: 'client_message' });
 
         if (message.killerSessionId) {
-          console.log(
-            `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
-          );
-        }
+            console.log(
+              `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
+            );
+          }
       },
     );
 

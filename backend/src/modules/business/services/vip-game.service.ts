@@ -444,38 +444,13 @@ export class VipGameService {
   async processRespawn(ticketId: string): Promise<VipRespawnResult> {
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const ticketRepository = manager.withRepository(
-          this.vipTicketRepository,
-        );
-        const walletRepository = manager.withRepository(
-          this.walletBalanceRepository,
-        );
-        const transactionRepository = manager.withRepository(
-          this.transactionRepository,
-        );
+        const ticketRepository = manager.getRepository(VipTicketEntity);
+        const walletRepository = manager.getRepository(WalletBalanceEntity);
 
-        const ticket = await this.findTicketOrThrow(
-          {
-            where: { id: ticketId },
-            relations: ['user'],
-          },
-          ticketRepository,
-          true,
-        );
+        const ticket = await this.findTicketWithLock(ticketId, manager);
 
         const config = await this.getActiveConfig(ticket.roomType, manager);
         const cost = this.toNumber(config.respawnCost);
-        if (cost <= 0) {
-          const { balance } = await this.getOrCreateWalletBalance(
-            ticket.user.id,
-            walletRepository,
-            true,
-          );
-          return {
-            credit: balance.availableAmount,
-            cost: this.formatAmount(0),
-          };
-        }
 
         const { balance } = await this.getOrCreateWalletBalance(
           ticket.user.id,
@@ -483,38 +458,30 @@ export class VipGameService {
           true,
         );
 
-        if (this.toNumber(balance.availableAmount) < cost) {
-          throw new UnauthorizedException('Insufficient credit for respawn');
+        const currentCredit = this.toNumber(balance.availableAmount);
+        const entryRequirement = this.toNumber(config.entryFee);
+
+        if (currentCredit < entryRequirement) {
+          throw new UnauthorizedException(
+            'Insufficient credit for respawn',
+          );
         }
 
-        balance.availableAmount = this.formatAmount(
-          this.toNumber(balance.availableAmount) - cost,
-        );
+        if (currentCredit < cost) {
+          throw new UnauthorizedException(
+            'Insufficient credit for respawn',
+          );
+        }
 
-        const transaction = transactionRepository.create({
-          user: ticket.user,
-          type: TransactionType.PENALTY,
-          status: TransactionStatus.CONFIRMED,
-          amount: this.formatAmount(cost),
-          feeAmount: this.formatAmount(0),
-          referenceId: ticket.id,
-          metadata: {
-            source: 'vip-respawn',
-            ticketId,
-          },
-          processedAt: new Date(),
-          occurredAt: new Date(),
-        });
+        if (cost > 0) {
+          balance.availableAmount = this.formatAmount(currentCredit - cost);
 
-        const savedTransaction = await transactionRepository.save(transaction);
-        balance.lastTransactionId = savedTransaction.id;
-
-        await walletRepository.save(balance);
+          await walletRepository.save(balance);
+        }
 
         return {
           credit: balance.availableAmount,
           cost: this.formatAmount(cost),
-          transaction: savedTransaction,
         };
       });
     } catch (error) {
