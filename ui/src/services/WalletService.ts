@@ -1,5 +1,5 @@
 import { apiService } from './ApiService';
-import type { WalletBalance } from '../types/Auth.types';
+import type { WalletBalance, WithdrawResult } from '../types/Auth.types';
 
 const STORAGE_KEYS = {
     CREDIT: 'wallet_credit',
@@ -77,18 +77,51 @@ class WalletService {
     /**
      * Request withdrawal
      */
-    async withdraw(amount: number): Promise<boolean> {
+    async withdraw(recipientAddress: string, amount: number): Promise<WithdrawResult> {
         try {
-            await apiService.post('/wallet/withdraw', { amount });
+            const response = await apiService.post('/wallet/withdraw', { 
+                recipientAddress,
+                amount 
+            });
             
-            // Update credit
+            // Update credit after successful withdrawal
             await this.getCredit();
             
-            console.log(`✅ Withdrawal successful: ${amount} credits`);
-            return true;
-        } catch (error) {
+            console.log(`✅ Withdrawal successful: ${amount} USDC to ${recipientAddress}`);
+            return {
+                success: true,
+                data: response
+            };
+        } catch (error: any) {
             console.error('❌ Error withdrawing:', error);
-            return false;
+            
+            // Handle specific error cases
+            const errorResponse = error?.response?.data;
+            const status = error?.response?.status;
+            
+            // Handle 429 Too Many Requests
+            if (status === 429) {
+                const retryAfter = errorResponse?.retryAfter || 60;
+                return {
+                    success: false,
+                    message: errorResponse?.message || 'Too many withdrawal requests. Please wait and try again.',
+                    retryAfter
+                };
+            }
+            
+            // Handle insufficient balance
+            if (status === 400 && errorResponse?.message?.includes('Insufficient balance')) {
+                return {
+                    success: false,
+                    message: 'Insufficient balance for withdrawal.'
+                };
+            }
+            
+            // Handle other errors
+            return {
+                success: false,
+                message: errorResponse?.message || 'Withdrawal failed. Please try again.'
+            };
         }
     }
 

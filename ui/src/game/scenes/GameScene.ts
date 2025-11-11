@@ -195,7 +195,8 @@ export class GameScene extends Scene {
             console.log('Connected to game server!');
         } catch (error) {
             console.error('Failed to connect to game server:', error);
-            this.scene.start('MenuScene');
+            // Emit event to return to React menu
+            EventBus.emit('game-exit');
         }
     }
     
@@ -600,14 +601,14 @@ export class GameScene extends Scene {
         this.createMinimap();
         
         // Quit button
-        this.createQuitButton(20, height - 20);
+        this.createQuitButton(20, height-80);
     }
     
     private createLeaderboard() {
         const width = this.cameras.main.width;
         
         // Create container for leaderboard - increase top margin even more
-        this.leaderboardPanel = this.add.container(width - 200, 80);
+        this.leaderboardPanel = this.add.container(width - 110, 80);
         this.leaderboardPanel.setScrollFactor(0);
         this.leaderboardPanel.setDepth(100);
         
@@ -792,7 +793,8 @@ export class GameScene extends Scene {
             if (this.room) {
                 this.room.leave();
             }
-            this.scene.start('MenuScene');
+            // Emit event to return to React menu
+            EventBus.emit('game-exit');
         });
         
         // Hide everything by default
@@ -1420,7 +1422,7 @@ export class GameScene extends Scene {
             this.leaderboardPanel.removeAll(true);
         } else {
             // Create leaderboard panel if it doesn't exist
-            this.leaderboardPanel = this.add.container(this.cameras.main.width - 220, 10);
+            this.leaderboardPanel = this.add.container(this.cameras.main.width - 130, 10);
             this.leaderboardPanel.setScrollFactor(0);
             this.leaderboardPanel.setDepth(100);
         }
@@ -2196,23 +2198,29 @@ export class GameScene extends Scene {
     }
     
     private createQuitButton(x: number, y: number) {
-        const btnWidth = 140;
+        const btnWidth = 100;
         const btnHeight = 50;
-        const buttonBg = this.add.rectangle(x, y, btnWidth, btnHeight, 0xff4c4c, 0.9)
-            .setOrigin(0).setDepth(1000)
+        
+        // Create button background
+        const buttonBg = this.add.rectangle(x, y, btnWidth, btnHeight, 0xff4c4c, 0.8)
+            .setOrigin(0, 0)
+            .setDepth(1000)
+            .setScrollFactor(0)
             .setStrokeStyle(2, 0xffffff, 0.8)
             .setInteractive({ useHandCursor: true });
-        const buttonText = this.add.text(x + btnWidth/2, y - btnHeight/2, '⏻ Quit Game', {
+        
+        // Create button text - positioned at center of button
+        const buttonText = this.add.text(x + btnWidth/2, y + btnHeight/2, '⏻ Quit', {
             fontFamily: 'Arial',
             fontSize: '20px',
             color: '#ffffff',
             fontStyle: 'bold'
-        }).setOrigin(0.5);
-        buttonText.setDepth(1001);
+        })
+            .setOrigin(0.5, 0.5)
+            .setDepth(1001)
+            .setScrollFactor(0);
  
-        this.add.existing(buttonBg);
-        this.add.existing(buttonText);
- 
+        // Hover effect
         buttonBg.on('pointerover', () => {
             this.tweens.add({
                 targets: [buttonBg, buttonText],
@@ -2233,10 +2241,12 @@ export class GameScene extends Scene {
             });
         });
         
+        // Click handler
         buttonBg.on('pointerdown', () => {
             this.handleQuitClick(buttonBg, buttonText);
         });
         
+        // Make text also interactive and forward events to buttonBg
         buttonText.setInteractive({ useHandCursor: true })
             .on('pointerdown', () => {
                 this.handleQuitClick(buttonBg, buttonText);
@@ -2262,7 +2272,8 @@ export class GameScene extends Scene {
                         console.log('Left the game room');
                     }
                     
-                            this.scene.start('MenuScene');
+                    // Emit event to return to React menu
+                    EventBus.emit('game-exit');
                 } catch (error) {
                     console.error('Error leaving room:', error);
                     buttonText.setText('Retry?');

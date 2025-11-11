@@ -4,12 +4,11 @@ import { authService } from '../services/AuthService';
 import { walletService } from '../services/WalletService';
 import { vipRoomService } from '../services/VipRoomService';
 import { WalletInfo } from '../components/WalletInfo';
-import { ConnectPrompt } from '../components/ConnectPrompt';
 import { SkinSelector } from '../components/SkinSelector';
 import { LoginModal } from '../components/LoginModal';
 import { DepositModal } from '../components/DepositModal';
 import { GAME_INFO } from '../configs/game';
-import type { RoomType, VipAccessCheckResult } from '../types/Game.types';
+import type { RoomType, VipAccessCheckResult, VipRoomConfig } from '../types/Game.types';
 
 interface MainMenuPageProps {
   onStartGame: (data: GameStartData) => void;
@@ -21,7 +20,7 @@ export interface GameStartData {
   roomType: RoomType;
   vipTicketId?: string;
   vipTicketCode?: string;
-  vipConfig?: any;
+  vipConfig?: VipRoomConfig;
   vipCredit?: number;
 }
 
@@ -167,10 +166,8 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
       />
 
       {/* Wallet Controls */}
-      {isAuthenticated ? (
+      {isAuthenticated && (
         <WalletInfo onLogout={handleLogout} />
-      ) : (
-        <ConnectPrompt onConnect={() => setShowLoginModal(true)} />
       )}
 
       {/* Main Content Container */}
@@ -178,19 +175,19 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, delay: 0.3, ease: 'backOut' }}
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-0 flex items-center justify-center overflow-y-auto py-4 sm:py-0"
       >
-        <div className="relative w-full max-w-2xl mx-auto px-4">
+        <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4">
           {/* Title */}
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-center mb-12"
+            className="text-center mb-6 sm:mb-12 mt-14 sm:mt-0"
           >
-            <h1 className="text-6xl font-bold text-white mb-4 drop-shadow-lg">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-2 sm:mb-4 drop-shadow-lg">
               {GAME_INFO.name}
             </h1>
-            <p className="text-3xl font-bold text-white stroke-black">
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white stroke-black">
               Multiplayer Snake Game
             </p>
           </motion.div>
@@ -200,24 +197,24 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="bg-game-dark/70 backdrop-blur-sm rounded-2xl border-4 border-game-blue/80 p-8 shadow-2xl"
+            className="bg-game-dark/70 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 sm:border-4 border-game-blue/80 p-4 sm:p-6 md:p-8 shadow-2xl"
           >
             {/* Player Name Input */}
-            <div className="mb-8">
-              <h3 className="text-2xl font-bold text-white text-center mb-2">YOUR NAME</h3>
-              <div className="h-0.5 w-40 mx-auto bg-game-blue mb-4"></div>
+            <div className="mb-4 sm:mb-6 md:mb-8">
+              <h3 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">YOUR NAME</h3>
+              <div className="h-0.5 w-32 sm:w-40 mx-auto bg-game-blue mb-3 sm:mb-4"></div>
               <input
                 type="text"
                 maxLength={15}
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full max-w-[260px] mx-auto block px-4 py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
+                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-base sm:text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
               />
             </div>
 
             {/* Skin Selector */}
-            <div className="mb-8">
+            <div className="mb-4 sm:mb-6 md:mb-8">
               <SkinSelector
                 selectedSkin={selectedSkin}
                 onSelectSkin={setSelectedSkin}
@@ -225,16 +222,16 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             </div>
 
             {/* Play Buttons */}
-            <div className="flex gap-6 justify-center mb-6">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-6 justify-center mb-4 sm:mb-6">
               {/* Free Button */}
               <motion.button
                 onClick={handlePlayFree}
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="relative group"
+                className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-green-400/50 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-2xl py-4 px-12 rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="absolute inset-0 bg-green-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
                   PLAY FREE
                 </div>
               </motion.button>
@@ -243,12 +240,12 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
               <motion.button
                 onClick={handlePlayVip}
                 disabled={vipProcessing}
-                whileHover={{ scale: vipProcessing ? 1 : 1.1 }}
+                whileHover={{ scale: vipProcessing ? 1 : 1.05 }}
                 whileTap={{ scale: vipProcessing ? 1 : 0.95 }}
-                className="relative group"
+                className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-orange-400/50 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-2xl py-4 px-12 rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="absolute inset-0 bg-orange-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
                   {vipProcessing ? 'LOADING...' : 'PLAY VIP'}
                 </div>
               </motion.button>
@@ -256,7 +253,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
 
             {/* VIP Info Text */}
             <p 
-              className={`text-center text-sm ${
+              className={`text-center text-xs sm:text-sm ${
                 vipInfoText.includes('Ready') 
                   ? 'text-[#9ad6ff]' 
                   : vipInfoText.includes('🔒') 
@@ -273,14 +270,14 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="text-center text-white mt-6 text-base max-w-lg mx-auto"
+            className="text-center text-white mt-4 sm:mt-6 text-sm sm:text-base max-w-lg mx-auto px-2"
             style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
           >
             Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!
           </motion.p>
 
           {/* Version */}
-          <p className="text-center text-gray-400 text-xs mt-2">
+          <p className="text-center text-gray-400 text-xs mt-2 mb-4 sm:mb-0">
             v{GAME_INFO.version}
           </p>
         </div>

@@ -21,17 +21,17 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
     try {
       setIsProcessing(true);
       setStatusColor('text-yellow-300');
-      setStatusText('Đang mở Phantom...');
+      setStatusText('Connecting Wallet...');
 
       await authService.login();
-      setStatusText('Đăng nhập thành công! Đang kiểm tra credit...');
+      setStatusText('Login successful! Checking credit...');
 
       walletService.startPolling(3000);
 
       const credit = await walletService.getCredit();
       if (credit >= 1) {
         setStatusColor('text-green-400');
-        setStatusText('Đã kết nối Phantom thành công!\nBạn đã sẵn sàng chơi VIP.\nNhấn PLAY VIP khi muốn tham gia.');
+        setStatusText('Login successful! You are ready to play VIP. Click PLAY VIP to join.');
         setTimeout(() => {
           onLoginSuccess();
           onClose();
@@ -45,7 +45,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
         }, 400);
       }
     } catch (error: any) {
-      console.error('Kết nối Phantom thất bại', error);
+      console.error('Connect Wallet failed', error);
       setStatusColor('text-red-400');
       const message = error?.message || 'Kết nối thất bại. Vui lòng thử lại.';
       setStatusText(message);
@@ -85,12 +85,12 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
             <div className="bg-game-dark/95 backdrop-blur-sm rounded-2xl border-3 border-game-blue/80 p-8 w-[420px] max-w-[90vw] pointer-events-auto">
               {/* Title */}
               <h2 className="text-2xl font-bold text-white text-center mb-4">
-                Chơi VIP cần Phantom
+                Play VIP requires Connect Wallet
               </h2>
 
               {/* Description */}
               <p className="text-sm text-[#9ad6ff] text-center mb-4 leading-relaxed">
-                Kết nối Phantom wallet để tham gia phòng VIP và nhận thưởng.
+                Connect wallet to join VIP rooms and receive rewards.
               </p>
 
               {/* Status Text */}
@@ -113,7 +113,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
                   whileTap={{ scale: isProcessing ? 1 : 0.98 }}
                   className="w-full bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl border-2 border-white/90 transition-all duration-200"
                 >
-                  {isProcessing ? 'Đang xử lý...' : 'Kết nối Phantom'}
+                  {isProcessing ? 'Processing...' : 'Connect Wallet'}
                 </motion.button>
 
                 <motion.button
@@ -123,7 +123,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
                   whileTap={{ scale: isProcessing ? 1 : 0.98 }}
                   className="w-full bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl border-2 border-gray-500 transition-all duration-200"
                 >
-                  Để sau
+                  Later
                 </motion.button>
               </div>
             </div>

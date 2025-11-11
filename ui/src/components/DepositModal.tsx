@@ -156,106 +156,120 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
     setStatusText('Credit has not updated yet. Check Solscan for transaction status. You can still join VIP manually once credit updates.');
   };
 
-  const showDepositSuccess = (signature: string, solscanUrl: string, formattedCredit: string) => {
+  const showDepositSuccess = (signature: string, _solscanUrl: string, formattedCredit: string) => {
     setStatusColor('text-green-400');
-    setStatusText(`Deposit confirmed! 🎉\nCredit: ${formattedCredit}\nTx: ${signature.slice(0, 8)}...${signature.slice(-8)}`);
+    setStatusText(`✅ Deposit confirmed! 🎉\nNew Balance: ${formattedCredit} USDC\nTx: ${signature.slice(0, 8)}...${signature.slice(-8)}`);
     setTimeout(() => {
       onDepositSuccess();
       onClose();
     }, 2000);
   };
 
-  const handleClose = () => {
-    if (!isProcessing) {
-      setStatusText('');
-      setAmount('1');
-      onClose();
-    }
-  };
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black/60 z-[2000] flex items-center justify-center"
-          />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+        onClick={() => !isProcessing && onClose()}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          transition={{ type: 'spring', duration: 0.5 }}
+          className="bg-gradient-to-br from-[#0a1f2e] via-[#0d2838] to-[#081d28] rounded-2xl border-2 border-game-blue/60 shadow-2xl shadow-game-blue/30 p-6 sm:p-8 max-w-md w-full relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Animated Background Glow */}
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-emerald-500/5 animate-pulse pointer-events-none" />
 
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ duration: 0.3, ease: 'backOut' }}
-            className="fixed inset-0 z-[2001] flex items-center justify-center pointer-events-none"
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors text-2xl z-10 disabled:opacity-50"
           >
-            <div className="bg-[#0b2a6b]/96 backdrop-blur-sm rounded-2xl border-2 border-[#52a8ff]/85 p-8 w-[420px] max-w-[90vw] pointer-events-auto shadow-2xl">
-              {/* Title */}
-              <h2 className="text-2xl font-bold text-white text-center mb-2">
-                Deposit Tokens
-              </h2>
+            ✕
+          </button>
 
-              {/* Current Credit */}
-              <p className="text-sm text-[#9ad6ff] text-center mb-6">
-                Current credit: {currentCredit} credit
-              </p>
+          {/* Header */}
+          <div className="text-center mb-6 relative z-10">
+            <div className="text-5xl mb-3 animate-pulse">💰</div>
+            <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 mb-2">
+              Deposit USDC
+            </h2>
+            <p className="text-sm text-gray-400">
+              Current: <span className="text-game-gold font-bold">{currentCredit} USDC</span>
+            </p>
+          </div>
 
-              {/* Amount Input */}
-              <div className="mb-4">
-                <label className="block text-sm text-white mb-2">Amount</label>
-                <input
-                  type="number"
-                  min="0.000001"
-                  step="0.000001"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  disabled={isProcessing}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-game-blue bg-[#081c3c]/90 text-white text-base outline-none focus:border-game-light focus:ring-2 focus:ring-game-light/50 transition-all disabled:opacity-50"
-                />
-              </div>
-
-              {/* Status Text */}
-              {statusText && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`text-sm ${statusColor} text-center mb-6 leading-relaxed whitespace-pre-line min-h-[54px] p-3 bg-black/20 rounded-lg`}
-                >
-                  {statusText}
-                </motion.div>
-              )}
-
-              {/* Buttons */}
-              <div className="space-y-3">
-                <motion.button
-                  onClick={handleDeposit}
-                  disabled={isProcessing}
-                  whileHover={{ scale: isProcessing ? 1 : 1.02 }}
-                  whileTap={{ scale: isProcessing ? 1 : 0.98 }}
-                  className="w-full bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all duration-200"
-                >
-                  {isProcessing ? 'Processing...' : 'Deposit'}
-                </motion.button>
-
-                <motion.button
-                  onClick={handleClose}
-                  disabled={isProcessing}
-                  whileHover={{ scale: isProcessing ? 1 : 1.02 }}
-                  whileTap={{ scale: isProcessing ? 1 : 0.98 }}
-                  className="w-full bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all duration-200"
-                >
-                  Close
-                </motion.button>
-              </div>
+          {/* Form */}
+          <div className="space-y-4 relative z-10">
+            {/* Amount Input */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Amount (USDC)
+              </label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                step="0.000001"
+                min="0.000001"
+                disabled={isProcessing}
+                className="w-full px-4 py-3 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white placeholder-gray-500 focus:border-game-blue focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-bold"
+              />
             </div>
-          </motion.div>
-        </>
-      )}
+
+            {/* Status Message */}
+            <motion.div
+              key={statusText}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-center text-sm font-semibold ${statusColor} min-h-[60px] flex items-center justify-center whitespace-pre-line`}
+            >
+              {statusText}
+            </motion.div>
+
+            {/* Deposit Button */}
+            <motion.button
+              onClick={handleDeposit}
+              disabled={isProcessing}
+              whileHover={{ scale: isProcessing ? 1 : 1.02 }}
+              whileTap={{ scale: isProcessing ? 1 : 0.98 }}
+              className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-green-500/30 relative overflow-hidden group"
+            >
+              {/* Button Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-green-400/0 via-white/20 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+              
+              <span className="relative z-10">
+                {isProcessing ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    Processing...
+                  </span>
+                ) : (
+                  '💰 Deposit Now'
+                )}
+              </span>
+            </motion.button>
+
+            {/* Info Note */}
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-xs text-green-300">
+              <span className="font-bold">ℹ️ Info:</span> Your wallet will be charged for the deposit amount plus Solana network fees. Credit updates may take a few moments.
+            </div>
+          </div>
+
+          {/* Corner Decorations */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-bl-full blur-xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-tr-full blur-xl pointer-events-none" />
+        </motion.div>
+      </motion.div>
     </AnimatePresence>
   );
 };

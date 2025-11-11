@@ -62,13 +62,13 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
   return (
     <div className="w-full">
       {/* Label */}
-      <div className="text-center mb-4">
-        <h3 className="text-2xl font-bold text-white mb-2">CHOOSE YOUR SKIN</h3>
-        <div className="h-0.5 w-60 mx-auto bg-game-blue"></div>
+      <div className="text-center mb-3 sm:mb-4">
+        <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">CHOOSE YOUR SKIN</h3>
+        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-game-blue"></div>
       </div>
 
       {/* Skin Grid */}
-      <div className="grid grid-cols-4 gap-6 max-w-sm mx-auto mt-8">
+      <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-sm mx-auto mt-4 sm:mt-6 md:mt-8">
         {SKINS.map((skinId, index) => {
           const isSelected = skinId === selectedSkin;
           const isHovered = skinId === hoveredSkin;
@@ -78,7 +78,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               key={skinId}
               className="relative flex items-center justify-center"
               animate={{
-                scale: isSelected ? 1.2 : isHovered ? 1.1 : 1,
+                scale: isSelected ? 1.15 : isHovered ? 1.1 : 1,
               }}
               transition={{ duration: 0.2, ease: 'backOut' }}
               onHoverStart={() => setHoveredSkin(skinId)}
@@ -87,7 +87,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               {/* Selection Glow */}
               {isSelected && (
                 <motion.div
-                  className="absolute inset-0 -m-2 bg-yellow-400/30 rounded-xl"
+                  className="absolute inset-0 -m-1 sm:-m-2 bg-yellow-400/30 rounded-lg sm:rounded-xl"
                   animate={{ opacity: [0.3, 0.7, 0.3] }}
                   transition={{ duration: 0.8, repeat: Infinity }}
                 />
@@ -97,7 +97,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               <button
                 onClick={() => onSelectSkin(skinId)}
                 className={`
-                  relative w-[55px] h-[55px] rounded-xl
+                  relative w-[50px] h-[50px] sm:w-[55px] sm:h-[55px] rounded-lg sm:rounded-xl
                   bg-gradient-to-b from-game-dark to-[#0a3473]
                   border-2 transition-all duration-200
                   ${isSelected 

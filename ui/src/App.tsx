@@ -31,10 +31,19 @@ function App() {
       }
     };
 
+    // Listen for game exit event (back to menu)
+    const handleGameExit = () => {
+      console.log('Game exit requested, returning to menu');
+      gameStartDataRef.current = null;
+      setGameState('menu');
+    };
+
     EventBus.on('current-scene-ready', handleSceneReady);
+    EventBus.on('game-exit', handleGameExit);
 
     return () => {
       EventBus.off('current-scene-ready', handleSceneReady);
+      EventBus.off('game-exit', handleGameExit);
     };
   }, []);
 
@@ -68,13 +77,6 @@ function App() {
     console.log('Starting game with data:', data);
     gameStartDataRef.current = data;
     setGameState('playing');
-  };
-
-  // TODO: Use this when implementing back to menu from game
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleBackToMenu = () => {
-    gameStartDataRef.current = null;
-    setGameState('menu');
   };
 
   return (

@@ -27,6 +27,29 @@ export interface WalletBalance {
     credit: number | string;
 }
 
+export interface WithdrawRequest {
+    recipientAddress: string;
+    amount: number;
+}
+
+export interface WithdrawResponse {
+    signature: string;
+    transactionId: string;
+    recipientAddress: string;
+    amount: number;
+    mintAddress: string;
+    senderAddress: string;
+    tokenAccountCreated: boolean;
+    availableAmount: number | string;
+}
+
+export interface WithdrawResult {
+    success: boolean;
+    message?: string;
+    data?: WithdrawResponse;
+    retryAfter?: number;
+}
+
 export interface AuthState {
     isAuthenticated: boolean;
     user: UserProfile | null;
@@ -37,16 +60,12 @@ export interface AuthState {
 // Phantom wallet types
 export interface PhantomProvider {
     isPhantom?: boolean;
-    connect(): Promise<{ publicKey: { toString(): string } }>;
-    disconnect(): Promise<void>;
-    signMessage(message: Uint8Array, encoding: string): Promise<{ signature: Uint8Array }>;
-    on(event: string, callback: () => void): void;
-    removeListener(event: string, callback: () => void): void;
-}
-
-declare global {
-    interface Window {
-        solana?: PhantomProvider;
-    }
+    publicKey?: any;
+    connect(): Promise<{ publicKey: any }>;
+    disconnect?: () => Promise<void>;
+    signTransaction?: (transaction: any) => Promise<any>;
+    signMessage?(message: Uint8Array, encoding: string): Promise<{ signature: Uint8Array }>;
+    on?(event: string, callback: () => void): void;
+    removeListener?(event: string, callback: () => void): void;
 }
 
