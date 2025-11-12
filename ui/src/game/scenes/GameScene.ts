@@ -1158,17 +1158,7 @@ export class GameScene extends Scene {
                     // Clear and redraw segment
                     segmentObj.clear();
                     
-                    segmentObj.fillStyle(0x000000, 0.12);
-                    segmentObj.fillCircle(0, 0, scaledRadius);
-                    
-                    segmentObj.fillStyle(colorInt, 1);
-                    segmentObj.fillCircle(0, 0, scaledRadius * 0.94);
-                    
-                    segmentObj.fillStyle(colorInt, 0.9);
-                    segmentObj.fillCircle(0, 0, scaledRadius * 0.82);
-                    
-                    segmentObj.fillStyle(highlightColorInt, 0.5);
-                    segmentObj.fillCircle(0, 0, scaledRadius * 0.65);
+                    applyRadialShading(segmentObj, colorInt, scaledRadius, 0.75);
                     
                     // Add inner shadow towards previous segment for seamless overlap
                     const prevSegment = children[i - 1] as Phaser.GameObjects.Graphics | undefined;
@@ -1182,7 +1172,7 @@ export class GameScene extends Scene {
                     }
                     
                     // Draw body segment outline
-                    segmentObj.lineStyle(2, 0x000000, 0.15);
+                    segmentObj.lineStyle(2, 0x000000, 0.12);
                     segmentObj.strokeCircle(0, 0, scaledRadius);
                 }
             }
