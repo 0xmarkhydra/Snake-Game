@@ -114,6 +114,20 @@ export class Player extends Schema {
       lastSegment.position.y,
     );
     this.segments.push(newSegment);
+    this.totalLength += 1;
+  }
+
+  reduceLength(amount: number): void {
+    if (amount <= 0) {
+      return;
+    }
+
+    this.totalLength = Math.max(5, this.totalLength - amount);
+    const targetSegments = Math.max(5, Math.floor(this.totalLength));
+
+    while (this.segments.length > targetSegments) {
+      this.segments.pop();
+    }
   }
 
   updateHeadPosition(): void {

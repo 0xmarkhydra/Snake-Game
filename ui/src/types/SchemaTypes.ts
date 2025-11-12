@@ -11,6 +11,7 @@ export interface Player {
     boosting: boolean;
     kills: number;
     credit?: number;
+    totalLength: number;
     headPosition: {
         x: number;
         y: number;

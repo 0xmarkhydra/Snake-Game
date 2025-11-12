@@ -6,6 +6,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   tickRate = 16;
   gameLoopInterval: Delayed;
 
+  protected readonly boostPenaltyInterval = 900;
+  protected readonly boostScorePenalty = 1;
+  protected readonly boostLengthPenalty = 0.5;
+
   protected readonly colors = [
     '#FF5733',
     '#33FF57',
@@ -256,6 +260,18 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     return normalMultiplier + (targetBoostMultiplier - normalMultiplier) * rampProgress;
   }
 
+  protected applyBoostPenalty(player: Player): void {
+    if (player.score > 0) {
+      player.score = Math.max(0, player.score - this.boostScorePenalty);
+    }
+
+    player.reduceLength(this.boostLengthPenalty);
+
+    if (player.score <= 0 || player.segments.length <= 5) {
+      player.boosting = false;
+    }
+  }
+
   protected movePlayer(player: Player): void {
     if (!player.alive || player.segments.length === 0) {
       return;
@@ -270,20 +286,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (player.boosting) {
       player.boostTime += this.tickRate;
 
-      if (player.boostTime >= 500) {
-        player.boostTime = 0;
-
-        if (player.segments.length > 5) {
-          player.score = Math.max(0, player.score - 1);
-
-          if (player.segments.length > 5) {
-            player.segments.pop();
-          } else {
-            player.boosting = false;
-          }
-        } else {
-          player.boosting = false;
-        }
+      while (player.boostTime >= this.boostPenaltyInterval && player.boosting) {
+        player.boostTime -= this.boostPenaltyInterval;
+        this.applyBoostPenalty(player);
       }
     } else {
       player.boostTime = 0;
@@ -382,6 +387,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.score = 0;
     player.kills = 0;
     player.segments.clear();
+    player.totalLength = 0;
 
     player.invulnerable = true;
 
@@ -397,6 +403,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         new SnakeSegment(spawnPosition.x - index * 20, spawnPosition.y),
       );
     }
+    player.totalLength = initialSegments;
   }
 
   protected spawnFoodFromDeadPlayer(player: Player): void {
