@@ -234,7 +234,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player: Player,
     normalMultiplier: number,
   ): number {
-    const baseBoostMultiplier = 3.2;
+    const baseBoostMultiplier = 5.0;
     const boostReductionPerPoint = 0.01;
     const minBoostMargin = 0.4;
 
@@ -244,16 +244,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const minimumBoostMultiplier = normalMultiplier + minBoostMargin;
 
     return Math.max(minimumBoostMultiplier, rawBoostMultiplier);
-  }
-
-  protected resolveBoostRampMultiplier(
-    player: Player,
-    normalMultiplier: number,
-    targetBoostMultiplier: number,
-  ): number {
-    const rampDuration = 1600;
-    const rampProgress = Math.min(player.boostTime / rampDuration, 1);
-    return normalMultiplier + (targetBoostMultiplier - normalMultiplier) * rampProgress;
   }
 
   protected movePlayer(player: Player): void {
@@ -290,7 +280,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     }
 
     const speedMultiplier = player.boosting
-      ? this.resolveBoostRampMultiplier(player, normalMultiplier, boostTargetMultiplier)
+      ? boostTargetMultiplier
       : normalMultiplier;
 
     const dx = Math.cos(angleRad) * baseSpeed * speedMultiplier;

@@ -334,7 +334,7 @@ export class GameScene extends Scene {
 
             // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
             if (time - this.lastAttractionUpdate > this.attractionUpdateInterval) {
-                this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
+            this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
                 this.lastAttractionUpdate = time;
             }
         } else if (this.headAttractionAura) {
@@ -706,8 +706,8 @@ export class GameScene extends Scene {
         
         // Title (cached)
         this.leaderboardTitle = this.add.text(0, 20, 'LEADERBOARD', { 
-            fontFamily: 'Arial', 
-            fontSize: '20px', 
+            fontFamily: 'Arial',
+            fontSize: '20px',
             fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
@@ -719,7 +719,7 @@ export class GameScene extends Scene {
         const headerY = 50;
         this.leaderboardHeaders = {
             rank: this.add.text(-bgWidth/2 + 20, headerY, 'RANK', { 
-                fontFamily: 'Arial', 
+                    fontFamily: 'Arial',
                 fontSize: '12px',
                 color: '#aaaaff',
                 fontStyle: 'bold'
@@ -1190,14 +1190,14 @@ export class GameScene extends Scene {
             const renderPosition = { x: renderX, y: renderY };
 
             this.playerRenderPositions.set(id, renderPosition);
-
+            
             // Get or create segment history for this player
             let segmentHistory = this.playerSegmentHistories.get(id);
             if (!segmentHistory) {
                 segmentHistory = [];
                 this.playerSegmentHistories.set(id, segmentHistory);
             }
-
+            
             const historyHead = segmentHistory[0];
             if (
                 !historyHead ||
@@ -1205,12 +1205,12 @@ export class GameScene extends Scene {
             ) {
                 segmentHistory.unshift({ x: renderPosition.x, y: renderPosition.y });
             }
-
+            
             // Trim history to prevent memory issues
             if (segmentHistory.length > this.historySize) {
                 segmentHistory.length = this.historySize;
             }
-
+            
             const headObj = segments[0] as Phaser.GameObjects.Graphics;
             const colorInt = parseInt(color.replace('#', '0x'));
             const radiusGrowth = this.computeProgressiveGrowth(
@@ -1228,7 +1228,7 @@ export class GameScene extends Scene {
                     segmentHistory.push({ x: renderPosition.x, y: renderPosition.y });
                 }
             }
-
+            
             if (headObj) {
                 headObj.setPosition(renderPosition.x, renderPosition.y);
 
@@ -1238,7 +1238,7 @@ export class GameScene extends Scene {
                     headObj.fillStyle(colorInt, 0.22);
                     headObj.fillCircle(0, 0, snakeRadius * 1.28);
                 }
-
+                
                 this.drawSnakeSegment(headObj, snakeRadius, colorInt, {
                     shadowOffsetX: 3,
                     shadowOffsetY: 4,
@@ -1252,8 +1252,8 @@ export class GameScene extends Scene {
 
             for (let i = 1; i < segments.length; i++) {
                 const segmentObj = segments[i] as Phaser.GameObjects.Graphics;
-                if (!segmentObj) continue;
-
+                    if (!segmentObj) continue;
+                    
                 const targetDistance = i * this.segmentSpacing;
                 const targetPosition = this.getPositionFromHistory(segmentHistory, targetDistance, renderPosition);
 
@@ -1445,8 +1445,8 @@ export class GameScene extends Scene {
             // ===== DRAW LEFT EYE =====
             // Eye white with subtle outline
             graphics.lineStyle(2, 0x000000, 0.5);
-            graphics.fillStyle(0xffffff, 1); // White
-            graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
             graphics.strokeCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
             
             // Colored iris (light blue/cyan for more character)
@@ -1458,7 +1458,7 @@ export class GameScene extends Scene {
             const pupilOffsetX = Math.cos(angleRad) * (eyeRadius * 0.15);
             const pupilOffsetY = Math.sin(angleRad) * (eyeRadius * 0.15);
             
-            graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillStyle(0x000000, 1); // Black pupil
             graphics.fillCircle(
                 leftEyeX + forwardX + pupilOffsetX, 
                 leftEyeY + forwardY + pupilOffsetY, 
@@ -1472,12 +1472,12 @@ export class GameScene extends Scene {
                 leftEyeY + forwardY + pupilOffsetY - pupilRadius * 0.3, 
                 pupilRadius * 0.4
             );
-            
+        
             // ===== DRAW RIGHT EYE =====
             // Eye white with subtle outline
             graphics.lineStyle(2, 0x000000, 0.5);
-            graphics.fillStyle(0xffffff, 1); // White
-            graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
             graphics.strokeCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
             
             // Colored iris
@@ -1485,7 +1485,7 @@ export class GameScene extends Scene {
             graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius * 0.7);
             
             // Pupil - moves slightly in direction of movement
-            graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillStyle(0x000000, 1); // Black pupil
             graphics.fillCircle(
                 rightEyeX + forwardX + pupilOffsetX, 
                 rightEyeY + forwardY + pupilOffsetY, 
@@ -1695,7 +1695,7 @@ export class GameScene extends Scene {
                                 repeat: -1,
                                 ease: 'Sine.easeInOut'
                             });
-
+                            
                             this.startFoodIdleTweens(foodSprite, true);
                         } else if (value === 1 && glow) {
                             // Remove glow for normal food
@@ -1846,7 +1846,7 @@ export class GameScene extends Scene {
         foodSprite.setData('flashTween', null);
         foodSprite.setData('rotationTween', null);
     }
-
+    
     private createFoodSprite(id: string, x: number, y: number, value: number): Phaser.GameObjects.Image {
         // Create food sprite with appropriate texture based on value
         const texture = value > 1 ? 'special-food' : 'food';
@@ -2027,12 +2027,12 @@ export class GameScene extends Scene {
             if (i < topPlayers.length) {
                 // Show and update this entry
                 const player = topPlayers[i];
-                const isCurrentPlayer = player.id === this.playerId;
+            const isCurrentPlayer = player.id === this.playerId;
                 const rowY = 75 + (i * 22);
-                
+            
                 // Update row background for current player
                 if (entry.rowBg) {
-                    if (isCurrentPlayer) {
+            if (isCurrentPlayer) {
                         entry.rowBg.clear();
                         entry.rowBg.fillStyle(0x1a5555, 0.5);
                         entry.rowBg.fillRoundedRect(-bgWidth/2 + 10, rowY - 10, bgWidth - 20, 20, 5);
@@ -2040,20 +2040,20 @@ export class GameScene extends Scene {
                     } else {
                         entry.rowBg.setVisible(false);
                     }
-                }
-                
+            }
+            
                 // Update rank text and color
                 let rankText = `${i + 1}`;
-                let rankColor = '#ffffff';
-                
+            let rankColor = '#ffffff';
+            
                 if (i === 0) {
-                    rankText = '🥇';
+                rankText = '🥇';
                     rankColor = '#ffd700';
                 } else if (i === 1) {
-                    rankText = '🥈';
+                rankText = '🥈';
                     rankColor = '#c0c0c0';
                 } else if (i === 2) {
-                    rankText = '🥉';
+                rankText = '🥉';
                     rankColor = '#cd7f32';
                 }
                 
@@ -2061,7 +2061,7 @@ export class GameScene extends Scene {
                 entry.rankText.setColor(rankColor);
                 entry.rankText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.rankText.setVisible(true);
-                
+            
                 // Update color circle
                 entry.colorCircle.clear();
                 entry.colorCircle.fillStyle(parseInt(player.color.replace('#', '0x')), 1);
@@ -2069,19 +2069,19 @@ export class GameScene extends Scene {
                 entry.colorCircle.setVisible(true);
                 
                 // Update name text
-                const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
-                const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
+            const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
+            const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
                 entry.nameText.setText(nameText);
                 entry.nameText.setColor(nameColor);
                 entry.nameText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.nameText.setVisible(true);
-                
+            
                 // Update score text
                 entry.scoreText.setText(`${player.score}`);
                 entry.scoreText.setColor(nameColor);
                 entry.scoreText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.scoreText.setVisible(true);
-                
+            
                 // Update kills text
                 entry.killsText.setText(`${player.kills}`);
                 entry.killsText.setColor(nameColor);
@@ -2411,11 +2411,11 @@ export class GameScene extends Scene {
             const moveX = (headX - foodSprite.x) * attractionForce * moveMultiplier;
             const moveY = (headY - foodSprite.y) * attractionForce * moveMultiplier;
             
-            foodSprite.x += moveX;
-            foodSprite.y += moveY;
-            
-            const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
-            if (newDistance < eatDistance) {
+                foodSprite.x += moveX;
+                foodSprite.y += moveY;
+                
+                const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
+                if (newDistance < eatDistance) {
                 const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
                 if (attractTween) {
                     attractTween.stop();
@@ -2425,38 +2425,38 @@ export class GameScene extends Scene {
 
                 this.stopFoodTweens(foodSprite);
                 
-                const glow = foodSprite.getData('glow');
-                if (glow) {
+                    const glow = foodSprite.getData('glow');
+                    if (glow) {
                     this.tweens.killTweensOf(glow);
-                    glow.destroy();
-                    foodSprite.setData('glow', null);
-                }
-                
+                        glow.destroy();
+                        foodSprite.setData('glow', null);
+                    }
+                    
                 foodSprite.setData('isAttracting', false);
-                foodSprite.setVisible(false);
-                foodSprite.setScale(0);
-                
-                this.eatSound.play({ volume: 0.5 });
-                this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
-                
-                console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
+                    foodSprite.setVisible(false);
+                    foodSprite.setScale(0);
+                    
+                    this.eatSound.play({ volume: 0.5 });
+                    this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
+                    
+                    console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
                 const roomRef = this.room;
                 if (roomRef && !this.isQuitting) {
                     roomRef.send('eatFood', { 
                         foodId,
                         headX,
                         headY,
-                        foodX: foodSprite.x,
-                        foodY: foodSprite.y
-                    });
-                }
+                            foodX: foodSprite.x,
+                            foodY: foodSprite.y
+                        });
+                    }
                 
                 return;
-            }
-            
-            if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
-                foodSprite.setData('isAttracting', true);
+                }
                 
+                if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
+                    foodSprite.setData('isAttracting', true);
+                    
                 const previousAttractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
                 if (previousAttractTween) {
                     previousAttractTween.stop();
@@ -2466,14 +2466,14 @@ export class GameScene extends Scene {
                 this.stopFoodTweens(foodSprite);
                 
                 const attractTween = this.tweens.add({
-                    targets: foodSprite,
+                        targets: foodSprite,
                     alpha: { from: 1, to: 0.7 },
                     scale: { from: 1, to: 1.5 },
                     duration: 200,
-                    yoyo: true,
-                    repeat: -1,
-                    ease: 'Sine.easeInOut'
-                });
+                        yoyo: true,
+                        repeat: -1,
+                        ease: 'Sine.easeInOut'
+                    });
                 
                 foodSprite.setData('attractTween', attractTween);
             }
@@ -2866,7 +2866,7 @@ export class GameScene extends Scene {
                 ease: 'Back.easeOut'
             });
         });
-
+        
         buttonContainer.on('pointerout', () => {
             drawButton('default');
             this.tweens.add({
@@ -2878,7 +2878,7 @@ export class GameScene extends Scene {
                 ease: 'Back.easeIn'
             });
         });
-
+        
         buttonContainer.on('pointerdown', () => {
             drawButton('active');
             buttonContainer.alpha = hoverAlpha;
