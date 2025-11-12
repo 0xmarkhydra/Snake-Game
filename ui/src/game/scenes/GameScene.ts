@@ -200,7 +200,6 @@ export class GameScene extends Scene {
 
         if (this.roomType === 'vip') {
             this.updateVipCreditDisplay(this.vipCredit);
-            this.updateVipInfoText();
         }
         
         // Set up audio
@@ -482,8 +481,7 @@ export class GameScene extends Scene {
 
         room.onMessage('vip:config', (message) => {
             if (message) {
-                this.vipConfig = this.normalizeVipConfig(message);
-                this.updateVipInfoText();
+                this.vipConfig = this.normalizeVipConfig(message);;
             }
         });
     }
@@ -1901,23 +1899,6 @@ export class GameScene extends Scene {
         if (this.vipCreditText) {
             this.vipCreditText.setText(`Credit: ${this.formatCredit(credit)}`);
         }
-    }
-
-    private updateVipInfoText(): void {
-        if (!this.vipInfoText) {
-            return;
-        }
-
-        if (!this.vipConfig) {
-            this.vipInfoText.setText('');
-            return;
-        }
-
-        const entryFee = this.formatCredit(this.vipConfig.entryFee);
-        const reward = this.formatCredit(this.vipConfig.rewardRatePlayer);
-        const fee = this.formatCredit(this.vipConfig.rewardRateTreasury);
-
-        this.vipInfoText.setText(`Entry ${entryFee} • Reward ${reward} • Fee ${fee}`);
     }
 
     private normalizeVipConfig(raw: any): VipRoomConfig {
