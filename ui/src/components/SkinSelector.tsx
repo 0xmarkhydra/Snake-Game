@@ -63,7 +63,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
     <div className="w-full">
       {/* Label */}
       <div className="text-center mb-3 sm:mb-4">
-        <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">CHOOSE YOUR SKIN</h3>
+        <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] mb-2">CHOOSE YOUR SKIN</h3>
         <div className="h-0.5 w-48 sm:w-60 mx-auto bg-game-blue"></div>
       </div>
 

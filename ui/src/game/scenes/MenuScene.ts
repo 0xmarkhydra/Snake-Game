@@ -100,7 +100,7 @@ export class MenuScene extends Scene {
         const skinLabel = this.add.text(0, 10, 'CHOOSE YOUR SKIN', {
             fontFamily: 'Arial',
             fontSize: '24px',
-            color: '#ffffff',
+            color: '#39FF14',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         menuContainer.add(skinLabel);
@@ -115,7 +115,7 @@ export class MenuScene extends Scene {
         const nameLabel = this.add.text(0, -120, 'YOUR NAME', {
             fontFamily: 'Arial',
             fontSize: '24px',
-            color: '#ffffff',
+            color: '#39FF14',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         menuContainer.add(nameLabel);

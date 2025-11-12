@@ -184,10 +184,28 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             className="text-center mb-6 sm:mb-12 mt-14 sm:mt-0"
           >
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-2 sm:mb-4 drop-shadow-lg">
+            <h1
+              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-2 sm:mb-4 drop-shadow-lg"
+              style={{
+                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
               {GAME_INFO.name}
             </h1>
-            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white stroke-black">
+            <p
+              className="text-xl sm:text-2xl md:text-3xl font-bold stroke-black"
+              style={{
+                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
               Multiplayer Snake Game
             </p>
           </motion.div>
@@ -201,7 +219,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
           >
             {/* Player Name Input */}
             <div className="mb-4 sm:mb-6 md:mb-8">
-              <h3 className="text-xl sm:text-2xl font-bold text-white text-center mb-2">YOUR NAME</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] text-center mb-2">YOUR NAME</h3>
               <div className="h-0.5 w-32 sm:w-40 mx-auto bg-game-blue mb-3 sm:mb-4"></div>
               <input
                 type="text"
