@@ -114,6 +114,8 @@ export class GameScene extends Scene {
     
     // Add this property to the GameScene class
     private invulnerableUntil: number = 0;
+    private headAttractionAura?: Phaser.GameObjects.Graphics;
+    private headAuraRadius: number = 120;
     
     // Render smoothing
     private playerRenderPositions: Map<string, { x: number; y: number }> = new Map();
@@ -328,11 +330,15 @@ export class GameScene extends Scene {
                 this.updateBoostEffect(boostX, boostY, angleDeg);
             }
             
+            this.updateHeadAttractionAura(headPosition.x, headPosition.y);
+
             // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
             if (time - this.lastAttractionUpdate > this.attractionUpdateInterval) {
                 this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
                 this.lastAttractionUpdate = time;
             }
+        } else if (this.headAttractionAura) {
+            this.headAttractionAura.setVisible(false);
         }
         
         // Update minimap
@@ -2294,6 +2300,54 @@ export class GameScene extends Scene {
         if (this.room) {
             this.room.removeAllListeners();
         }
+
+        if (this.headAttractionAura) {
+            this.headAttractionAura.destroy();
+            this.headAttractionAura = undefined;
+        }
+    }
+    
+    private updateHeadAttractionAura(x: number, y: number) {
+        if (!this.headAttractionAura) {
+            this.headAttractionAura = this.add.graphics();
+            this.headAttractionAura.setDepth(18);
+        }
+
+        const aura = this.headAttractionAura;
+        aura.setVisible(true);
+        aura.setPosition(x, y);
+        aura.clear();
+        aura.setBlendMode(Phaser.BlendModes.MULTIPLY);
+        const steps = 5;
+        const baseOpacity = 0.06;
+        for (let index = 0; index < steps; index += 1) {
+            const t = index / (steps - 1);
+            const opacityDecay = (steps - index - 1);
+            const opacity = baseOpacity * Math.max(opacityDecay, 0) / (steps - 1);
+            const radius = this.headAuraRadius * (0.4 + 0.6 * t);
+            aura.fillStyle(0x000000, opacity);
+            aura.fillCircle(0, 0, radius);
+        }
+    }
+
+    private resetFoodAttractionVisual(foodSprite: Phaser.GameObjects.Image) {
+        const currentValue = (foodSprite.getData('value') as number) ?? 1;
+        if (foodSprite.data && foodSprite.data.get('isAttracting')) {
+            foodSprite.setData('isAttracting', false);
+        }
+
+        const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+        if (attractTween) {
+            attractTween.stop();
+            this.tweens.remove(attractTween);
+            foodSprite.setData('attractTween', null);
+        }
+
+        this.stopFoodTweens(foodSprite);
+        foodSprite.setAlpha(1);
+        foodSprite.setScale(1);
+
+        this.startFoodIdleTweens(foodSprite, currentValue > 1);
     }
     
     // Update the attractFoodInFront method to handle glow cleanup when food is eaten
@@ -2307,136 +2361,124 @@ export class GameScene extends Scene {
         const angleRad = Phaser.Math.DegToRad(angleDeg);
         
         // Define the attraction parameters
-        const attractionDistance = 200; // Tăng khoảng cách hút lên
+        const attractionDistance = 153; // Phạm vi hút mồi phía trước (giảm 15%)
         const attractionConeAngle = Math.PI / 2.5; // Mở rộng góc hút (khoảng 72 độ)
-        const attractionStrength = 5; // Tăng lực hút lên đáng kể
-        const eatDistance = 30; // Khoảng cách để tự động ăn thức ăn
+        const attractionStrength = 5; // Lực hút cơ bản
+        const eatDistance = 45; // Khoảng cách để tự động ăn thức ăn
+        const headAuraRadius = this.headAuraRadius;
         
         // 🔥 PERFORMANCE: Pre-calculate squared distance to avoid expensive sqrt
         const maxDistanceSquared = attractionDistance * attractionDistance;
+        const headAuraRadiusSquared = headAuraRadius * headAuraRadius;
         
         // Check each food item
         this.foods.forEach((foodSprite, foodId) => {
-            // 🔥 PERFORMANCE: Fast distance check using squared distance (avoids sqrt)
             const dx = foodSprite.x - headX;
             const dy = foodSprite.y - headY;
             const distanceSquared = dx * dx + dy * dy;
+            const withinAura = distanceSquared <= headAuraRadiusSquared;
             
-            // Skip if too far away (using squared distance comparison)
-            if (distanceSquared > maxDistanceSquared) return;
+            if (!withinAura && distanceSquared > maxDistanceSquared) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
             
-            // Only calculate actual distance when needed (for foods in range)
             const distance = Math.sqrt(distanceSquared);
-            
-            // Calculate angle to food
             const foodAngle = Math.atan2(dy, dx);
             
-            // Calculate angle difference (accounting for wrapping)
             let angleDiff = Math.abs(foodAngle - angleRad);
             if (angleDiff > Math.PI) {
                 angleDiff = 2 * Math.PI - angleDiff;
             }
             
-            // Check if food is within the attraction cone
-            if (angleDiff <= attractionConeAngle / 2) {
-                // Calculate attraction force (stronger when closer and more aligned)
-                const alignmentFactor = 1 - (angleDiff / (attractionConeAngle / 2));
-                const distanceFactor = 1 - (distance / attractionDistance);
-                const attractionForce = attractionStrength * alignmentFactor * distanceFactor;
-                
-                // Calculate movement vector toward the snake head
-                const moveX = (headX - foodSprite.x) * attractionForce * 0.1; // Tăng hệ số lên gấp đôi
-                const moveY = (headY - foodSprite.y) * attractionForce * 0.1; // Tăng hệ số lên gấp đôi
-                
-                // Apply movement (only visually on the client side)
-                foodSprite.x += moveX;
-                foodSprite.y += moveY;
-                
-                // Check if food is close enough to be eaten
-                const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
-                if (newDistance < eatDistance) {
-                    // Kill all tweens to prevent memory leak
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Get and destroy glow if it exists before hiding the food
-                    const glow = foodSprite.getData('glow');
-                    if (glow) {
-                        this.tweens.killTweensOf(glow); // Also kill glow tweens
-                        glow.destroy();
-                        foodSprite.setData('glow', null);
-                    }
-                    
-                    // Clear tween references
+            const withinCone = angleDiff <= attractionConeAngle / 2;
+            if (!withinAura && !withinCone) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
+
+            const alignmentFactor = withinAura ? 1 : 1 - (angleDiff / (attractionConeAngle / 2));
+            const targetRange = withinAura ? headAuraRadius : attractionDistance;
+            const distanceFactor = Phaser.Math.Clamp(1 - (distance / targetRange), 0, 1);
+            const attractionForce = attractionStrength * Phaser.Math.Clamp(alignmentFactor, 0, 1) * distanceFactor;
+
+            if (attractionForce <= 0) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
+            
+            const moveMultiplier = withinAura ? 0.15 : 0.1;
+            const moveX = (headX - foodSprite.x) * attractionForce * moveMultiplier;
+            const moveY = (headY - foodSprite.y) * attractionForce * moveMultiplier;
+            
+            foodSprite.x += moveX;
+            foodSprite.y += moveY;
+            
+            const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
+            if (newDistance < eatDistance) {
+                const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                if (attractTween) {
+                    attractTween.stop();
+                    this.tweens.remove(attractTween);
                     foodSprite.setData('attractTween', null);
-                    foodSprite.setData('normalTween', null);
-                    foodSprite.setData('flashTween', null);
-                    foodSprite.setData('rotationTween', null);
-                    foodSprite.setData('isAttracting', false);
-                    
-                    // Visually "eat" the food immediately
-                    foodSprite.setVisible(false);
-                    foodSprite.setScale(0);
-                    
-                    // Play eat sound
-                    this.eatSound.play({ volume: 0.5 });
-                    
-                    // Add a visual effect at the position
-                    this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
-                    
-                    // Send message to server that food was eaten, including current positions
-                    console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
-                    const room = this.room;
-                    if (room && !this.isQuitting) {
-                        room.send('eatFood', { 
-                            foodId: foodId,
-                            headX: headX,
-                            headY: headY,
-                            foodX: foodSprite.x,
-                            foodY: foodSprite.y
-                        });
-                    }
+                }
+
+                this.stopFoodTweens(foodSprite);
+                
+                const glow = foodSprite.getData('glow');
+                if (glow) {
+                    this.tweens.killTweensOf(glow);
+                    glow.destroy();
+                    foodSprite.setData('glow', null);
                 }
                 
-                // Add a subtle visual effect to show attraction
-                if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
-                    foodSprite.setData('isAttracting', true);
-                    
-                    // Kill any existing tweens first to prevent memory leak
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Add a more noticeable pulsing effect
-                    const attractTween = this.tweens.add({
-                        targets: foodSprite,
-                        alpha: { from: 1, to: 0.7 },
-                        scale: { from: 1, to: 1.5 },
-                        duration: 200,
-                        yoyo: true,
-                        repeat: -1,
-                        ease: 'Sine.easeInOut'
+                foodSprite.setData('isAttracting', false);
+                foodSprite.setVisible(false);
+                foodSprite.setScale(0);
+                
+                this.eatSound.play({ volume: 0.5 });
+                this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
+                
+                console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
+                const roomRef = this.room;
+                if (roomRef && !this.isQuitting) {
+                    roomRef.send('eatFood', { 
+                        foodId,
+                        headX,
+                        headY,
+                        foodX: foodSprite.x,
+                        foodY: foodSprite.y
                     });
-                    
-                    // Store tween reference to prevent duplicates
-                    foodSprite.setData('attractTween', attractTween);
                 }
-            } else {
-                // Reset visual effect if food is no longer being attracted
-                if (foodSprite.data && foodSprite.data.get('isAttracting')) {
-                    foodSprite.setData('isAttracting', false);
-                    foodSprite.setData('attractTween', null); // Clear tween reference
-                    
-                    // Stop any existing tweens
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Reset to normal appearance
-                    foodSprite.setAlpha(1);
-                    foodSprite.setScale(1);
-                    
-                    // Restart the idle animations
-                    const nextValue = (foodSprite.getData('value') as number) ?? 1;
-                    this.startFoodIdleTweens(foodSprite, nextValue > 1);
+                
+                return;
+            }
+            
+            if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
+                foodSprite.setData('isAttracting', true);
+                
+                const previousAttractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                if (previousAttractTween) {
+                    previousAttractTween.stop();
+                    this.tweens.remove(previousAttractTween);
                 }
+
+                this.stopFoodTweens(foodSprite);
+                
+                const attractTween = this.tweens.add({
+                    targets: foodSprite,
+                    alpha: { from: 1, to: 0.7 },
+                    scale: { from: 1, to: 1.5 },
+                    duration: 200,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+                
+                foodSprite.setData('attractTween', attractTween);
             }
         });
+
     }
     
     // Update the addEatEffect method to show different values for special food
