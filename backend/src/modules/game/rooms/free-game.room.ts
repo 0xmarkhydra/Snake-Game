@@ -210,6 +210,52 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     console.log(`Game loop took ${end - start} milliseconds`);
   }
 
+  protected resolveBaseSpeed(player: Player): number {
+    const baseSpeed = player.speed * 0.75;
+    const minSpeed = 1.2;
+    const reductionPerPoint = 0.02;
+    const maxReduction = baseSpeed - minSpeed;
+    const scaledReduction = Math.min(player.score * reductionPerPoint, maxReduction);
+    return Math.max(minSpeed, baseSpeed - scaledReduction);
+  }
+
+  protected resolveNormalMultiplier(player: Player): number {
+    const normalMultiplierBase = 2.2;
+    const normalReductionPerPoint = 0.003;
+    const minNormalMultiplier = 1.6;
+
+    return Math.max(
+      minNormalMultiplier,
+      normalMultiplierBase - player.score * normalReductionPerPoint,
+    );
+  }
+
+  protected resolveBoostTargetMultiplier(
+    player: Player,
+    normalMultiplier: number,
+  ): number {
+    const baseBoostMultiplier = 3.2;
+    const boostReductionPerPoint = 0.01;
+    const minBoostMargin = 0.4;
+
+    const rawBoostMultiplier =
+      baseBoostMultiplier - player.score * boostReductionPerPoint;
+
+    const minimumBoostMultiplier = normalMultiplier + minBoostMargin;
+
+    return Math.max(minimumBoostMultiplier, rawBoostMultiplier);
+  }
+
+  protected resolveBoostRampMultiplier(
+    player: Player,
+    normalMultiplier: number,
+    targetBoostMultiplier: number,
+  ): number {
+    const rampDuration = 1600;
+    const rampProgress = Math.min(player.boostTime / rampDuration, 1);
+    return normalMultiplier + (targetBoostMultiplier - normalMultiplier) * rampProgress;
+  }
+
   protected movePlayer(player: Player): void {
     if (!player.alive || player.segments.length === 0) {
       return;
@@ -217,7 +263,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
     const head = player.segments[0];
     const angleRad = player.angle * this.degreeToRadian;
-    const speedMultiplier = player.boosting ? 6 : 3;
+    const baseSpeed = this.resolveBaseSpeed(player);
+    const normalMultiplier = this.resolveNormalMultiplier(player);
+    const boostTargetMultiplier = this.resolveBoostTargetMultiplier(player, normalMultiplier);
 
     if (player.boosting) {
       player.boostTime += this.tickRate;
@@ -241,8 +289,12 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       player.boostTime = 0;
     }
 
-    const dx = Math.cos(angleRad) * player.speed * speedMultiplier;
-    const dy = Math.sin(angleRad) * player.speed * speedMultiplier;
+    const speedMultiplier = player.boosting
+      ? this.resolveBoostRampMultiplier(player, normalMultiplier, boostTargetMultiplier)
+      : normalMultiplier;
+
+    const dx = Math.cos(angleRad) * baseSpeed * speedMultiplier;
+    const dy = Math.sin(angleRad) * baseSpeed * speedMultiplier;
 
     const newX = this.wrapCoordinate(
       head.position.x + dx,
