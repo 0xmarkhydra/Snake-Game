@@ -118,10 +118,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         this.handleKillEvent(player, killer, { reason: 'client_message' });
 
         if (message.killerSessionId) {
-            console.log(
-              `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
-            );
-          }
+          console.log(
+            `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
+          );
+        }
       },
     );
 
@@ -348,26 +348,69 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected spawnFoodFromDeadPlayer(player: Player): void {
-    const foodPerSegment = Math.min(Math.floor(player.segments.length / 3), 20);
+    // 🍎 Spawn food based on snake segments (optimized for performance)
+    const segmentCount = player.segments.length;
 
-    for (let index = 0; index < foodPerSegment; index += 1) {
-      const segmentIndex = Math.floor(Math.random() * player.segments.length);
-      const segment = player.segments[segmentIndex];
+    // 🔥 PERFORMANCE FIX: Limit max food drops to prevent lag
+    const MAX_FOOD_DROP = 30; // Maximum 30 foods per death
+    const foodToSpawn = Math.min(segmentCount, MAX_FOOD_DROP);
 
-      const foodId = `food_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const foodX = segment.position.x + (Math.random() * 40 - 20);
-      const foodY = segment.position.y + (Math.random() * 40 - 20);
+    console.log(
+      `[🍎] [FreeGameRoom] [spawnFoodFromDeadPlayer] Player ${player.name} died with ${segmentCount} segments. Spawning ${foodToSpawn} foods`,
+    );
 
-      const food = new Food(foodId, foodX, foodY, 1);
+    // 🚀 PERFORMANCE FIX: Progressive spawn in batches to reduce instant load
+    const BATCH_SIZE = 10; // Spawn 10 foods at a time
+    const BATCH_DELAY = 50; // 50ms delay between batches
 
-      this.state.foods.set(foodId, food);
+    for (
+      let batchIndex = 0;
+      batchIndex < Math.ceil(foodToSpawn / BATCH_SIZE);
+      batchIndex += 1
+    ) {
+      const batchStart = batchIndex * BATCH_SIZE;
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, foodToSpawn);
 
-      this.broadcast('foodSpawned', {
-        id: foodId,
-        position: { x: foodX, y: foodY },
-        value: 1,
-      });
+      // Schedule batch spawn with delay
+      this.clock.setTimeout(() => {
+        for (let index = batchStart; index < batchEnd; index += 1) {
+          // Use evenly distributed segments to sample from the snake
+          const segmentIndex = Math.floor((index / foodToSpawn) * segmentCount);
+          const segment = player.segments[segmentIndex];
+
+          if (!segment) continue;
+
+          // Generate unique food ID
+          const foodId = `food_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+
+          // Spawn food at segment position with slight random offset for visual variety
+          const offsetRange = 20; // Slightly larger offset for better spread
+          const foodX =
+            segment.position.x +
+            (Math.random() * offsetRange * 2 - offsetRange);
+          const foodY =
+            segment.position.y +
+            (Math.random() * offsetRange * 2 - offsetRange);
+
+          // Create food with value 1 (normal food)
+          const food = new Food(foodId, foodX, foodY, 1);
+
+          // Add to game state
+          this.state.foods.set(foodId, food);
+
+          // Broadcast to all clients to spawn food
+          this.broadcast('foodSpawned', {
+            id: foodId,
+            position: { x: foodX, y: foodY },
+            value: 1,
+          });
+        }
+      }, batchIndex * BATCH_DELAY);
     }
+
+    console.log(
+      `[✅] [FreeGameRoom] [spawnFoodFromDeadPlayer] Scheduled ${foodToSpawn} foods in ${Math.ceil(foodToSpawn / BATCH_SIZE)} batches`,
+    );
   }
 
   protected initializeFood(): void {

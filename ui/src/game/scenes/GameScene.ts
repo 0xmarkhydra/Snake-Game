@@ -100,8 +100,16 @@ export class GameScene extends Scene {
     private lastAngle: number = 0;
     private maxAngleChange: number = 7; // Increased from 10 to 20 degrees per frame
     
+    // 🔥 PERFORMANCE: Throttle food attraction calculation
+    private lastAttractionUpdate: number = 0;
+    private attractionUpdateInterval: number = 33; // Update every 33ms (~30 times per second) - balanced for smooth attraction
+    
     // Add this property to the GameScene class
     private invulnerableUntil: number = 0;
+    
+    // Blink effect for snake eyes
+    private blinkTimers: Map<string, number> = new Map(); // Timer for each snake
+    private isBlinking: Map<string, boolean> = new Map(); // Blink state for each snake
     
     // Leaderboard cached objects for performance
     private leaderboardEntries: Map<number, {
@@ -293,8 +301,11 @@ export class GameScene extends Scene {
                 this.updateBoostEffect(headPosition.x, headPosition.y, angleDeg);
             }
             
-            // Apply food attraction logic
-            this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
+            // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
+            if (time - this.lastAttractionUpdate > this.attractionUpdateInterval) {
+                this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
+                this.lastAttractionUpdate = time;
+            }
         }
         
         // Update minimap
@@ -1169,6 +1180,11 @@ export class GameScene extends Scene {
                 // Draw head with outline
                 const colorInt = parseInt(color.replace('#', '0x'));
                 
+                // ===== SHADOW EFFECT =====
+                // Draw shadow below the head for 3D effect
+                headObj.fillStyle(0x000000, 0.25); // Black shadow with low alpha
+                headObj.fillCircle(3, 4, headRadius); // Offset shadow slightly down-right
+                
                 // Add glow effect for boosting
                 if (playerData.boosting) {
                     headObj.fillStyle(colorInt, 0.3);
@@ -1181,8 +1197,11 @@ export class GameScene extends Scene {
                 headObj.lineStyle(2, 0x000000, 1); // Reduced outline from 4px to 2px for smoother circle
                 headObj.strokeCircle(0, 0, headRadius);
                 
-                // Draw eyes
-                this.drawSnakeEyes(headObj, playerData.angle, headRadius);
+                // Manage blink effect
+                this.updateBlinkEffect(id);
+                
+                // Draw eyes (bigger and interactive)
+                this.drawSnakeEyes(headObj, playerData.angle, headRadius, playerData.boosting, id);
                 
                 // Update all other segments based on history
                 for (let i = 1; i < children.length; i++) {
@@ -1221,6 +1240,10 @@ export class GameScene extends Scene {
                         // Clear and redraw segment
                         segmentObj.clear();
                         
+                        // ===== SHADOW EFFECT for body segments =====
+                        segmentObj.fillStyle(0x000000, 0.2); // Lighter shadow for body
+                        segmentObj.fillCircle(2, 3, segmentRadius); // Offset shadow
+                        
                         // Draw body segment with outline (thinner for smoother appearance)
                         segmentObj.fillStyle(colorInt, 1);
                         segmentObj.fillCircle(0, 0, segmentRadius);
@@ -1232,11 +1255,19 @@ export class GameScene extends Scene {
         });
     }
     
-    private drawSnakeEyes(graphics: Phaser.GameObjects.Graphics, angle: number, headRadius: number) {
+    private drawSnakeEyes(graphics: Phaser.GameObjects.Graphics, angle: number, headRadius: number, isBoosting: boolean = false, snakeId: string) {
+        // Check if eyes are blinking
+        const isBlinking = this.isBlinking.get(snakeId) || false;
+        
         // Calculate eye positions based on snake direction
         const angleRad = Phaser.Math.DegToRad(angle);
-        const eyeDistance = headRadius * 0.4; // Distance from center
-        const eyeRadius = headRadius * 0.2; // Eye size
+        
+        // ===== BIGGER EYES =====
+        const eyeDistance = headRadius * 0.45; // Distance from center (increased)
+        const baseEyeRadius = headRadius * 0.35; // Eye size - MUCH BIGGER (increased from 0.2 to 0.35)
+        
+        // When boosting, make eyes even bigger
+        const eyeRadius = isBoosting ? baseEyeRadius * 1.15 : baseEyeRadius;
         
         // Calculate positions for both eyes (left and right of center)
         const perpAngle = angleRad + Math.PI / 2; // Perpendicular to direction
@@ -1250,21 +1281,107 @@ export class GameScene extends Scene {
         const rightEyeY = Math.sin(perpAngle + Math.PI) * eyeDistance;
         
         // Move eyes slightly forward
-        const forwardOffset = headRadius * 0.3;
+        const forwardOffset = headRadius * 0.35;
         const forwardX = Math.cos(angleRad) * forwardOffset;
         const forwardY = Math.sin(angleRad) * forwardOffset;
         
-        // Draw left eye
-        graphics.fillStyle(0xffffff, 1); // White
-        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
-        graphics.fillStyle(0x000000, 1); // Black pupil
-        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius * 0.6);
+        if (isBlinking) {
+            // Draw closed eyes (horizontal line)
+            graphics.lineStyle(3, 0x000000, 1);
+            graphics.beginPath();
+            graphics.moveTo(leftEyeX + forwardX - eyeRadius, leftEyeY + forwardY);
+            graphics.lineTo(leftEyeX + forwardX + eyeRadius, leftEyeY + forwardY);
+            graphics.strokePath();
+            
+            graphics.beginPath();
+            graphics.moveTo(rightEyeX + forwardX - eyeRadius, rightEyeY + forwardY);
+            graphics.lineTo(rightEyeX + forwardX + eyeRadius, rightEyeY + forwardY);
+            graphics.strokePath();
+        } else {
+            // ===== DRAW LEFT EYE =====
+            // Eye white with subtle outline
+            graphics.lineStyle(2, 0x000000, 0.5);
+            graphics.fillStyle(0xffffff, 1); // White
+            graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
+            graphics.strokeCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
+            
+            // Colored iris (light blue/cyan for more character)
+            graphics.fillStyle(0x4db8ff, 1);
+            graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius * 0.7);
+            
+            // Pupil - moves slightly in direction of movement
+            const pupilRadius = eyeRadius * 0.4;
+            const pupilOffsetX = Math.cos(angleRad) * (eyeRadius * 0.15);
+            const pupilOffsetY = Math.sin(angleRad) * (eyeRadius * 0.15);
+            
+            graphics.fillStyle(0x000000, 1); // Black pupil
+            graphics.fillCircle(
+                leftEyeX + forwardX + pupilOffsetX, 
+                leftEyeY + forwardY + pupilOffsetY, 
+                pupilRadius
+            );
+            
+            // Highlight for shine effect (makes eyes look alive)
+            graphics.fillStyle(0xffffff, 0.9);
+            graphics.fillCircle(
+                leftEyeX + forwardX + pupilOffsetX - pupilRadius * 0.3, 
+                leftEyeY + forwardY + pupilOffsetY - pupilRadius * 0.3, 
+                pupilRadius * 0.4
+            );
+            
+            // ===== DRAW RIGHT EYE =====
+            // Eye white with subtle outline
+            graphics.lineStyle(2, 0x000000, 0.5);
+            graphics.fillStyle(0xffffff, 1); // White
+            graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
+            graphics.strokeCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
+            
+            // Colored iris
+            graphics.fillStyle(0x4db8ff, 1);
+            graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius * 0.7);
+            
+            // Pupil - moves slightly in direction of movement
+            graphics.fillStyle(0x000000, 1); // Black pupil
+            graphics.fillCircle(
+                rightEyeX + forwardX + pupilOffsetX, 
+                rightEyeY + forwardY + pupilOffsetY, 
+                pupilRadius
+            );
+            
+            // Highlight for shine effect
+            graphics.fillStyle(0xffffff, 0.9);
+            graphics.fillCircle(
+                rightEyeX + forwardX + pupilOffsetX - pupilRadius * 0.3, 
+                rightEyeY + forwardY + pupilOffsetY - pupilRadius * 0.3, 
+                pupilRadius * 0.4
+            );
+        }
+    }
+    
+    // Update blink effect for each snake
+    private updateBlinkEffect(snakeId: string) {
+        const now = this.time.now;
         
-        // Draw right eye
-        graphics.fillStyle(0xffffff, 1); // White
-        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
-        graphics.fillStyle(0x000000, 1); // Black pupil
-        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius * 0.6);
+        // Get or initialize timer for this snake
+        let blinkTimer = this.blinkTimers.get(snakeId) || 0;
+        
+        // Check if currently blinking
+        const isBlinking = this.isBlinking.get(snakeId) || false;
+        
+        if (isBlinking) {
+            // Blink duration: 100ms
+            if (now - blinkTimer > 100) {
+                this.isBlinking.set(snakeId, false);
+                // Set next blink time (random between 2-5 seconds)
+                this.blinkTimers.set(snakeId, now + Phaser.Math.Between(2000, 5000));
+            }
+        } else {
+            // Check if it's time to blink
+            if (now > blinkTimer) {
+                this.isBlinking.set(snakeId, true);
+                this.blinkTimers.set(snakeId, now);
+            }
+        }
     }
     
     private addTrailParticle(x: number, y: number, color: string) {
@@ -1900,15 +2017,21 @@ export class GameScene extends Scene {
         const attractionStrength = 5; // Tăng lực hút lên đáng kể
         const eatDistance = 30; // Khoảng cách để tự động ăn thức ăn
         
+        // 🔥 PERFORMANCE: Pre-calculate squared distance to avoid expensive sqrt
+        const maxDistanceSquared = attractionDistance * attractionDistance;
+        
         // Check each food item
         this.foods.forEach((foodSprite, foodId) => {
-            // Calculate distance and angle to food
+            // 🔥 PERFORMANCE: Fast distance check using squared distance (avoids sqrt)
             const dx = foodSprite.x - headX;
             const dy = foodSprite.y - headY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            const distanceSquared = dx * dx + dy * dy;
             
-            // Skip if too far away
-            if (distance > attractionDistance) return;
+            // Skip if too far away (using squared distance comparison)
+            if (distanceSquared > maxDistanceSquared) return;
+            
+            // Only calculate actual distance when needed (for foods in range)
+            const distance = Math.sqrt(distanceSquared);
             
             // Calculate angle to food
             const foodAngle = Math.atan2(dy, dx);
