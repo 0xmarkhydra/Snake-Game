@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { walletService } from '../services/WalletService';
+import { authService } from '../services/AuthService';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface WithdrawModalProps {
 }
 
 export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawModalProps) => {
-  const [recipientAddress, setRecipientAddress] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [statusText, setStatusText] = useState('');
   const [statusColor, setStatusColor] = useState('text-yellow-300');
@@ -21,9 +22,16 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
     if (isOpen) {
       const credit = walletService.getCachedCredit();
       setCurrentCredit(walletService.formatCredit(credit));
-      setStatusText('Enter recipient address and amount to withdraw.');
-      setStatusColor('text-yellow-300');
-      setRecipientAddress('');
+      const connectedWallet = authService.getWalletAddress() || '';
+      setWalletAddress(connectedWallet);
+
+      if (connectedWallet) {
+        setStatusColor('text-yellow-300');
+        setStatusText('Enter the amount to withdraw to your connected Phantom wallet.');
+      } else {
+        setStatusColor('text-red-400');
+        setStatusText('Connect your Phantom wallet to withdraw.');
+      }
       setAmount('');
       setRetryCountdown(0);
     }
@@ -39,27 +47,17 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
     }
   }, [retryCountdown]);
 
-  const validateSolanaAddress = (address: string): boolean => {
-    // Basic Solana address validation (32-44 base58 characters)
-    const solanaAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-    return solanaAddressRegex.test(address);
-  };
-
   const handleWithdraw = async () => {
     if (isProcessing || retryCountdown > 0) return;
 
-    // Validate recipient address
-    if (!recipientAddress.trim()) {
+    const connectedWallet = authService.getWalletAddress() || '';
+    if (!connectedWallet) {
       setStatusColor('text-red-400');
-      setStatusText('Please enter recipient wallet address.');
+      setStatusText('Phantom wallet not connected. Please connect and try again.');
       return;
     }
 
-    if (!validateSolanaAddress(recipientAddress.trim())) {
-      setStatusColor('text-red-400');
-      setStatusText('Invalid Solana wallet address format.');
-      return;
-    }
+    setWalletAddress(connectedWallet);
 
     // Validate amount
     const amountNum = Number(amount);
@@ -81,11 +79,11 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
       setStatusColor('text-yellow-300');
       setStatusText('Processing withdrawal...');
 
-      const result = await walletService.withdraw(recipientAddress.trim(), amountNum);
+      const result = await walletService.withdraw(connectedWallet, amountNum);
 
       if (result.success) {
         setStatusColor('text-green-400');
-        setStatusText(`✅ Withdrawal successful! ${amountNum} USDC sent to ${recipientAddress.slice(0, 8)}...`);
+        setStatusText(`✅ Withdrawal successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}.`);
         
         // Update current credit display
         const newCredit = walletService.getCachedCredit();
@@ -120,6 +118,9 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
   };
 
   if (!isOpen) return null;
+
+  const isWithdrawDisabled = isProcessing || retryCountdown > 0 || !walletAddress;
+  const formattedWallet = walletAddress ? authService.formatWalletAddress(walletAddress) : 'Not connected';
 
   return (
     <AnimatePresence>
@@ -163,19 +164,17 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
 
           {/* Form */}
           <div className="space-y-4 relative z-10">
-            {/* Recipient Address Input */}
+            {/* Destination Wallet */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Recipient Wallet Address
+                Destination Wallet
               </label>
-              <input
-                type="text"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                placeholder="Enter Solana wallet address..."
-                disabled={isProcessing || retryCountdown > 0}
-                className="w-full px-4 py-3 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white placeholder-gray-500 focus:border-game-blue focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
-              />
+              <div className="w-full px-4 py-3 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white font-mono text-sm">
+                {formattedWallet}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Funds will be withdrawn to your connected Phantom wallet.
+              </p>
             </div>
 
             {/* Amount Input */}
@@ -217,9 +216,9 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
             {/* Withdraw Button */}
             <motion.button
               onClick={handleWithdraw}
-              disabled={isProcessing || retryCountdown > 0}
-              whileHover={{ scale: isProcessing || retryCountdown > 0 ? 1 : 1.02 }}
-              whileTap={{ scale: isProcessing || retryCountdown > 0 ? 1 : 0.98 }}
+              disabled={isWithdrawDisabled}
+              whileHover={{ scale: isWithdrawDisabled ? 1 : 1.02 }}
+              whileTap={{ scale: isWithdrawDisabled ? 1 : 0.98 }}
               className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-red-500/30 relative overflow-hidden group"
             >
               {/* Button Glow Effect */}
@@ -241,7 +240,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
 
             {/* Warning Note */}
             <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 text-xs text-orange-300">
-              <span className="font-bold">⚠️ Note:</span> Withdrawal is irreversible. Please double-check the recipient address before confirming.
+              <span className="font-bold">⚠️ Note:</span> Withdrawal is irreversible. Ensure your Phantom wallet remains connected and secure before confirming.
             </div>
           </div>
 
