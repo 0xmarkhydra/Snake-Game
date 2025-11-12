@@ -133,13 +133,13 @@ export class SnakeGameState extends Schema {
   foods = new MapSchema<Food>();
 
   @type('number')
-  worldWidth: number = 8000;
+  worldWidth: number = 5000;
 
   @type('number')
-  worldHeight: number = 8000;
+  worldHeight: number = 5000;
 
   @type('number')
-  maxFoods: number = 500; // Balanced amount for gameplay
+  maxFoods: number = 700; // Balanced amount for good gameplay experience
 
   @type('number')
   tickRate: number = 16;

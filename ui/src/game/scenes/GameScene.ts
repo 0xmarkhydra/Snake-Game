@@ -1678,38 +1678,18 @@ export class GameScene extends Scene {
                         (value === 1 && foodSprite.texture.key !== 'food')) {
                         foodSprite.setTexture(value > 1 ? 'special-food' : 'food');
                         
-                        // Add or remove glow based on new value
-                        if (value > 1 && !glow) {
-                            // Create new glow for special food
-                            const newGlow = this.add.image(position.x, position.y, 'special-food')
-                                .setTint(0xffff00)
-                                .setAlpha(0.3)
-                                .setScale(1.5)
-                                .setDepth(4);
-                            
-                            foodSprite.setData('glow', newGlow);
-                            
-                            // Add pulsing animation to the glow
-                            this.tweens.add({
-                                targets: newGlow,
-                                scale: { from: 1.5, to: 2.0 },
-                                alpha: { from: 0.3, to: 0.5 },
-                                duration: 800,
-                                yoyo: true,
-                                repeat: -1,
-                                ease: 'Sine.easeInOut'
-                            });
-                            
-                            this.startFoodIdleTweens(foodSprite, true);
-                        } else if (value === 1 && glow) {
-                            // Remove glow for normal food
+                        // Clean up existing glow if any (no longer creating new glows)
+                        if (glow) {
                             glow.destroy();
                             foodSprite.setData('glow', null);
-                            
-                            // Stop rotation animation
-                            foodSprite.setAngle(0);
-                            this.startFoodIdleTweens(foodSprite, false);
                         }
+                        
+                        // Update animations based on food type
+                        const isSpecial = value > 1;
+                        if (!isSpecial) {
+                            foodSprite.setAngle(0);
+                        }
+                        this.startFoodIdleTweens(foodSprite, isSpecial);
                     }
                 }
             }
@@ -1862,29 +1842,7 @@ export class GameScene extends Scene {
         // Store the food value for reference
         this.applyFoodAppearance(foodSprite, value, value === 1);
         
-        // Add a glow effect for special food
-        if (value > 1) {
-            // Create a glow sprite behind the food
-            const glow = this.add.image(x, y, texture)
-                .setTint(0xffff00) // Golden glow for special food
-                .setAlpha(0.3)
-                .setScale(1.5)
-                .setDepth(4); // Below the food
-            
-            // Store reference to the glow
-            foodSprite.setData('glow', glow);
-            
-            // Add pulsing animation to the glow
-            this.tweens.add({
-                targets: glow,
-                scale: { from: 1.5, to: 2.0 },
-                alpha: { from: 0.3, to: 0.5 },
-                duration: 800,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        }
+        // ❌ REMOVED: Glow effect for cleaner appearance
         
         return foodSprite;
     }
