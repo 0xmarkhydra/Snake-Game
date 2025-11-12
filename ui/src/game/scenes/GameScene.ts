@@ -1530,8 +1530,8 @@ export class GameScene extends Scene {
         }
 
         const steps = 12;
-        const centerColor = this.interpolateColor(baseColor, 0xffffff, 0.6);
-        const edgeColor = this.interpolateColor(baseColor, 0x000000, 0.22);
+        const centerColor = this.interpolateColor(baseColor, 0xffffff, 0.3);
+        const edgeColor = this.interpolateColor(baseColor, 0x000000, 0.5);
 
         for (let i = steps; i >= 0; i--) {
             const t = i / steps;
@@ -1546,6 +1546,10 @@ export class GameScene extends Scene {
             graphics.fillStyle(0xffffff, 0.12);
             graphics.fillCircle(-radius * 0.28, -radius * 0.28, radius * 0.48);
         }
+
+        // 🎨 Add dark border for better contrast
+        graphics.lineStyle(2, 0x000000, 0.5); // 2px dark border with 70% opacity
+        graphics.strokeCircle(0, 0, radius);
     }
 
     private interpolateColor(startColor: number, endColor: number, t: number): number {
