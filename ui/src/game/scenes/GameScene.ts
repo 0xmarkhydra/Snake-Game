@@ -100,6 +100,24 @@ export class GameScene extends Scene {
     // Add this property to the GameScene class
     private invulnerableUntil: number = 0;
     
+    // Leaderboard cached objects for performance
+    private leaderboardEntries: Map<number, {
+        rankText: Phaser.GameObjects.Text,
+        colorCircle: Phaser.GameObjects.Graphics,
+        nameText: Phaser.GameObjects.Text,
+        scoreText: Phaser.GameObjects.Text,
+        killsText: Phaser.GameObjects.Text,
+        rowBg?: Phaser.GameObjects.Graphics
+    }> = new Map();
+    private leaderboardBackground: Phaser.GameObjects.Graphics;
+    private leaderboardTitle: Phaser.GameObjects.Text;
+    private leaderboardHeaders: {
+        rank: Phaser.GameObjects.Text,
+        name: Phaser.GameObjects.Text,
+        score: Phaser.GameObjects.Text,
+        kills: Phaser.GameObjects.Text
+    };
+    
     constructor() {
         super({
             key: 'GameScene',
@@ -600,6 +618,9 @@ export class GameScene extends Scene {
         // Create minimap
         this.createMinimap();
         
+        // Create leaderboard UI (once)
+        this.createLeaderboard();
+        
         // Quit button
         this.createQuitButton(20, height-80);
     }
@@ -607,39 +628,145 @@ export class GameScene extends Scene {
     private createLeaderboard() {
         const width = this.cameras.main.width;
         
-        // Create container for leaderboard - increase top margin even more
-        this.leaderboardPanel = this.add.container(width - 110, 80);
+        // Create container for leaderboard
+        this.leaderboardPanel = this.add.container(width - 130, 10);
         this.leaderboardPanel.setScrollFactor(0);
         this.leaderboardPanel.setDepth(100);
         
-        // Background - make it slightly larger and more transparent
-        const bg = this.add.rectangle(0, 0, 190, 230, 0x000000, 0.4);
-        this.leaderboardPanel.add(bg);
+        // Background with gradient (cached)
+        const bgWidth = 240;
+        const bgHeight = 300;
+        this.leaderboardBackground = this.add.graphics();
+        this.leaderboardBackground.fillGradientStyle(
+            0x0d2828, 0x0d2828,
+            0x081818, 0x081818,
+            1, 1, 1, 1
+        );
+        this.leaderboardBackground.fillRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
+        this.leaderboardBackground.lineStyle(2, 0x2d7a7a, 0.8);
+        this.leaderboardBackground.strokeRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
+        this.leaderboardPanel.add(this.leaderboardBackground);
         
-        // Title - adjust position and style
-        const title = this.add.text(0, -90, 'Leaderboard', {
-            fontFamily: 'Arial',
-            fontSize: '20px',
+        // Title background
+        const titleBg = this.add.graphics();
+        titleBg.fillStyle(0x1a5555, 0.8);
+        titleBg.fillRoundedRect(-bgWidth/2, 0, bgWidth, 40, { tl: 10, tr: 10, bl: 0, br: 0 });
+        this.leaderboardPanel.add(titleBg);
+        
+        // Title (cached)
+        this.leaderboardTitle = this.add.text(0, 20, 'LEADERBOARD', { 
+            fontFamily: 'Arial', 
+            fontSize: '20px', 
+            fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
-            strokeThickness: 3
+            strokeThickness: 2
         }).setOrigin(0.5, 0.5);
-        this.leaderboardPanel.add(title);
+        this.leaderboardPanel.add(this.leaderboardTitle);
         
-        // Placeholder for player entries - increase spacing
-        for (let i = 0; i < 5; i++) {
-            const entry = this.add.text(
-                -80, -50 + i * 35,  // Increased vertical spacing from 30 to 35
-                `${i + 1}. ---`,
-                {
-                    fontFamily: 'Arial',
-                    fontSize: '16px',
-                    color: '#ffffff',
-                    stroke: '#000000',
-                    strokeThickness: 1
-                }
-            ).setName(`leaderboard-entry-${i}`);
-            this.leaderboardPanel.add(entry);
+        // Column headers (cached)
+        const headerY = 50;
+        this.leaderboardHeaders = {
+            rank: this.add.text(-bgWidth/2 + 20, headerY, 'RANK', { 
+                fontFamily: 'Arial', 
+                fontSize: '12px',
+                color: '#aaaaff',
+                fontStyle: 'bold'
+            }),
+            name: this.add.text(-bgWidth/2 + 60, headerY, 'NAME', { 
+                fontFamily: 'Arial', 
+                fontSize: '12px',
+                color: '#aaaaff',
+                fontStyle: 'bold'
+            }),
+            score: this.add.text(-bgWidth/2 + 140, headerY, 'SCORE', { 
+                fontFamily: 'Arial', 
+                fontSize: '12px',
+                color: '#aaaaff',
+                fontStyle: 'bold'
+            }),
+            kills: this.add.text(-bgWidth/2 + 190, headerY, 'KILLS', { 
+                fontFamily: 'Arial', 
+                fontSize: '12px',
+                color: '#aaaaff',
+                fontStyle: 'bold'
+            })
+        };
+        
+        this.leaderboardPanel.add(this.leaderboardHeaders.rank);
+        this.leaderboardPanel.add(this.leaderboardHeaders.name);
+        this.leaderboardPanel.add(this.leaderboardHeaders.score);
+        this.leaderboardPanel.add(this.leaderboardHeaders.kills);
+        
+        // Separator line
+        const separator = this.add.graphics();
+        separator.lineStyle(1, 0x2d7a7a, 0.5);
+        separator.lineBetween(-bgWidth/2 + 10, headerY + 15, bgWidth/2 - 10, headerY + 15);
+        this.leaderboardPanel.add(separator);
+        
+        // Create 10 player entries (cached for reuse)
+        for (let i = 0; i < 10; i++) {
+            const rowY = 75 + (i * 22);
+            
+            // Row background (will be shown only for current player)
+            const rowBg = this.add.graphics();
+            rowBg.setVisible(false); // Hidden by default
+            this.leaderboardPanel.add(rowBg);
+            
+            // Rank text
+            const rankText = this.add.text(-bgWidth/2 + 20, rowY, '', { 
+                fontFamily: 'Arial', 
+                fontSize: '14px',
+                color: '#ffffff'
+            }).setOrigin(0, 0.5);
+            
+            // Color circle
+            const colorCircle = this.add.graphics();
+            
+            // Name text
+            const nameText = this.add.text(-bgWidth/2 + 65, rowY, '', { 
+                fontFamily: 'Arial', 
+                fontSize: '14px',
+                color: '#ffffff'
+            }).setOrigin(0, 0.5);
+            
+            // Score text
+            const scoreText = this.add.text(-bgWidth/2 + 140, rowY, '', { 
+                fontFamily: 'Arial', 
+                fontSize: '14px',
+                color: '#ffffff'
+            }).setOrigin(0, 0.5);
+            
+            // Kills text
+            const killsText = this.add.text(-bgWidth/2 + 190, rowY, '', { 
+                fontFamily: 'Arial', 
+                fontSize: '14px',
+                color: '#ffffff'
+            }).setOrigin(0, 0.5);
+            
+            // Add to container
+            this.leaderboardPanel.add(rankText);
+            this.leaderboardPanel.add(colorCircle);
+            this.leaderboardPanel.add(nameText);
+            this.leaderboardPanel.add(scoreText);
+            this.leaderboardPanel.add(killsText);
+            
+            // Cache entry objects
+            this.leaderboardEntries.set(i, {
+                rankText,
+                colorCircle,
+                nameText,
+                scoreText,
+                killsText,
+                rowBg
+            });
+            
+            // Hide all entries by default
+            rankText.setVisible(false);
+            colorCircle.setVisible(false);
+            nameText.setVisible(false);
+            scoreText.setVisible(false);
+            killsText.setVisible(false);
         }
     }
     
@@ -1135,11 +1262,20 @@ export class GameScene extends Scene {
         // First, handle removed foods
         this.foods.forEach((foodSprite, foodId) => {
             if (!this.gameState.foods.has(foodId)) {
+                // Kill all tweens to prevent memory leak
+                this.tweens.killTweensOf(foodSprite);
+                
                 // Remove glow if it exists
                 const glow = foodSprite.getData('glow');
                 if (glow) {
+                    this.tweens.killTweensOf(glow); // Also kill glow tweens
                     glow.destroy();
                 }
+                
+                // Clear tween references
+                foodSprite.setData('attractTween', null);
+                foodSprite.setData('normalTween', null);
+                foodSprite.setData('isAttracting', false);
                 
                 foodSprite.destroy();
                 this.foods.delete(foodId);
@@ -1417,88 +1553,6 @@ export class GameScene extends Scene {
     private updateLeaderboard() {
         if (!this.room || !this.room.state || !this.room.state.players) return;
         
-        // Clear existing leaderboard entries
-        if (this.leaderboardPanel) {
-            this.leaderboardPanel.removeAll(true);
-        } else {
-            // Create leaderboard panel if it doesn't exist
-            this.leaderboardPanel = this.add.container(this.cameras.main.width - 130, 10);
-            this.leaderboardPanel.setScrollFactor(0);
-            this.leaderboardPanel.setDepth(100);
-        }
-        
-        // Add background with gradient and rounded corners
-        const bgWidth = 240;
-        const bgHeight = 300;
-        const bg = this.add.graphics();
-        bg.fillGradientStyle(
-            0x0d2828, 0x0d2828,  // Dark teal at top
-            0x081818, 0x081818,  // Darker teal at bottom
-            1, 1, 1, 1
-        );
-        bg.fillRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
-        bg.lineStyle(2, 0x2d7a7a, 0.8);
-        bg.strokeRoundedRect(-bgWidth/2, 0, bgWidth, bgHeight, 10);
-        this.leaderboardPanel.add(bg);
-        
-        // Add title with icon
-        const titleBg = this.add.graphics();
-        titleBg.fillStyle(0x1a5555, 0.8);
-        titleBg.fillRoundedRect(-bgWidth/2, 0, bgWidth, 40, { tl: 10, tr: 10, bl: 0, br: 0 });
-        this.leaderboardPanel.add(titleBg);
-        
-        const title = this.add.text(0, 20, 'LEADERBOARD', { 
-            fontFamily: 'Arial', 
-            fontSize: '20px', 
-            fontStyle: 'bold',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 2
-        }).setOrigin(0.5, 0.5);
-        
-        this.leaderboardPanel.add(title);
-        
-        // Add column headers
-        const headerY = 50;
-        const rankHeader = this.add.text(-bgWidth/2 + 20, headerY, 'RANK', { 
-            fontFamily: 'Arial', 
-            fontSize: '12px',
-            color: '#aaaaff',
-            fontStyle: 'bold'
-        });
-        
-        const nameHeader = this.add.text(-bgWidth/2 + 60, headerY, 'NAME', { 
-            fontFamily: 'Arial', 
-            fontSize: '12px',
-            color: '#aaaaff',
-            fontStyle: 'bold'
-        });
-        
-        const scoreHeader = this.add.text(-bgWidth/2 + 140, headerY, 'SCORE', { 
-            fontFamily: 'Arial', 
-            fontSize: '12px',
-            color: '#aaaaff',
-            fontStyle: 'bold'
-        });
-        
-        const killsHeader = this.add.text(-bgWidth/2 + 190, headerY, 'KILLS', { 
-            fontFamily: 'Arial', 
-            fontSize: '12px',
-            color: '#aaaaff',
-            fontStyle: 'bold'
-        });
-        
-        this.leaderboardPanel.add(rankHeader);
-        this.leaderboardPanel.add(nameHeader);
-        this.leaderboardPanel.add(scoreHeader);
-        this.leaderboardPanel.add(killsHeader);
-        
-        // Add separator line
-        const separator = this.add.graphics();
-        separator.lineStyle(1, 0x2d7a7a, 0.5);
-        separator.lineBetween(-bgWidth/2 + 10, headerY + 15, bgWidth/2 - 10, headerY + 15);
-        this.leaderboardPanel.add(separator);
-        
         // Get players and sort by score
         const players: any[] = [];
         this.room.state.players.forEach((player: Player, sessionId: string) => {
@@ -1513,82 +1567,92 @@ export class GameScene extends Scene {
         
         players.sort((a, b) => b.score - a.score);
         
-        // Add player entries
-        const topPlayers = players.slice(0, 10); // Show top 10 players
-        topPlayers.forEach((player, index) => {
-            const isCurrentPlayer = player.id === this.playerId;
-            const rowY = 75 + (index * 22);
-            
-            // Add row background for current player
-            if (isCurrentPlayer) {
-                const rowBg = this.add.graphics();
-                rowBg.fillStyle(0x1a5555, 0.5);
-                rowBg.fillRoundedRect(-bgWidth/2 + 10, rowY - 10, bgWidth - 20, 20, 5);
-                this.leaderboardPanel.add(rowBg);
-            }
-            
-            // Rank with medal for top 3
-            let rankText = `${index + 1}`;
-            let rankColor = '#ffffff';
-            
-            if (index === 0) {
-                rankText = '🥇';
-                rankColor = '#ffd700'; // Gold
-            } else if (index === 1) {
-                rankText = '🥈';
-                rankColor = '#c0c0c0'; // Silver
-            } else if (index === 2) {
-                rankText = '🥉';
-                rankColor = '#cd7f32'; // Bronze
-            }
-            
-            const rank = this.add.text(-bgWidth/2 + 20, rowY, rankText, { 
-                fontFamily: 'Arial', 
-                fontSize: '14px',
-                color: rankColor,
-                fontStyle: isCurrentPlayer ? 'bold' : 'normal'
-            }).setOrigin(0, 0.5);
-            
-            // Player name with color indicator
-            const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
-            const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
-            
-            // Color indicator circle
-            const colorCircle = this.add.graphics();
-            colorCircle.fillStyle(parseInt(player.color.replace('#', '0x')), 1);
-            colorCircle.fillCircle(-bgWidth/2 + 55, rowY, 4);
-            
-            const name = this.add.text(-bgWidth/2 + 65, rowY, nameText, { 
-                fontFamily: 'Arial', 
-                fontSize: '14px',
-                color: nameColor,
-                fontStyle: isCurrentPlayer ? 'bold' : 'normal'
-            }).setOrigin(0, 0.5);
-            
-            // Score
-            const score = this.add.text(-bgWidth/2 + 140, rowY, `${player.score}`, { 
-                fontFamily: 'Arial', 
-                fontSize: '14px',
-                color: nameColor,
-                fontStyle: isCurrentPlayer ? 'bold' : 'normal'
-            }).setOrigin(0, 0.5);
-            
-            // Kills with skull icon
-            const kills = this.add.text(-bgWidth/2 + 190, rowY, `${player.kills}`, { 
-                fontFamily: 'Arial', 
-                fontSize: '14px',
-                color: nameColor,
-                fontStyle: isCurrentPlayer ? 'bold' : 'normal'
-            }).setOrigin(0, 0.5);
-            
-            this.leaderboardPanel.add(rank);
-            this.leaderboardPanel.add(colorCircle);
-            this.leaderboardPanel.add(name);
-            this.leaderboardPanel.add(score);
-            this.leaderboardPanel.add(kills);
-        });
+        // Update top 10 player entries (reuse cached objects)
+        const topPlayers = players.slice(0, 10);
+        const bgWidth = 240;
         
-        // Update player's rank
+        // Update each cached entry
+        for (let i = 0; i < 10; i++) {
+            const entry = this.leaderboardEntries.get(i);
+            if (!entry) continue;
+            
+            if (i < topPlayers.length) {
+                // Show and update this entry
+                const player = topPlayers[i];
+                const isCurrentPlayer = player.id === this.playerId;
+                const rowY = 75 + (i * 22);
+                
+                // Update row background for current player
+                if (entry.rowBg) {
+                    if (isCurrentPlayer) {
+                        entry.rowBg.clear();
+                        entry.rowBg.fillStyle(0x1a5555, 0.5);
+                        entry.rowBg.fillRoundedRect(-bgWidth/2 + 10, rowY - 10, bgWidth - 20, 20, 5);
+                        entry.rowBg.setVisible(true);
+                    } else {
+                        entry.rowBg.setVisible(false);
+                    }
+                }
+                
+                // Update rank text and color
+                let rankText = `${i + 1}`;
+                let rankColor = '#ffffff';
+                
+                if (i === 0) {
+                    rankText = '🥇';
+                    rankColor = '#ffd700';
+                } else if (i === 1) {
+                    rankText = '🥈';
+                    rankColor = '#c0c0c0';
+                } else if (i === 2) {
+                    rankText = '🥉';
+                    rankColor = '#cd7f32';
+                }
+                
+                entry.rankText.setText(rankText);
+                entry.rankText.setColor(rankColor);
+                entry.rankText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
+                entry.rankText.setVisible(true);
+                
+                // Update color circle
+                entry.colorCircle.clear();
+                entry.colorCircle.fillStyle(parseInt(player.color.replace('#', '0x')), 1);
+                entry.colorCircle.fillCircle(-bgWidth/2 + 55, rowY, 4);
+                entry.colorCircle.setVisible(true);
+                
+                // Update name text
+                const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
+                const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
+                entry.nameText.setText(nameText);
+                entry.nameText.setColor(nameColor);
+                entry.nameText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
+                entry.nameText.setVisible(true);
+                
+                // Update score text
+                entry.scoreText.setText(`${player.score}`);
+                entry.scoreText.setColor(nameColor);
+                entry.scoreText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
+                entry.scoreText.setVisible(true);
+                
+                // Update kills text
+                entry.killsText.setText(`${player.kills}`);
+                entry.killsText.setColor(nameColor);
+                entry.killsText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
+                entry.killsText.setVisible(true);
+            } else {
+                // Hide unused entries
+                entry.rankText.setVisible(false);
+                entry.colorCircle.setVisible(false);
+                entry.nameText.setVisible(false);
+                entry.scoreText.setVisible(false);
+                entry.killsText.setVisible(false);
+                if (entry.rowBg) {
+                    entry.rowBg.setVisible(false);
+                }
+            }
+        }
+        
+        // Update player's rank in stats panel
         const currentPlayerIndex = players.findIndex(p => p.id === this.playerId);
         if (currentPlayerIndex !== -1) {
             if (this.playerRankText) {
@@ -1843,12 +1907,21 @@ export class GameScene extends Scene {
                 // Check if food is close enough to be eaten
                 const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
                 if (newDistance < eatDistance) {
+                    // Kill all tweens to prevent memory leak
+                    this.tweens.killTweensOf(foodSprite);
+                    
                     // Get and destroy glow if it exists before hiding the food
                     const glow = foodSprite.getData('glow');
                     if (glow) {
+                        this.tweens.killTweensOf(glow); // Also kill glow tweens
                         glow.destroy();
                         foodSprite.setData('glow', null);
                     }
+                    
+                    // Clear tween references
+                    foodSprite.setData('attractTween', null);
+                    foodSprite.setData('normalTween', null);
+                    foodSprite.setData('isAttracting', false);
                     
                     // Visually "eat" the food immediately
                     foodSprite.setVisible(false);
@@ -1875,21 +1948,28 @@ export class GameScene extends Scene {
                 if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
                     foodSprite.setData('isAttracting', true);
                     
+                    // Kill any existing tweens first to prevent memory leak
+                    this.tweens.killTweensOf(foodSprite);
+                    
                     // Add a more noticeable pulsing effect
-                    this.tweens.add({
+                    const attractTween = this.tweens.add({
                         targets: foodSprite,
                         alpha: { from: 1, to: 0.7 },
-                        scale: { from: 1, to: 1.5 }, // Tăng hiệu ứng phóng to
-                        duration: 200, // Giảm thời gian để hiệu ứng nhanh hơn
+                        scale: { from: 1, to: 1.5 },
+                        duration: 200,
                         yoyo: true,
                         repeat: -1,
                         ease: 'Sine.easeInOut'
                     });
+                    
+                    // Store tween reference to prevent duplicates
+                    foodSprite.setData('attractTween', attractTween);
                 }
             } else {
                 // Reset visual effect if food is no longer being attracted
                 if (foodSprite.data && foodSprite.data.get('isAttracting')) {
                     foodSprite.setData('isAttracting', false);
+                    foodSprite.setData('attractTween', null); // Clear tween reference
                     
                     // Stop any existing tweens
                     this.tweens.killTweensOf(foodSprite);
@@ -1898,8 +1978,8 @@ export class GameScene extends Scene {
                     foodSprite.setAlpha(1);
                     foodSprite.setScale(1);
                     
-                    // Restart the normal scale animation
-                    this.tweens.add({
+                    // Restart the normal scale animation only if not already animating
+                    const normalTween = this.tweens.add({
                         targets: foodSprite,
                         scale: { from: 0.8, to: 1.2 },
                         duration: 1000,
@@ -1907,6 +1987,9 @@ export class GameScene extends Scene {
                         repeat: -1,
                         ease: 'Sine.easeInOut'
                     });
+                    
+                    // Store normal tween reference
+                    foodSprite.setData('normalTween', normalTween);
                 }
             }
         });

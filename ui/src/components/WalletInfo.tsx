@@ -27,13 +27,17 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
     // Initial credit fetch
     setCredit(walletService.formatCredit());
 
-    // Update credit periodically
+    // Update credit periodically (increased from 1s to 3s for better performance)
     const interval = setInterval(() => {
-      setCredit(walletService.formatCredit());
-    }, 1000);
+      const newCredit = walletService.formatCredit();
+      // Only update if credit actually changed to prevent unnecessary re-renders
+      if (newCredit !== credit) {
+        setCredit(newCredit);
+      }
+    }, 3000); // Changed from 1000ms to 3000ms
 
     return () => clearInterval(interval);
-  }, []);
+  }, [credit]); // Added credit to dependency array
 
   const handleCopyAddress = async () => {
     const fullAddress = authService.getWalletAddress();
