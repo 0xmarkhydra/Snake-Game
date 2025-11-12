@@ -33,7 +33,7 @@ export class GameScene extends Scene {
     
     // Game objects
     private snakes: Map<string, Phaser.GameObjects.Group> = new Map();
-    private foods: Map<string, Phaser.GameObjects.Image> = new Map();
+    private foods: Map<string, Phaser.GameObjects.Container> = new Map();
     private playerTexts: Map<string, Phaser.GameObjects.Text> = new Map();
     
     // Camera and world
@@ -86,9 +86,11 @@ export class GameScene extends Scene {
     private isQuitting: boolean = false;
     
     // Add these properties to the class
-    private segmentSpacing: number = 8; // Reduced to 8 for closer segments like the reference
+    private segmentSpacing: number = 12; // Base minimum spacing between segments
     private playerSegmentHistories: Map<string, Array<{x: number, y: number}>> = new Map(); // Store histories for all players
     private historySize: number = 500; // Maximum history size
+    private idleHistoryInterval: number = 100; // ms between duplicate history entries when idle
+    private playerLastHistoryUpdate: Map<string, number> = new Map();
     
     // Add this new property
     private killNotifications: Phaser.GameObjects.Container[] = [];
@@ -102,6 +104,14 @@ export class GameScene extends Scene {
     
     // Add this property to the GameScene class
     private invulnerableUntil: number = 0;
+    
+    private readonly foodColors: number[] = [
+        0x2ecc71, // green
+        0xe74c3c, // red
+        0xf1c40f, // yellow
+        0x9b59b6, // purple
+        0xff69b4  // pink
+    ];
     
     constructor() {
         super({
@@ -907,6 +917,7 @@ export class GameScene extends Scene {
                 
                 // Remove segment history
                 this.playerSegmentHistories.delete(id);
+            this.playerLastHistoryUpdate.delete(id);
             }
         });
         
@@ -1005,104 +1016,292 @@ export class GameScene extends Scene {
                 this.playerSegmentHistories.set(id, segmentHistory);
             }
             
-            // Add current head position to history
-            segmentHistory.unshift({x: headPosition.x, y: headPosition.y});
-            
-            // Trim history to prevent memory issues
-            if (segmentHistory.length > this.historySize) {
-                segmentHistory.pop();
-            }
+            this.addHeadPosition(id, segmentHistory, headPosition.x, headPosition.y);
             
             // Update head position
             const children = snake.getChildren();
             const headObj = children[0] as Phaser.GameObjects.Graphics;
             
             if (headObj) {
-                // Apply interpolation for smoother movement
-                const lerpFactor = 0.3;
-                
-                // Get current position
-                const currentX = headObj.x;
-                const currentY = headObj.y;
-                
-                // Calculate interpolated position
-                const newX = currentX + (headPosition.x - currentX) * lerpFactor;
-                const newY = currentY + (headPosition.y - currentY) * lerpFactor;
-                
-                // Update position
-                headObj.setPosition(newX, newY);
-                
+                // Apply interpolation for smoother movement while keeping head leading
                 // Calculate base scale based on score
                 const baseScale = Math.min(1.5, 1 + (playerData.score / 100));
-                const headRadius = 20 * baseScale;
+                const segmentRadius = 18 * baseScale;
+                const segmentSpacingDistance = Math.max(this.segmentSpacing, segmentRadius * 0.65);
+                const maxBodyDistance = segmentSpacingDistance * Math.max(children.length - 1, 1);
+                const availableDistance = this.getHistoryTotalDistance(segmentHistory, maxBodyDistance);
+                
+                const currentX = headObj.x;
+                const currentY = headObj.y;
+                const headDistance = Phaser.Math.Distance.Between(currentX, currentY, headPosition.x, headPosition.y);
+                
+                if (headDistance > segmentRadius * 1.2) {
+                    headObj.setPosition(headPosition.x, headPosition.y);
+                } else {
+                    const lerpFactor = Phaser.Math.Clamp(
+                        headDistance / (segmentRadius * 0.75),
+                        0.35,
+                        0.8
+                    );
+                    const newX = currentX + (headPosition.x - currentX) * lerpFactor;
+                    const newY = currentY + (headPosition.y - currentY) * lerpFactor;
+                    headObj.setPosition(newX, newY);
+                }
                 
                 // Clear and redraw head
                 headObj.clear();
                 
                 // Draw head with outline
                 const colorInt = parseInt(color.replace('#', '0x'));
+                const applyRadialShading = (
+                    graphics: Phaser.GameObjects.Graphics,
+                    baseColor: number,
+                    radius: number,
+                    intensity: number
+                ) => {
+                    const steps = 6;
+                    const baseColorObj = Phaser.Display.Color.ValueToColor(baseColor);
+                    const blackColorObj = Phaser.Display.Color.ValueToColor(0x000000);
+                    const whiteColorObj = Phaser.Display.Color.ValueToColor(0xffffff);
+                    
+                    for (let step = 0; step < steps; step++) {
+                        const t = step / (steps - 1); // 0: outer edge, 1: centre
+                        const darkRatio = Phaser.Math.Clamp((1 - t) * intensity, 0, 1);
+                        const lightRatio = Phaser.Math.Clamp(t * intensity * 0.6, 0, 1);
+                        
+                        const darkMix = Phaser.Display.Color.Interpolate.ColorWithColor(
+                            baseColorObj,
+                            blackColorObj,
+                            100,
+                            Math.floor(darkRatio * 100)
+                        );
+                        const darkMixColor = Phaser.Display.Color.ValueToColor(
+                            Phaser.Display.Color.GetColor(darkMix.r, darkMix.g, darkMix.b)
+                        );
+                        
+                        const finalMix = Phaser.Display.Color.Interpolate.ColorWithColor(
+                            darkMixColor,
+                            whiteColorObj,
+                            100,
+                            Math.floor(lightRatio * 100)
+                        );
+                        const finalColor = Phaser.Display.Color.GetColor(
+                            finalMix.r,
+                            finalMix.g,
+                            finalMix.b
+                        );
+                        
+                        const layerRadius = radius * (1 - t * 0.4);
+                        const alpha = Phaser.Math.Clamp(0.42 - t * 0.24, 0.08, 0.42);
+                        graphics.fillStyle(finalColor, alpha);
+                        graphics.fillCircle(0, 0, layerRadius);
+                    }
+                };
                 
                 // Add glow effect for boosting
                 if (playerData.boosting) {
                     headObj.fillStyle(colorInt, 0.3);
-                    headObj.fillCircle(0, 0, headRadius * 1.3);
+                    headObj.fillCircle(0, 0, segmentRadius * 1.3);
                 }
                 
-                // Draw main head circle with outline (thinner outline for rounder appearance)
-                headObj.fillStyle(colorInt, 1);
-                headObj.fillCircle(0, 0, headRadius);
-                headObj.lineStyle(2, 0x000000, 1); // Reduced outline from 4px to 2px for smoother circle
-                headObj.strokeCircle(0, 0, headRadius);
+                applyRadialShading(headObj, colorInt, segmentRadius, 0.85);
+                
+                headObj.lineStyle(2, 0x000000, 0.12);
+                headObj.strokeCircle(0, 0, segmentRadius);
                 
                 // Draw eyes
-                this.drawSnakeEyes(headObj, playerData.angle, headRadius);
+                this.drawSnakeEyes(headObj, playerData.angle, segmentRadius);
                 
                 // Update all other segments based on history
                 for (let i = 1; i < children.length; i++) {
                     const segmentObj = children[i] as Phaser.GameObjects.Graphics;
                     if (!segmentObj) continue;
                     
-                    // Calculate history index based on segment spacing
-                    const historyIndex = Math.min(
-                        Math.floor(i * (this.segmentSpacing / playerData.speed)), 
-                        segmentHistory.length - 1
-                    );
+                    const targetDistance = Math.min(i * segmentSpacingDistance, availableDistance);
+                    const historyPoint = this.getPositionAlongHistory(segmentHistory, targetDistance);
+                    if (!historyPoint) continue;
                     
-                    if (segmentHistory[historyIndex]) {
-                        // Apply interpolation for smoother movement
-                        const lerpFactor = Math.max(0.05, 0.2 - (i * 0.01));
-                        
-                        // Get current position
-                        const currentX = segmentObj.x;
-                        const currentY = segmentObj.y;
-                        
-                        // Get target position from history
-                        const targetX = segmentHistory[historyIndex].x;
-                        const targetY = segmentHistory[historyIndex].y;
-                        
-                        // Calculate interpolated position
-                        const newX = currentX + (targetX - currentX) * lerpFactor;
-                        const newY = currentY + (targetY - currentY) * lerpFactor;
-                        
-                        // Update position
-                        segmentObj.setPosition(newX, newY);
-                        
-                        // Apply scale based on position in snake
-                        const segmentScale = baseScale * Math.max(0.7, 1 - (i * 0.015));
-                        const segmentRadius = 18 * segmentScale;
-                        
-                        // Clear and redraw segment
-                        segmentObj.clear();
-                        
-                        // Draw body segment with outline (thinner for smoother appearance)
-                        segmentObj.fillStyle(colorInt, 1);
-                        segmentObj.fillCircle(0, 0, segmentRadius);
-                        segmentObj.lineStyle(2, 0x000000, 1); // Reduced outline from 3px to 2px
-                        segmentObj.strokeCircle(0, 0, segmentRadius);
+                    // Apply interpolation for smoother movement
+                    const currentX = segmentObj.x;
+                    const currentY = segmentObj.y;
+                    const distToTarget = Phaser.Math.Distance.Between(currentX, currentY, historyPoint.x, historyPoint.y);
+                    
+                    let lerpFactor = Math.max(0.12, 0.3 - (i * 0.01));
+                    
+                    if (distToTarget > segmentSpacingDistance * 0.9) {
+                        const catchUpBoost = Phaser.Math.Clamp(distToTarget / (segmentSpacingDistance * 3), 0, 1);
+                        if (i <= 3) {
+                            lerpFactor = Math.max(lerpFactor, 0.4 + catchUpBoost * 0.25);
+                        } else if (i <= 6) {
+                            lerpFactor = Math.max(lerpFactor, 0.45 + catchUpBoost * 0.3);
+                        } else {
+                            lerpFactor = Math.max(lerpFactor, 0.35 + catchUpBoost * 0.25);
+                        }
                     }
+                    
+                    if (i <= 3) {
+                        lerpFactor = Math.min(lerpFactor, 0.5);
+                    }
+                    
+                    if (i <= 3 && distToTarget > segmentSpacingDistance * 2) {
+                        segmentObj.setPosition(historyPoint.x, historyPoint.y);
+                    } else {
+                        const newX = currentX + (historyPoint.x - currentX) * lerpFactor;
+                        const newY = currentY + (historyPoint.y - currentY) * lerpFactor;
+                        segmentObj.setPosition(newX, newY);
+                    }
+                    
+                    // Apply scale based on position in snake
+                    const segmentScale = baseScale;
+                    const scaledRadius = 18 * segmentScale;
+                    
+                    // Clear and redraw segment
+                    segmentObj.clear();
+                    
+                    segmentObj.fillStyle(0x000000, 0.12);
+                    segmentObj.fillCircle(0, 0, scaledRadius);
+                    
+                    segmentObj.fillStyle(colorInt, 1);
+                    segmentObj.fillCircle(0, 0, scaledRadius * 0.94);
+                    
+                    segmentObj.fillStyle(colorInt, 0.9);
+                    segmentObj.fillCircle(0, 0, scaledRadius * 0.82);
+                    
+                    segmentObj.fillStyle(highlightColorInt, 0.5);
+                    segmentObj.fillCircle(0, 0, scaledRadius * 0.65);
+                    
+                    // Add inner shadow towards previous segment for seamless overlap
+                    const prevSegment = children[i - 1] as Phaser.GameObjects.Graphics | undefined;
+                    if (prevSegment) {
+                        const shadowVector = new Phaser.Math.Vector2(prevSegment.x - segmentObj.x, prevSegment.y - segmentObj.y);
+                        if (shadowVector.lengthSq() > 0.0001) {
+                            shadowVector.normalize().scale(scaledRadius * 0.35);
+                            segmentObj.fillStyle(0x000000, 0.12);
+                            segmentObj.fillCircle(shadowVector.x * 0.6, shadowVector.y * 0.6, scaledRadius * 0.82);
+                        }
+                    }
+                    
+                    // Draw body segment outline
+                    segmentObj.lineStyle(2, 0x000000, 0.15);
+                    segmentObj.strokeCircle(0, 0, scaledRadius);
                 }
             }
         });
+    }
+
+    private getHistoryTotalDistance(
+        history: Array<{ x: number; y: number }>,
+        maxDistance?: number
+    ): number {
+        if (history.length < 2) {
+            return 0;
+        }
+        
+        let total = 0;
+        
+        for (let i = 0; i < history.length - 1; i++) {
+            total += Phaser.Math.Distance.Between(
+                history[i].x,
+                history[i].y,
+                history[i + 1].x,
+                history[i + 1].y
+            );
+            
+            if (maxDistance !== undefined && total >= maxDistance) {
+                return maxDistance;
+            }
+        }
+        
+        return total;
+    }
+    
+    private addHeadPosition(
+        playerId: string,
+        history: Array<{ x: number; y: number }>,
+        x: number,
+        y: number
+    ) {
+        const now = this.time.now;
+        const lastUpdate = this.playerLastHistoryUpdate.get(playerId) ?? 0;
+        
+        if (history.length === 0) {
+            history.unshift({ x, y });
+            this.playerLastHistoryUpdate.set(playerId, now);
+            return;
+        }
+        
+        const lastPoint = history[0];
+        const distance = Phaser.Math.Distance.Between(lastPoint.x, lastPoint.y, x, y);
+        
+        if (distance === 0) {
+            if (now - lastUpdate >= this.idleHistoryInterval) {
+                history.unshift({ x, y });
+                this.playerLastHistoryUpdate.set(playerId, now);
+                
+                if (history.length > this.historySize) {
+                    history.pop();
+                }
+            }
+            return;
+        }
+        
+        const maxStep = Math.max(this.segmentSpacing * 0.4, 2);
+        const steps = Math.max(1, Math.ceil(distance / maxStep));
+        
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            history.unshift({
+                x: Phaser.Math.Linear(lastPoint.x, x, t),
+                y: Phaser.Math.Linear(lastPoint.y, y, t)
+            });
+        }
+        
+        this.playerLastHistoryUpdate.set(playerId, now);
+        
+        while (history.length > this.historySize) {
+            history.pop();
+        }
+    }
+    
+    private getPositionAlongHistory(
+        history: Array<{ x: number; y: number }>,
+        targetDistance: number
+    ): { x: number; y: number } | null {
+        if (history.length === 0) {
+            return null;
+        }
+        
+        if (history.length === 1 || targetDistance <= 0) {
+            return history[0];
+        }
+        
+        let accumulatedDistance = 0;
+        
+        for (let i = 0; i < history.length - 1; i++) {
+            const currentPoint = history[i];
+            const nextPoint = history[i + 1];
+            
+            const segmentDistance = Phaser.Math.Distance.Between(
+                currentPoint.x,
+                currentPoint.y,
+                nextPoint.x,
+                nextPoint.y
+            );
+            
+            if (accumulatedDistance + segmentDistance >= targetDistance) {
+                const remaining = targetDistance - accumulatedDistance;
+                const t = segmentDistance === 0 ? 0 : remaining / segmentDistance;
+                
+                return {
+                    x: Phaser.Math.Linear(currentPoint.x, nextPoint.x, t),
+                    y: Phaser.Math.Linear(currentPoint.y, nextPoint.y, t)
+                };
+            }
+            
+            accumulatedDistance += segmentDistance;
+        }
+        
+        return history[history.length - 1];
     }
     
     private drawSnakeEyes(graphics: Phaser.GameObjects.Graphics, angle: number, headRadius: number) {
@@ -1160,158 +1359,139 @@ export class GameScene extends Scene {
     private updateFoods() {
         if (!this.gameState || !this.gameState.foods) return;
         
-        // First, handle removed foods
         this.foods.forEach((foodSprite, foodId) => {
             if (!this.gameState.foods.has(foodId)) {
-                // Remove glow if it exists
-                const glow = foodSprite.getData('glow');
-                if (glow) {
-                    glow.destroy();
+                const rotationTween = foodSprite.getData('rotationTween') as Phaser.Tweens.Tween | undefined;
+                if (rotationTween) {
+                    rotationTween.stop();
+                    foodSprite.setData('rotationTween', null);
                 }
                 
-                foodSprite.destroy();
+                foodSprite.destroy(true);
                 this.foods.delete(foodId);
             }
         });
         
-        // Then, add or update existing foods
         this.gameState.foods.forEach((foodData: any, foodId: string) => {
-            // Add null/undefined check to prevent errors
             if (!foodData || !foodData.position) {
                 console.warn(`Food ${foodId} has invalid data:`, foodData);
-                return; // Skip this food
+                return;
             }
             
             const { position, value } = foodData;
             
-            // Make sure position has x and y properties
             if (position.x === undefined || position.y === undefined) {
                 console.warn(`Food ${foodId} has invalid position:`, position);
-                return; // Skip this food
+                return;
             }
             
             if (!this.foods.has(foodId)) {
-                // Create new food sprite
                 const foodSprite = this.createFoodSprite(foodId, position.x, position.y, value);
                 this.foods.set(foodId, foodSprite);
             } else {
-                // Update existing food sprite
                 const foodSprite = this.foods.get(foodId);
-                if (foodSprite) {
-                    // Apply the server position
-                    foodSprite.setPosition(position.x, position.y);
-                    
-                    // Update glow position if it exists
-                    const glow = foodSprite.getData('glow');
-                    if (glow) {
-                        glow.setPosition(position.x, position.y);
-                    }
-                    
-                    // Update texture if value changed
-                    if ((value > 1 && foodSprite.texture.key !== 'special-food') || 
-                        (value === 1 && foodSprite.texture.key !== 'food')) {
-                        foodSprite.setTexture(value > 1 ? 'special-food' : 'food');
-                        
-                        // Add or remove glow based on new value
-                        if (value > 1 && !glow) {
-                            // Create new glow for special food
-                            const newGlow = this.add.image(position.x, position.y, 'special-food')
-                                .setTint(0xffff00)
-                                .setAlpha(0.3)
-                                .setScale(1.5)
-                                .setDepth(4);
-                            
-                            foodSprite.setData('glow', newGlow);
-                            
-                            // Add pulsing animation to the glow
-                            this.tweens.add({
-                                targets: newGlow,
-                                scale: { from: 1.5, to: 2.0 },
-                                alpha: { from: 0.3, to: 0.5 },
-                                duration: 800,
-                                yoyo: true,
-                                repeat: -1,
-                                ease: 'Sine.easeInOut'
-                            });
-                            
-                            // Add rotation animation to special food
-                            this.tweens.add({
-                                targets: foodSprite,
-                                angle: 360,
-                                duration: 3000,
-                                repeat: -1,
-                                ease: 'Linear'
-                            });
-                        } else if (value === 1 && glow) {
-                            // Remove glow for normal food
-                            glow.destroy();
-                            foodSprite.setData('glow', null);
-                            
-                            // Stop rotation animation
-                            this.tweens.killTweensOf(foodSprite);
-                            foodSprite.setAngle(0);
-                        }
-                    }
+                if (!foodSprite) {
+                    return;
+                }
+                
+                foodSprite.setPosition(position.x, position.y);
+                
+                const previousValue = foodSprite.getData('value');
+                if (previousValue !== value) {
+                    foodSprite.setData('value', value);
+                    this.updateFoodSpecialState(foodSprite, value > 1);
                 }
             }
         });
     }
     
-    private createFoodSprite(id: string, x: number, y: number, value: number): Phaser.GameObjects.Image {
-        // Create food sprite with appropriate texture based on value
-        const texture = value > 1 ? 'special-food' : 'food';
-        const foodSprite = this.add.image(x, y, texture);
+    private createFoodSprite(id: string, x: number, y: number, value: number): Phaser.GameObjects.Container {
+        const foodContainer = this.add.container(x, y);
+        foodContainer.setDepth(5);
         
-        // Set depth to ensure food appears below snakes
-        foodSprite.setDepth(5);
+        const color = Phaser.Math.RND.pick(this.foodColors);
+        const isSpecial = value > 1;
+        const baseRadius = 12;
         
-        // Store the food value for reference
-        foodSprite.setData('value', value);
+        const glow = this.add.circle(0, 0, baseRadius + 6, color, 0.35)
+            .setBlendMode(Phaser.BlendModes.ADD);
+        const border = this.add.circle(0, 0, baseRadius + 2, color, 0);
+        border.setStrokeStyle(3, color, 0.95);
+        const body = this.add.circle(0, 0, baseRadius - 2, color, 1);
+        const highlight = this.add.circle(-baseRadius * 0.35, -baseRadius * 0.35, baseRadius * 0.45, 0xffffff, 0.45);
         
-        // Add a glow effect for special food
-        if (value > 1) {
-            // Create a glow sprite behind the food
-            const glow = this.add.image(x, y, texture)
-                .setTint(0xffff00) // Golden glow for special food
-                .setAlpha(0.3)
-                .setScale(1.5)
-                .setDepth(4); // Below the food
-            
-            // Store reference to the glow
-            foodSprite.setData('glow', glow);
-            
-            // Add pulsing animation to the glow
-            this.tweens.add({
-                targets: glow,
-                scale: { from: 1.5, to: 2.0 },
-                alpha: { from: 0.3, to: 0.5 },
-                duration: 800,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-            
-            // Add rotation animation to special food
-            this.tweens.add({
-                targets: foodSprite,
-                angle: 360,
-                duration: 3000,
-                repeat: -1,
-                ease: 'Linear'
-            });
-        }
+        foodContainer.add([glow, border, body, highlight]);
+        foodContainer.setData('id', id);
+        foodContainer.setData('value', value);
+        foodContainer.setData('color', color);
+        foodContainer.setData('glow', glow);
+        foodContainer.setData('border', border);
+        foodContainer.setData('body', body);
         
-        // Add a scale animation for visual appeal
         this.tweens.add({
-            targets: foodSprite,
-            scale: { from: 0.8, to: 1.2 },
+            targets: glow,
+            alpha: { from: 0.25, to: 0.7 },
+            scale: { from: 0.95, to: 1.1 },
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        this.tweens.add({
+            targets: foodContainer,
+            scale: { from: 0.9, to: 1.15 },
             duration: 1000,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
         
-        return foodSprite;
+        this.updateFoodSpecialState(foodContainer, isSpecial);
+        
+        return foodContainer;
+    }
+    
+    private updateFoodSpecialState(foodSprite: Phaser.GameObjects.Container, isSpecial: boolean): void {
+        const glow = foodSprite.getData('glow') as Phaser.GameObjects.Arc | undefined;
+        const border = foodSprite.getData('border') as Phaser.GameObjects.Arc | undefined;
+        const body = foodSprite.getData('body') as Phaser.GameObjects.Arc | undefined;
+        const color = foodSprite.getData('color') as number | undefined;
+        const currentRotationTween = foodSprite.getData('rotationTween') as Phaser.Tweens.Tween | undefined;
+        
+        if (currentRotationTween) {
+            currentRotationTween.stop();
+            foodSprite.setData('rotationTween', null);
+        }
+        
+        foodSprite.setData('isSpecial', isSpecial);
+        
+        if (glow) {
+            glow.setAlpha(isSpecial ? 0.55 : 0.35);
+            glow.setScale(isSpecial ? 1.2 : 1);
+        }
+        
+        if (border) {
+            border.setStrokeStyle(isSpecial ? 4 : 3, color ?? 0xffffff, 0.95);
+        }
+        
+        if (body) {
+            body.setScale(isSpecial ? 1.05 : 1);
+        }
+        
+        if (isSpecial) {
+            const rotationTween = this.tweens.add({
+                targets: foodSprite,
+                angle: 360,
+                duration: 3000,
+                repeat: -1,
+                ease: 'Linear'
+            });
+            
+            foodSprite.setData('rotationTween', rotationTween);
+        } else {
+            foodSprite.setAngle(0);
+        }
     }
     
     private updateScore() {
