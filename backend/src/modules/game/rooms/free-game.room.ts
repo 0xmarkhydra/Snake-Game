@@ -211,22 +211,26 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected resolveBaseSpeed(player: Player): number {
-    const baseSpeed = player.speed * 0.75;
-    const minSpeed = 1.2;
-    const reductionPerPoint = 0.02;
-    const maxReduction = baseSpeed - minSpeed;
-    const scaledReduction = Math.min(player.score * reductionPerPoint, maxReduction);
-    return Math.max(minSpeed, baseSpeed - scaledReduction);
+    // Speed increases as player score increases
+    const initialBaseSpeed = player.speed * 0.75; // 3.75 with default speed = 5
+    const speedIncreasePerPoint = 0.01;
+    const maxSpeed = 6.0;
+    
+    return Math.min(
+      initialBaseSpeed + player.score * speedIncreasePerPoint,
+      maxSpeed
+    );
   }
 
   protected resolveNormalMultiplier(player: Player): number {
+    // Normal speed multiplier increases slightly as player score increases
     const normalMultiplierBase = 2.2;
-    const normalReductionPerPoint = 0.003;
-    const minNormalMultiplier = 1.6;
+    const multiplierIncreasePerPoint = 0.002;
+    const maxNormalMultiplier = 2.8;
 
-    return Math.max(
-      minNormalMultiplier,
-      normalMultiplierBase - player.score * normalReductionPerPoint,
+    return Math.min(
+      normalMultiplierBase + player.score * multiplierIncreasePerPoint,
+      maxNormalMultiplier
     );
   }
 
@@ -234,12 +238,16 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player: Player,
     normalMultiplier: number,
   ): number {
+    // Boost speed multiplier increases slightly as player score increases
     const baseBoostMultiplier = 5.0;
-    const boostReductionPerPoint = 0.01;
-    const minBoostMargin = 0.4;
+    const boostIncreasePerPoint = 0.005;
+    const maxBoostMultiplier = 6.5;
+    const minBoostMargin = 0.8; // Boost must be faster than normal by at least this margin
 
-    const rawBoostMultiplier =
-      baseBoostMultiplier - player.score * boostReductionPerPoint;
+    const rawBoostMultiplier = Math.min(
+      baseBoostMultiplier + player.score * boostIncreasePerPoint,
+      maxBoostMultiplier
+    );
 
     const minimumBoostMultiplier = normalMultiplier + minBoostMargin;
 
