@@ -19,7 +19,7 @@ interface GameSceneData {
 
 export class GameScene extends Scene {
     // Game state
-    private room: Room;
+    private room: Room | null = null;
     private playerId: string;
     private playerName: string;
     private skinId: number;
@@ -81,6 +81,9 @@ export class GameScene extends Scene {
     
     // Add this property to the class
     private playerRankText: Phaser.GameObjects.Text;
+
+    // Quit state
+    private isQuitting: boolean = false;
     
     // Add these properties to the class
     private segmentSpacing: number = 8; // Reduced to 8 for closer segments like the reference
@@ -120,6 +123,8 @@ export class GameScene extends Scene {
         this.vipTicketCode = data.vipTicketCode;
         this.vipConfig = data.vipConfig;
         this.vipCredit = data.vipCredit ?? 0;
+        this.room = null;
+        this.isQuitting = false;
     }
     
     async create() {
@@ -182,12 +187,14 @@ export class GameScene extends Scene {
                 }
             }
 
-            this.room = await colyseusClient.joinOrCreate(roomName, joinOptions);
+            this.isQuitting = false;
+            const room = await colyseusClient.joinOrCreate(roomName, joinOptions);
+            this.room = room;
             
-            this.playerId = this.room.sessionId;
+            this.playerId = room.sessionId;
             
             // Set up room event handlers
-            this.setupRoomHandlers();
+            this.setupRoomHandlers(room);
             
             // Notify that the scene is ready
             EventBus.emit('current-scene-ready', this);
@@ -202,7 +209,8 @@ export class GameScene extends Scene {
     
     update(time: number, delta: number) {
         // Skip if not connected yet
-        if (!this.room || !this.gameState) return;
+        const room = this.room;
+        if (!room || !this.gameState || this.isQuitting) return;
         
         // Update FPS counter every 500ms
         if (time - this.fpsUpdateTime > 500) {
@@ -260,7 +268,7 @@ export class GameScene extends Scene {
             this.lastAngle = angleDeg;
             
             // Send movement input to server
-            this.room.send('move', { angle: angleDeg });
+            room.send('move', { angle: angleDeg });
             
             // Update boost effect position if boosting
             if (player.boosting) {
@@ -302,9 +310,9 @@ export class GameScene extends Scene {
         }
     }
     
-    private setupRoomHandlers() {
+    private setupRoomHandlers(room: Room) {
         // Handle state changes
-        this.room.onStateChange((state) => {
+        room.onStateChange((state) => {
             this.gameState = state;
             
             // Update world size
@@ -326,7 +334,7 @@ export class GameScene extends Scene {
         });
         
         // Handle player died event
-        this.room.onMessage('playerDied', (message) => {
+        room.onMessage('playerDied', (message) => {
             if (message.playerId === this.playerId) {
                 this.handlePlayerDeath();
             }
@@ -336,7 +344,7 @@ export class GameScene extends Scene {
         });
         
         // Handle initial foods message
-        this.room.onMessage('initialFoods', (message) => {
+        room.onMessage('initialFoods', (message) => {
             console.log(`Received ${message.foods.length} initial foods`);
             
             // Clear existing foods
@@ -351,7 +359,7 @@ export class GameScene extends Scene {
         });
         
         // Add handler for food spawned
-        this.room.onMessage("foodSpawned", (message) => {
+        room.onMessage("foodSpawned", (message) => {
             // Create food sprite if it doesn't exist
             if (!this.foods.has(message.id)) {
                 const foodSprite = this.createFoodSprite(message.id, message.position.x, message.position.y, message.value);
@@ -360,7 +368,7 @@ export class GameScene extends Scene {
         });
         
         // Add handler for food consumed
-        this.room.onMessage("foodConsumed", (message) => {
+        room.onMessage("foodConsumed", (message) => {
             // Remove food sprite if it exists
             const foodSprite = this.foods.get(message.id);
             if (foodSprite) {
@@ -375,7 +383,7 @@ export class GameScene extends Scene {
         });
         
         // Add a specific handler for playerKilled events
-        this.room.onMessage('playerKilled', (message) => {
+        room.onMessage('playerKilled', (message) => {
             console.log('Received playerKilled event:', message);
             
             if (message && message.killer && message.killed) {
@@ -386,36 +394,36 @@ export class GameScene extends Scene {
         });
         
         // Add invulnerability when joining
-        this.room.onMessage('welcome', (message) => {
+        room.onMessage('welcome', (message) => {
             // Set invulnerability for 3 seconds
             this.invulnerableUntil = this.time.now + 3000;
             console.log('Player is invulnerable until:', this.invulnerableUntil);
         });
 
         if (this.roomType === 'vip') {
-            this.setupVipHandlers();
+            this.setupVipHandlers(room);
         }
     }
 
-    private setupVipHandlers() {
-        this.room.onMessage('vip:credit-updated', (message: { playerId: string; credit: number | string }) => {
+    private setupVipHandlers(room: Room) {
+        room.onMessage('vip:credit-updated', (message: { playerId: string; credit: number | string }) => {
             if (message?.playerId === this.playerId) {
                 const credit = this.toNumber(message.credit);
                 this.updateVipCreditDisplay(credit);
             }
         });
 
-        this.room.onMessage('vip:reward', (message) => {
+        room.onMessage('vip:reward', (message) => {
             this.handleVipReward(message);
         });
 
-        this.room.onMessage('vip:error', (message) => {
+        room.onMessage('vip:error', (message) => {
             if (message?.message) {
                 this.showVipNotification(message.message, 0xff5555);
             }
         });
 
-        this.room.onMessage('vip:config', (message) => {
+        room.onMessage('vip:config', (message) => {
             if (message) {
                 this.vipConfig = this.normalizeVipConfig(message);
                 this.updateVipInfoText();
@@ -788,13 +796,22 @@ export class GameScene extends Scene {
         });
         
         // Add click handler
-        this.menuButton.on('pointerdown', () => {
-            console.log('Menu button clicked');
-            if (this.room) {
-                this.room.leave();
+        this.menuButton.on('pointerdown', async () => {
+            if (this.isQuitting) {
+                return;
             }
-            // Emit event to return to React menu
-            EventBus.emit('game-exit');
+
+            console.log('Menu button clicked');
+            this.isQuitting = true;
+
+            try {
+                await this.leaveRoomSafely();
+            } catch (error) {
+                console.error('Error leaving room from menu button:', error);
+            } finally {
+                // Emit event to return to React menu
+                EventBus.emit('game-exit');
+            }
         });
         
         // Hide everything by default
@@ -842,10 +859,11 @@ export class GameScene extends Scene {
     }
     
     private startBoost() {
-        if (!this.room) return;
+        const room = this.room;
+        if (!room || this.isQuitting) return;
         
         this.isBoosting = true;
-        this.room.send('boost', true);
+        room.send('boost', true);
         
         // Play boost sound
         this.boostSound.play({ volume: 0.3 });
@@ -857,10 +875,11 @@ export class GameScene extends Scene {
     }
     
     private stopBoost() {
-        if (!this.room) return;
+        const room = this.room;
+        if (!room || this.isQuitting) return;
         
         this.isBoosting = false;
-        this.room.send('boost', false);
+        room.send('boost', false);
         
         // Stop particle effect
         if (this.boostEffect) {
@@ -900,13 +919,24 @@ export class GameScene extends Scene {
             const skinId = playerData.skinId || 0;
             
             // Get or create snake group
-            let snake = this.snakes.get(id);
-            if (!snake) {
+            let snake = this.snakes.get(id) as Phaser.GameObjects.Group | undefined;
+            let createdNewSnake = false;
+
+            if (!snake || !(snake as any).children) {
+                if (snake && !(snake as any).children) {
+                    snake.destroy(true);
+                }
                 snake = this.add.group();
                 this.snakes.set(id, snake);
-                
-                // Create player name text with glow effect
-                const nameText = this.add.text(0, 0, playerData.name, {
+                createdNewSnake = true;
+            }
+
+            let nameText = this.playerTexts.get(id);
+            if (!nameText || !nameText.scene) {
+                if (nameText) {
+                    nameText.destroy();
+                }
+                nameText = this.add.text(0, 0, playerData.name, {
                     fontFamily: 'Arial',
                     fontSize: '18px',
                     color: '#ffffff',
@@ -923,27 +953,25 @@ export class GameScene extends Scene {
                 }).setOrigin(0.5, 0.5);
                 nameText.setDepth(100);
                 this.playerTexts.set(id, nameText);
-                
-                // Create initial segments (5 is the default) using graphics
+            } else {
+                nameText.setText(playerData.name);
+            }
+            
+            if (createdNewSnake && snake) {
                 const initialSegments = 5;
                 for (let i = 0; i < initialSegments; i++) {
                     const isHead = i === 0;
-                    
-                    // Create graphics object for segment
                     const segment = this.add.graphics();
-                    
-                    // Store segment data
                     segment.setData('isHead', isHead);
                     segment.setData('color', color);
-                    
-                    // Add to snake group
-                    snake.add(segment);
-                    
-                    // Set appropriate depths for snake segments
                     segment.setDepth(isHead ? 20 : 10);
+                    snake.add(segment);
                 }
             }
-            
+            if (!snake) {
+                return;
+            }
+
             // Ensure we have the right number of segments based on score
             const targetSegmentCount = 5 + Math.floor(playerData.score);
             const currentSegmentCount = snake.getChildren().length;
@@ -1415,7 +1443,9 @@ export class GameScene extends Scene {
     }
     
     private updateLeaderboard() {
-        if (!this.room || !this.room.state || !this.room.state.players) return;
+        const room = this.room;
+        const playersMap = room?.state?.players;
+        if (!room || !playersMap) return;
         
         // Clear existing leaderboard entries
         if (this.leaderboardPanel) {
@@ -1501,7 +1531,7 @@ export class GameScene extends Scene {
         
         // Get players and sort by score
         const players: any[] = [];
-        this.room.state.players.forEach((player: Player, sessionId: string) => {
+        playersMap.forEach((player: Player, sessionId: string) => {
             players.push({
                 id: sessionId,
                 name: player.name,
@@ -1862,13 +1892,16 @@ export class GameScene extends Scene {
                     
                     // Send message to server that food was eaten, including current positions
                     console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
-                    this.room.send('eatFood', { 
-                        foodId: foodId,
-                        headX: headX,
-                        headY: headY,
-                        foodX: foodSprite.x,
-                        foodY: foodSprite.y
-                    });
+                    const room = this.room;
+                    if (room && !this.isQuitting) {
+                        room.send('eatFood', { 
+                            foodId: foodId,
+                            headX: headX,
+                            headY: headY,
+                            foodX: foodSprite.x,
+                            foodY: foodSprite.y
+                        });
+                    }
                 }
                 
                 // Add a subtle visual effect to show attraction
@@ -1977,7 +2010,13 @@ export class GameScene extends Scene {
         // ... existing code ...
         
         // When the player's snake changes length, update the segments
-        this.room.state.players.onAdd = (player: any, key: string) => {
+        const room = this.room;
+        const players = room?.state?.players;
+        if (!room || !players) {
+            return;
+        }
+
+        players.onAdd = (player: any, key: string) => {
             console.log(`Player added: ${key}`);
             
             // Listen for changes to the player's score to update segment count
@@ -2165,10 +2204,12 @@ export class GameScene extends Scene {
     
     // Update the getPlayerName helper method to handle undefined cases
     private getPlayerName(sessionId: string): string | null {
-        if (!this.room || !this.room.state || !this.room.state.players) {
+        const room = this.room;
+        const players = room?.state?.players;
+        if (!room || !players) {
             return null;
         }
-        const player = this.room.state.players.get(sessionId);
+        const player = players.get(sessionId);
         return player && player.name ? player.name : null;
     }
     
@@ -2191,9 +2232,35 @@ export class GameScene extends Scene {
         console.log('Player is invulnerable until:', this.invulnerableUntil);
         
         // Send respawn message to server
-        if (this.room) {
-            this.room.send('respawn');
+        const room = this.room;
+        if (room && !this.isQuitting) {
+            room.send('respawn');
             console.log('Sent respawn message to server');
+        }
+    }
+
+    private async leaveRoomSafely(): Promise<void> {
+        const room = this.room;
+        if (!room) {
+            return;
+        }
+
+        this.room = null;
+        try {
+            await room.leave(true);
+            room.removeAllListeners();
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
+
+            if (message?.includes('WebSocket is already in CLOSING or CLOSED state')) {
+                console.warn('Room leave requested while socket closing. Treating as already disconnected.');
+                room.removeAllListeners();
+                return;
+            }
+
+            this.room = room;
+            throw error;
         }
     }
     
@@ -2256,26 +2323,34 @@ export class GameScene extends Scene {
     }
     
     private handleQuitClick(buttonBg: Phaser.GameObjects.Rectangle, buttonText: Phaser.GameObjects.Text) {
+        if (this.isQuitting) {
+            return;
+        }
+
+        buttonBg.disableInteractive();
+        buttonText.disableInteractive();
+
         this.tweens.add({
             targets: buttonBg,
             fillAlpha: 0.7,
             duration: 100,
             yoyo: true,
             onComplete: async () => {
+                if (this.isQuitting) {
+                    return;
+                }
+
                 try {
+                    this.isQuitting = true;
                     buttonText.setText('Leaving...');
-                    buttonBg.disableInteractive();
-                    buttonText.disableInteractive();
- 
-                    if (this.room) {
-                        await this.room.leave(true);
-                        console.log('Left the game room');
-                    }
+                    await this.leaveRoomSafely();
+                    console.log('Left the game room');
                     
                     // Emit event to return to React menu
                     EventBus.emit('game-exit');
                 } catch (error) {
                     console.error('Error leaving room:', error);
+                    this.isQuitting = false;
                     buttonText.setText('Retry?');
                     buttonBg.setInteractive();
                     buttonText.setInteractive({ useHandCursor: true });
