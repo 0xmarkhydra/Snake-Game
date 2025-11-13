@@ -33,6 +33,7 @@ export class GameScene extends Scene {
     
     // Game objects
     private snakes: Map<string, Phaser.GameObjects.Group> = new Map();
+    private snakeEyes: Map<string, Phaser.GameObjects.Graphics> = new Map(); // Eyes overlay for each snake
     private foods: Map<string, Phaser.GameObjects.Image> = new Map();
     private playerTexts: Map<string, Phaser.GameObjects.Text> = new Map();
     
@@ -85,6 +86,25 @@ export class GameScene extends Scene {
     // Quit state
     private isQuitting: boolean = false;
     
+    // 🚀 PERFORMANCE: Throttle update counters
+    private updatePlayerTextsCounter: number = 0;
+    private updatePlayerTextsInterval: number = 2; // Update every 2 frames
+    
+    // 🚀 PERFORMANCE: Leaderboard change detection
+    private lastLeaderboardHash: string = '';
+    private leaderboardUpdateCounter: number = 0;
+    private leaderboardUpdateInterval: number = 10; // Check every 10 frames (~166ms at 60fps)
+    
+    // 🚀 PERFORMANCE: Minimap update throttling
+    private minimapUpdateCounter: number = 0;
+    private minimapUpdateInterval: number = 3; // Update every 3 frames (~50ms at 60fps)
+    
+    // 🚀 PERFORMANCE: Adaptive quality based on FPS
+    private currentFPS: number = 60;
+    private fpsCheckCounter: number = 0;
+    private fpsCheckInterval: number = 30; // Check every 30 frames (0.5s at 60fps)
+    private adaptiveQualityEnabled: boolean = true;
+    
     // Add these properties to the class
     private segmentSpacing: number = 16; // Center-to-center distance to keep segments touching
     private playerSegmentHistories: Map<string, Array<{ x: number; y: number }>> = new Map(); // Store histories for all players
@@ -114,6 +134,8 @@ export class GameScene extends Scene {
     
     // Add this property to the GameScene class
     private invulnerableUntil: number = 0;
+    private headAttractionAura?: Phaser.GameObjects.Graphics;
+    private headAuraRadius: number = 120;
     
     // Render smoothing
     private playerRenderPositions: Map<string, { x: number; y: number }> = new Map();
@@ -152,6 +174,18 @@ export class GameScene extends Scene {
         0xff8c00  // orange
     ];
     private foodTextureKeys: Map<number, string> = new Map();
+    
+    // 🚀 PERFORMANCE: Texture caching for snake segments
+    private segmentTextureCache: Map<string, string> = new Map(); // color -> textureKey
+    private eyeTextureCache: Map<string, string> = new Map(); // state -> textureKey
+    
+    // 🚀 PERFORMANCE: Adaptive rendering thresholds
+    private readonly SEGMENT_COUNT_LOW = 50; // Full quality
+    private readonly SEGMENT_COUNT_MEDIUM = 100; // Medium quality
+    private readonly SEGMENT_COUNT_HIGH = 150; // Low quality
+    
+    // 🚀 PERFORMANCE: Viewport culling - reduced from 200 to 150 for better performance
+    private viewportBuffer: number = 150; // Extra pixels around viewport to render
     
     constructor() {
         super({
@@ -200,7 +234,6 @@ export class GameScene extends Scene {
 
         if (this.roomType === 'vip') {
             this.updateVipCreditDisplay(this.vipCredit);
-            this.updateVipInfoText();
         }
         
         // Set up audio
@@ -265,14 +298,30 @@ export class GameScene extends Scene {
         
         // Update FPS counter every 500ms
         if (time - this.fpsUpdateTime > 500) {
-            this.fpsText.setText(`FPS: ${Math.round(this.game.loop.actualFps)}`);
+            this.currentFPS = Math.round(this.game.loop.actualFps);
+            this.fpsText.setText(`FPS: ${this.currentFPS}`);
             this.fpsUpdateTime = time;
+        }
+        
+        // 🚀 PERFORMANCE: Adaptive quality based on current FPS
+        if (this.adaptiveQualityEnabled) {
+            this.fpsCheckCounter++;
+            if (this.fpsCheckCounter >= this.fpsCheckInterval) {
+                this.adaptQualitySettings();
+                this.fpsCheckCounter = 0;
+            }
         }
         
         // Update game objects every frame for smoother animations
         this.updateSnakes(delta);
         this.updateFoods();
-        this.updatePlayerTexts();
+        
+        // 🚀 PERFORMANCE: Throttle player texts update to every 2 frames
+        this.updatePlayerTextsCounter++;
+        if (this.updatePlayerTextsCounter >= this.updatePlayerTextsInterval) {
+            this.updatePlayerTexts();
+            this.updatePlayerTextsCounter = 0;
+        }
         
         // Calculate angle from player's snake head to mouse pointer
         const player = this.gameState.players.get(this.playerId);
@@ -329,20 +378,29 @@ export class GameScene extends Scene {
                 this.updateBoostEffect(boostX, boostY, angleDeg);
             }
             
+            this.updateHeadAttractionAura(headPosition.x, headPosition.y);
+
             // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
             if (time - this.lastAttractionUpdate > this.attractionUpdateInterval) {
-                this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
+            this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
                 this.lastAttractionUpdate = time;
             }
+        } else if (this.headAttractionAura) {
+            this.headAttractionAura.setVisible(false);
         }
         
-        // Update minimap
-        this.updateMinimap();
+        // 🚀 PERFORMANCE: Throttle minimap update to every 3 frames
+        this.minimapUpdateCounter++;
+        if (this.minimapUpdateCounter >= this.minimapUpdateInterval) {
+            this.updateMinimap();
+            this.minimapUpdateCounter = 0;
+        }
         
-        // Update leaderboard every second
-        if (time - this.lastUpdateTime > 1000) { // Update every second
-            this.updateLeaderboard();
-            this.lastUpdateTime = time;
+        // 🚀 PERFORMANCE: Update leaderboard less frequently with change detection
+        this.leaderboardUpdateCounter++;
+        if (this.leaderboardUpdateCounter >= this.leaderboardUpdateInterval) {
+            this.updateLeaderboardOptimized();
+            this.leaderboardUpdateCounter = 0;
         }
         
         this.updateCamera();
@@ -364,6 +422,183 @@ export class GameScene extends Scene {
             if (snake) {
                 snake.setAlpha(1);
             }
+        }
+    }
+    
+    // 🚀 PERFORMANCE: Generate and cache segment texture
+    private getOrCreateSegmentTexture(color: number, radius: number, quality: 'high' | 'medium' | 'low'): string {
+        const textureKey = `segment_${color.toString(16)}_${radius}_${quality}`;
+        
+        // Return cached texture if exists
+        if (this.textures.exists(textureKey)) {
+            return textureKey;
+        }
+        
+        // Determine quality settings
+        const gradientSteps = quality === 'high' ? 12 : quality === 'medium' ? 6 : 3;
+        const glowSteps = quality === 'high' ? 4 : quality === 'medium' ? 2 : 0;
+        
+        // Create texture
+        const size = Math.ceil(radius * 3); // Texture size
+        const rt = this.add.renderTexture(0, 0, size, size).setVisible(false);
+        const graphics = this.add.graphics();
+        
+        const centerX = size / 2;
+        const centerY = size / 2;
+        
+        // Draw shadow
+        graphics.fillStyle(0x000000, 0.18);
+        graphics.fillCircle(centerX + 2, centerY + 3, radius * 1.05);
+        
+        // Draw outer glow (only for high/medium quality)
+        if (glowSteps > 0) {
+            const outerGlowRadius = radius * 1.18;
+            for (let i = glowSteps; i > 0; i--) {
+                const t = i / glowSteps;
+                const glowRadius = Phaser.Math.Linear(radius * 1.06, outerGlowRadius, t);
+                const glowAlpha = Phaser.Math.Linear(0.05, 0.18, t);
+                const glowColor = this.interpolateColor(color, 0x000000, 0.35 * t);
+                graphics.fillStyle(glowColor, glowAlpha);
+                graphics.fillCircle(centerX, centerY, glowRadius);
+            }
+        }
+        
+        // Draw gradient
+        const centerColor = this.interpolateColor(color, 0xffffff, 0.3);
+        const edgeColor = this.interpolateColor(color, 0x000000, 0.5);
+        
+        for (let i = gradientSteps; i >= 0; i--) {
+            const t = i / gradientSteps;
+            const stepColor = this.interpolateColor(edgeColor, centerColor, 1 - t);
+            const alpha = Phaser.Math.Linear(0.35, 0.96, 1 - t);
+            const currentRadius = radius * (0.32 + 0.68 * t);
+            graphics.fillStyle(stepColor, alpha);
+            graphics.fillCircle(centerX, centerY, currentRadius);
+        }
+        
+        // Add border
+        graphics.lineStyle(2, 0x000000, 0.5);
+        graphics.strokeCircle(centerX, centerY, radius);
+        
+        // Draw to render texture
+        rt.draw(graphics, 0, 0);
+        rt.saveTexture(textureKey);
+        
+        // Cleanup
+        graphics.destroy();
+        rt.destroy();
+        
+        return textureKey;
+    }
+    
+    // 🚀 PERFORMANCE: Generate and cache head texture with highlight
+    private getOrCreateHeadTexture(color: number, radius: number, quality: 'high' | 'medium' | 'low'): string {
+        const textureKey = `head_${color.toString(16)}_${radius}_${quality}`;
+        
+        if (this.textures.exists(textureKey)) {
+            return textureKey;
+        }
+        
+        const size = Math.ceil(radius * 3);
+        const rt = this.add.renderTexture(0, 0, size, size).setVisible(false);
+        const graphics = this.add.graphics();
+        
+        const centerX = size / 2;
+        const centerY = size / 2;
+        
+        // Draw shadow
+        graphics.fillStyle(0x000000, 0.18);
+        graphics.fillCircle(centerX + 3, centerY + 4, radius * 1.08);
+        
+        // Draw outer glow
+        if (quality !== 'low') {
+            const glowSteps = quality === 'high' ? 4 : 2;
+            const outerGlowRadius = radius * 1.18;
+            for (let i = glowSteps; i > 0; i--) {
+                const t = i / glowSteps;
+                const glowRadius = Phaser.Math.Linear(radius * 1.06, outerGlowRadius, t);
+                const glowAlpha = Phaser.Math.Linear(0.05, 0.18, t);
+                const glowColor = this.interpolateColor(color, 0x000000, 0.35 * t);
+                graphics.fillStyle(glowColor, glowAlpha);
+                graphics.fillCircle(centerX, centerY, glowRadius);
+            }
+        }
+        
+        // Draw gradient
+        const gradientSteps = quality === 'high' ? 12 : quality === 'medium' ? 6 : 3;
+        const centerColor = this.interpolateColor(color, 0xffffff, 0.3);
+        const edgeColor = this.interpolateColor(color, 0x000000, 0.5);
+        
+        for (let i = gradientSteps; i >= 0; i--) {
+            const t = i / gradientSteps;
+            const stepColor = this.interpolateColor(edgeColor, centerColor, 1 - t);
+            const alpha = Phaser.Math.Linear(0.35, 0.96, 1 - t);
+            const currentRadius = radius * (0.32 + 0.68 * t);
+            graphics.fillStyle(stepColor, alpha);
+            graphics.fillCircle(centerX, centerY, currentRadius);
+        }
+        
+        // Add highlight
+        graphics.fillStyle(0xffffff, 0.12);
+        graphics.fillCircle(centerX - radius * 0.28, centerY - radius * 0.28, radius * 0.48);
+        
+        // Add border
+        graphics.lineStyle(2, 0x000000, 0.5);
+        graphics.strokeCircle(centerX, centerY, radius);
+        
+        rt.draw(graphics, 0, 0);
+        rt.saveTexture(textureKey);
+        
+        graphics.destroy();
+        rt.destroy();
+        
+        return textureKey;
+    }
+    
+    // 🚀 PERFORMANCE: Determine rendering quality based on segment count
+    private getRenderingQuality(segmentCount: number): 'high' | 'medium' | 'low' {
+        if (segmentCount < this.SEGMENT_COUNT_LOW) return 'high';
+        if (segmentCount < this.SEGMENT_COUNT_MEDIUM) return 'medium';
+        return 'low';
+    }
+    
+    // 🚀 PERFORMANCE: Check if position is in viewport
+    private isInViewport(x: number, y: number): boolean {
+        const cam = this.cameras.main;
+        return (
+            x >= cam.scrollX - this.viewportBuffer &&
+            x <= cam.scrollX + cam.width + this.viewportBuffer &&
+            y >= cam.scrollY - this.viewportBuffer &&
+            y <= cam.scrollY + cam.height + this.viewportBuffer
+        );
+    }
+    
+    // 🚀 PERFORMANCE: Adaptive quality settings based on FPS
+    private adaptQualitySettings(): void {
+        if (this.currentFPS >= 55) {
+            // High performance - use best quality settings
+            this.viewportBuffer = 150;
+            this.updatePlayerTextsInterval = 2;
+            this.minimapUpdateInterval = 3;
+            this.leaderboardUpdateInterval = 10;
+        } else if (this.currentFPS >= 45) {
+            // Medium performance - reduce some quality
+            this.viewportBuffer = 120;
+            this.updatePlayerTextsInterval = 3;
+            this.minimapUpdateInterval = 4;
+            this.leaderboardUpdateInterval = 12;
+        } else if (this.currentFPS >= 35) {
+            // Low performance - aggressive optimization
+            this.viewportBuffer = 100;
+            this.updatePlayerTextsInterval = 4;
+            this.minimapUpdateInterval = 6;
+            this.leaderboardUpdateInterval = 15;
+        } else {
+            // Very low performance - maximum optimization
+            this.viewportBuffer = 80;
+            this.updatePlayerTextsInterval = 5;
+            this.minimapUpdateInterval = 8;
+            this.leaderboardUpdateInterval = 20;
         }
     }
     
@@ -482,12 +717,12 @@ export class GameScene extends Scene {
 
         room.onMessage('vip:config', (message) => {
             if (message) {
-                this.vipConfig = this.normalizeVipConfig(message);
-                this.updateVipInfoText();
+                this.vipConfig = this.normalizeVipConfig(message);;
             }
         });
     }
     
+    // 🚀 PERFORMANCE: Optimized background with cached pattern
     private createBackground() {
         // Create solid dark green/teal background
         const bg = this.add.graphics();
@@ -500,38 +735,52 @@ export class GameScene extends Scene {
         bg.fillStyle(0x1a3a3a, 0.3);
         bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
         
-        // Create hexagon pattern
-        this.createHexagonPattern();
+        // Create hexagon pattern with caching
+        this.createHexagonPatternOptimized();
     }
     
-    private createHexagonPattern() {
-        const hexGraphics = this.add.graphics();
-        
-        // Hexagon settings
-        const hexSize = 50; // Size of each hexagon
+    // 🚀 PERFORMANCE: Cache hexagon pattern as texture and use TileSprite
+    private createHexagonPatternOptimized() {
+        const hexSize = 50;
         const hexWidth = hexSize * 2;
         const hexHeight = Math.sqrt(3) * hexSize;
         const horizontalSpacing = hexWidth * 0.75;
         const verticalSpacing = hexHeight;
         
-        // Calculate how many hexagons we need
-        const cols = Math.ceil(this.worldWidth / horizontalSpacing) + 2;
-        const rows = Math.ceil(this.worldHeight / verticalSpacing) + 2;
+        // Create a tile size that can repeat seamlessly
+        const tileWidth = horizontalSpacing * 4; // 4 hexagons wide
+        const tileHeight = verticalSpacing * 4; // 4 hexagons tall
         
-        // Draw hexagon pattern
-        hexGraphics.lineStyle(2, 0x0a3333, 0.2); // Dark teal outline with low opacity
-        
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const x = col * horizontalSpacing;
-                const y = row * verticalSpacing + (col % 2 === 1 ? verticalSpacing / 2 : 0);
-                
-                // Draw hexagon
-                this.drawHexagon(hexGraphics, x, y, hexSize);
+        // Check if texture already exists
+        if (!this.textures.exists('hexagon-pattern')) {
+            // Create a small tile pattern once
+            const rt = this.add.renderTexture(0, 0, tileWidth, tileHeight).setVisible(false);
+            const hexGraphics = this.add.graphics();
+            
+            hexGraphics.lineStyle(2, 0x0a3333, 0.2);
+            
+            // Draw hexagons in the tile (with extra for seamless tiling)
+            for (let row = -1; row < 6; row++) {
+                for (let col = -1; col < 6; col++) {
+                    const x = col * horizontalSpacing;
+                    const y = row * verticalSpacing + (col % 2 === 1 ? verticalSpacing / 2 : 0);
+                    this.drawHexagon(hexGraphics, x, y, hexSize);
+                }
             }
+            
+            // Render to texture
+            rt.draw(hexGraphics);
+            rt.saveTexture('hexagon-pattern');
+            
+            // Clean up
+            hexGraphics.destroy();
+            rt.destroy();
         }
         
-        hexGraphics.setDepth(0);
+        // Use TileSprite to repeat the cached pattern
+        const tileSprite = this.add.tileSprite(0, 0, this.worldWidth, this.worldHeight, 'hexagon-pattern');
+        tileSprite.setOrigin(0, 0);
+        tileSprite.setDepth(0);
     }
     
     private drawHexagon(graphics: Phaser.GameObjects.Graphics, x: number, y: number, size: number) {
@@ -702,8 +951,8 @@ export class GameScene extends Scene {
         
         // Title (cached)
         this.leaderboardTitle = this.add.text(0, 20, 'LEADERBOARD', { 
-            fontFamily: 'Arial', 
-            fontSize: '20px', 
+            fontFamily: 'Arial',
+            fontSize: '20px',
             fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
@@ -715,7 +964,7 @@ export class GameScene extends Scene {
         const headerY = 50;
         this.leaderboardHeaders = {
             rank: this.add.text(-bgWidth/2 + 20, headerY, 'RANK', { 
-                fontFamily: 'Arial', 
+                    fontFamily: 'Arial',
                 fontSize: '12px',
                 color: '#aaaaff',
                 fontStyle: 'bold'
@@ -988,27 +1237,32 @@ export class GameScene extends Scene {
         return this.deathOverlay;
     }
     
+    // 🚀 PERFORMANCE: Optimized boost particles with reduced count and lifespan
     private createBoostEffect() {
         // Create particle emitter for boost effect
         if (this.game.textures.exists('boost-particle')) {
             this.boostEffect = this.add.particles(0, 0, 'boost-particle', {
-                lifespan: 200,
-                speed: { min: 50, max: 100 },
-                scale: { start: 0.5, end: 0 },
-                alpha: { start: 0.7, end: 0 },
+                lifespan: 150, // Reduced from 200
+                speed: { min: 40, max: 80 }, // Reduced from 50-100
+                scale: { start: 0.4, end: 0 }, // Reduced from 0.5
+                alpha: { start: 0.6, end: 0 }, // Reduced from 0.7
                 blendMode: 'ADD',
-                emitting: false
+                emitting: false,
+                frequency: 50, // Limit particle emission rate
+                maxParticles: 20 // Limit total particles
             });
         } else {
             // Fallback if texture doesn't exist
             console.warn('Boost particle texture not found, using default');
             this.boostEffect = this.add.particles(0, 0, 'food', {
-                lifespan: 200,
-                speed: { min: 50, max: 100 },
-                scale: { start: 0.5, end: 0 },
-                alpha: { start: 0.7, end: 0 },
+                lifespan: 150,
+                speed: { min: 40, max: 80 },
+                scale: { start: 0.4, end: 0 },
+                alpha: { start: 0.6, end: 0 },
                 blendMode: 'ADD',
-                emitting: false
+                emitting: false,
+                frequency: 50,
+                maxParticles: 20
             });
         }
     }
@@ -1065,6 +1319,13 @@ export class GameScene extends Scene {
                 // Destroy all segments
                 snake.destroy(true);
                 this.snakes.delete(id);
+                
+                // 🚀 PERFORMANCE: Remove eyes graphics
+                const eyesGraphics = this.snakeEyes.get(id);
+                if (eyesGraphics) {
+                    eyesGraphics.destroy();
+                    this.snakeEyes.delete(id);
+                }
                 
                 // Remove player name
                 const playerText = this.playerTexts.get(id);
@@ -1126,21 +1387,6 @@ export class GameScene extends Scene {
                 nameText.setText(playerData.name);
             }
             
-            if (createdNewSnake && snake) {
-                const initialSegments = this.baseSnakeSegments;
-                for (let i = 0; i < initialSegments; i++) {
-                    const isHead = i === 0;
-                    const segment = this.add.graphics();
-                    segment.setData('isHead', isHead);
-                    segment.setData('color', color);
-                    segment.setDepth(isHead ? 20 : 10);
-                    snake.add(segment);
-                }
-            }
-            if (!snake) {
-                return;
-            }
-
             const score = Number.isFinite(playerData.score) ? Math.max(0, playerData.score) : 0;
             const segmentGrowth = this.computeProgressiveGrowth(
                 score,
@@ -1153,13 +1399,50 @@ export class GameScene extends Scene {
             const targetSegmentCount = this.baseSnakeSegments + segmentGrowth.level;
             const currentSegmentCount = segments.length;
             
+            // 🚀 PERFORMANCE: Determine quality and dynamic history size
+            const quality = this.getRenderingQuality(targetSegmentCount);
+            const dynamicHistorySize = Math.max(300, Math.min(this.historySize, 2000 - targetSegmentCount * 5));
+            
+            // Calculate radius and color once
+            const colorInt = parseInt(color.replace('#', '0x'));
+            const radiusGrowth = this.computeProgressiveGrowth(
+                score,
+                this.radiusGrowthBaseThreshold,
+                this.radiusGrowthThresholdIncrement
+            );
+            const scaledGrowth = (radiusGrowth.level + radiusGrowth.progress) * this.radiusGrowthPerLevel;
+            const baseScale = Math.min(this.maxSnakeScale, 1 + scaledGrowth);
+            const snakeRadius = this.baseSnakeRadius * baseScale;
+            
+            if (createdNewSnake && snake) {
+                const initialSegments = this.baseSnakeSegments;
+                for (let i = 0; i < initialSegments; i++) {
+                    const isHead = i === 0;
+                    // 🚀 PERFORMANCE: Use sprite with cached texture instead of graphics
+                    const textureKey = isHead 
+                        ? this.getOrCreateHeadTexture(colorInt, snakeRadius, quality)
+                        : this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
+                    const segment = this.add.sprite(0, 0, textureKey);
+                    segment.setData('isHead', isHead);
+                    segment.setData('color', color);
+                    segment.setData('textureKey', textureKey);
+                    segment.setDepth(isHead ? 20 : 10);
+                    snake.add(segment);
+                }
+            }
+            if (!snake) {
+                return;
+            }
+            
             if (currentSegmentCount < targetSegmentCount) {
                 // Add segments if needed
                 for (let i = currentSegmentCount; i < targetSegmentCount; i++) {
-                    // Create graphics object for new segment
-                    const segment = this.add.graphics();
+                    // 🚀 PERFORMANCE: Use sprite with cached texture
+                    const textureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
+                    const segment = this.add.sprite(0, 0, textureKey);
                     segment.setData('isHead', false);
                     segment.setData('color', color);
+                    segment.setData('textureKey', textureKey);
                     segment.setDepth(10);
                     snake.add(segment);
                 }
@@ -1186,14 +1469,14 @@ export class GameScene extends Scene {
             const renderPosition = { x: renderX, y: renderY };
 
             this.playerRenderPositions.set(id, renderPosition);
-
+            
             // Get or create segment history for this player
             let segmentHistory = this.playerSegmentHistories.get(id);
             if (!segmentHistory) {
                 segmentHistory = [];
                 this.playerSegmentHistories.set(id, segmentHistory);
             }
-
+            
             const historyHead = segmentHistory[0];
             if (
                 !historyHead ||
@@ -1201,22 +1484,11 @@ export class GameScene extends Scene {
             ) {
                 segmentHistory.unshift({ x: renderPosition.x, y: renderPosition.y });
             }
-
-            // Trim history to prevent memory issues
-            if (segmentHistory.length > this.historySize) {
-                segmentHistory.length = this.historySize;
+            
+            // 🚀 PERFORMANCE: Trim history to dynamic size
+            if (segmentHistory.length > dynamicHistorySize) {
+                segmentHistory.length = dynamicHistorySize;
             }
-
-            const headObj = segments[0] as Phaser.GameObjects.Graphics;
-            const colorInt = parseInt(color.replace('#', '0x'));
-            const radiusGrowth = this.computeProgressiveGrowth(
-                score,
-                this.radiusGrowthBaseThreshold,
-                this.radiusGrowthThresholdIncrement
-            );
-            const scaledGrowth = (radiusGrowth.level + radiusGrowth.progress) * this.radiusGrowthPerLevel;
-            const baseScale = Math.min(this.maxSnakeScale, 1 + scaledGrowth);
-            const snakeRadius = this.baseSnakeRadius * baseScale;
 
             if (createdNewSnake && segmentHistory.length === 1) {
                 const maxDistanceNeeded = segments.length * this.segmentSpacing;
@@ -1224,32 +1496,62 @@ export class GameScene extends Scene {
                     segmentHistory.push({ x: renderPosition.x, y: renderPosition.y });
                 }
             }
-
+            
+            // 🚀 PERFORMANCE: Render head with sprite
+            const headObj = segments[0] as Phaser.GameObjects.Sprite;
             if (headObj) {
-                headObj.setPosition(renderPosition.x, renderPosition.y);
-
-                headObj.clear();
-
-                if (playerData.boosting) {
-                    headObj.fillStyle(colorInt, 0.22);
-                    headObj.fillCircle(0, 0, snakeRadius * 1.28);
+                // 🚀 PERFORMANCE: Only update if in viewport or if it's the player
+                const shouldRender = id === this.playerId || this.isInViewport(renderPosition.x, renderPosition.y);
+                
+                if (shouldRender) {
+                    headObj.setVisible(true);
+                    headObj.setPosition(renderPosition.x, renderPosition.y);
+                    
+                    // Update texture if quality changed
+                    const expectedTextureKey = this.getOrCreateHeadTexture(colorInt, snakeRadius, quality);
+                    if (headObj.texture.key !== expectedTextureKey) {
+                        headObj.setTexture(expectedTextureKey);
+                        headObj.setData('textureKey', expectedTextureKey);
+                    }
+                    
+                    // Add boost glow effect for head only
+                    if (playerData.boosting) {
+                        headObj.setTint(0xffcccc);
+                    } else {
+                        headObj.clearTint();
+                    }
+                    
+                    // 🚀 PERFORMANCE: Draw eyes on overlay graphics
+                    let eyesGraphics = this.snakeEyes.get(id);
+                    if (!eyesGraphics || !eyesGraphics.scene) {
+                        if (eyesGraphics) {
+                            eyesGraphics.destroy();
+                        }
+                        eyesGraphics = this.add.graphics();
+                        eyesGraphics.setDepth(21); // Above head
+                        this.snakeEyes.set(id, eyesGraphics);
+                    }
+                    
+                    eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
+                    eyesGraphics.setVisible(true);
+                    eyesGraphics.clear();
+                    
+                    this.updateBlinkEffect(id);
+                    this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
+                } else {
+                    headObj.setVisible(false);
+                    const eyesGraphics = this.snakeEyes.get(id);
+                    if (eyesGraphics) {
+                        eyesGraphics.setVisible(false);
+                    }
                 }
-
-                this.drawSnakeSegment(headObj, snakeRadius, colorInt, {
-                    shadowOffsetX: 3,
-                    shadowOffsetY: 4,
-                    shadowScale: 1.08,
-                    highlight: true
-                });
-
-                this.updateBlinkEffect(id);
-                this.drawSnakeEyes(headObj, playerData.angle, snakeRadius, playerData.boosting, id);
             }
 
+            // 🚀 PERFORMANCE: Render body segments with sprites and viewport culling
             for (let i = 1; i < segments.length; i++) {
-                const segmentObj = segments[i] as Phaser.GameObjects.Graphics;
+                const segmentObj = segments[i] as Phaser.GameObjects.Sprite;
                 if (!segmentObj) continue;
-
+                    
                 const targetDistance = i * this.segmentSpacing;
                 const targetPosition = this.getPositionFromHistory(segmentHistory, targetDistance, renderPosition);
 
@@ -1265,7 +1567,7 @@ export class GameScene extends Scene {
                     newY = Phaser.Math.Linear(currentY, targetPosition.y, lerpFactor);
                 }
 
-                const previousSegment = i === 1 ? headObj : (segments[i - 1] as Phaser.GameObjects.Graphics);
+                const previousSegment = i === 1 ? headObj : (segments[i - 1] as Phaser.GameObjects.Sprite);
                 const clamped = this.clampToSpacing(
                     previousSegment.x,
                     previousSegment.y,
@@ -1274,12 +1576,22 @@ export class GameScene extends Scene {
                     this.segmentSpacing
                 );
 
-                segmentObj.setPosition(clamped.x, clamped.y);
-
-                const segmentRadius = snakeRadius;
-
-                segmentObj.clear();
-                this.drawSnakeSegment(segmentObj, segmentRadius, colorInt);
+                // 🚀 PERFORMANCE: Viewport culling - only render visible segments
+                const shouldRender = id === this.playerId || this.isInViewport(clamped.x, clamped.y);
+                
+                if (shouldRender) {
+                    segmentObj.setVisible(true);
+                    segmentObj.setPosition(clamped.x, clamped.y);
+                    
+                    // Update texture if quality changed
+                    const expectedTextureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
+                    if (segmentObj.texture.key !== expectedTextureKey) {
+                        segmentObj.setTexture(expectedTextureKey);
+                        segmentObj.setData('textureKey', expectedTextureKey);
+                    }
+                } else {
+                    segmentObj.setVisible(false);
+                }
             }
         });
     }
@@ -1441,8 +1753,8 @@ export class GameScene extends Scene {
             // ===== DRAW LEFT EYE =====
             // Eye white with subtle outline
             graphics.lineStyle(2, 0x000000, 0.5);
-            graphics.fillStyle(0xffffff, 1); // White
-            graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
             graphics.strokeCircle(leftEyeX + forwardX, leftEyeY + forwardY, eyeRadius);
             
             // Colored iris (light blue/cyan for more character)
@@ -1454,7 +1766,7 @@ export class GameScene extends Scene {
             const pupilOffsetX = Math.cos(angleRad) * (eyeRadius * 0.15);
             const pupilOffsetY = Math.sin(angleRad) * (eyeRadius * 0.15);
             
-            graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillStyle(0x000000, 1); // Black pupil
             graphics.fillCircle(
                 leftEyeX + forwardX + pupilOffsetX, 
                 leftEyeY + forwardY + pupilOffsetY, 
@@ -1468,12 +1780,12 @@ export class GameScene extends Scene {
                 leftEyeY + forwardY + pupilOffsetY - pupilRadius * 0.3, 
                 pupilRadius * 0.4
             );
-            
+        
             // ===== DRAW RIGHT EYE =====
             // Eye white with subtle outline
             graphics.lineStyle(2, 0x000000, 0.5);
-            graphics.fillStyle(0xffffff, 1); // White
-            graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
+        graphics.fillStyle(0xffffff, 1); // White
+        graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
             graphics.strokeCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius);
             
             // Colored iris
@@ -1481,7 +1793,7 @@ export class GameScene extends Scene {
             graphics.fillCircle(rightEyeX + forwardX, rightEyeY + forwardY, eyeRadius * 0.7);
             
             // Pupil - moves slightly in direction of movement
-            graphics.fillStyle(0x000000, 1); // Black pupil
+        graphics.fillStyle(0x000000, 1); // Black pupil
             graphics.fillCircle(
                 rightEyeX + forwardX + pupilOffsetX, 
                 rightEyeY + forwardY + pupilOffsetY, 
@@ -1526,8 +1838,8 @@ export class GameScene extends Scene {
         }
 
         const steps = 12;
-        const centerColor = this.interpolateColor(baseColor, 0xffffff, 0.6);
-        const edgeColor = this.interpolateColor(baseColor, 0x000000, 0.22);
+        const centerColor = this.interpolateColor(baseColor, 0xffffff, 0.3);
+        const edgeColor = this.interpolateColor(baseColor, 0x000000, 0.5);
 
         for (let i = steps; i >= 0; i--) {
             const t = i / steps;
@@ -1542,6 +1854,10 @@ export class GameScene extends Scene {
             graphics.fillStyle(0xffffff, 0.12);
             graphics.fillCircle(-radius * 0.28, -radius * 0.28, radius * 0.48);
         }
+
+        // 🎨 Add dark border for better contrast
+        graphics.lineStyle(2, 0x000000, 0.5); // 2px dark border with 70% opacity
+        graphics.strokeCircle(0, 0, radius);
     }
 
     private interpolateColor(startColor: number, endColor: number, t: number): number {
@@ -1601,6 +1917,13 @@ export class GameScene extends Scene {
     private updateFoods() {
         if (!this.gameState || !this.gameState.foods) return;
         
+        // 🚀 PERFORMANCE: Get camera bounds once for culling
+        const cam = this.cameras.main;
+        const viewLeft = cam.scrollX - this.viewportBuffer;
+        const viewRight = cam.scrollX + cam.width + this.viewportBuffer;
+        const viewTop = cam.scrollY - this.viewportBuffer;
+        const viewBottom = cam.scrollY + cam.height + this.viewportBuffer;
+        
         // First, handle removed foods
         this.foods.forEach((foodSprite, foodId) => {
             if (!this.gameState.foods.has(foodId)) {
@@ -1617,7 +1940,6 @@ export class GameScene extends Scene {
                 // Clear tween references
                 foodSprite.setData('attractTween', null);
                 foodSprite.setData('normalTween', null);
-                foodSprite.setData('flashTween', null);
                 foodSprite.setData('rotationTween', null);
                 foodSprite.setData('isAttracting', false);
                 
@@ -1642,65 +1964,57 @@ export class GameScene extends Scene {
                 return; // Skip this food
             }
             
+            // 🚀 PERFORMANCE: Viewport culling for foods
+            const isInView = position.x >= viewLeft && position.x <= viewRight && 
+                            position.y >= viewTop && position.y <= viewBottom;
+            
             if (!this.foods.has(foodId)) {
                 // Create new food sprite
                 const foodSprite = this.createFoodSprite(foodId, position.x, position.y, value);
                 this.foods.set(foodId, foodSprite);
+                
+                // Set visibility based on viewport
+                foodSprite.setVisible(isInView);
             } else {
                 // Update existing food sprite
                 const foodSprite = this.foods.get(foodId);
                 if (foodSprite) {
-                    // Apply the server position
-                    foodSprite.setPosition(position.x, position.y);
-                    const previousValue = foodSprite.getData('value');
-                    if (previousValue !== value) {
-                        this.applyFoodAppearance(foodSprite, value, value === 1);
-                    } else {
-                        foodSprite.setData('value', value);
-                    }
+                    // 🚀 PERFORMANCE: Only update if in viewport
+                    foodSprite.setVisible(isInView);
                     
-                    // Update glow position if it exists
-                    const glow = foodSprite.getData('glow');
-                    if (glow) {
-                        glow.setPosition(position.x, position.y);
-                    }
-                    
-                    // Update texture if value changed
-                    if ((value > 1 && foodSprite.texture.key !== 'special-food') || 
-                        (value === 1 && foodSprite.texture.key !== 'food')) {
-                        foodSprite.setTexture(value > 1 ? 'special-food' : 'food');
+                    if (isInView) {
+                        // Apply the server position
+                        foodSprite.setPosition(position.x, position.y);
+                        const previousValue = foodSprite.getData('value');
+                        if (previousValue !== value) {
+                            this.applyFoodAppearance(foodSprite, value, value === 1);
+                        } else {
+                            foodSprite.setData('value', value);
+                        }
                         
-                        // Add or remove glow based on new value
-                        if (value > 1 && !glow) {
-                            // Create new glow for special food
-                            const newGlow = this.add.image(position.x, position.y, 'special-food')
-                                .setTint(0xffff00)
-                                .setAlpha(0.3)
-                                .setScale(1.5)
-                                .setDepth(4);
+                        // Update glow position if it exists
+                        const glow = foodSprite.getData('glow');
+                        if (glow) {
+                            glow.setPosition(position.x, position.y);
+                        }
+                        
+                        // Update texture if value changed
+                        if ((value > 1 && foodSprite.texture.key !== 'special-food') || 
+                            (value === 1 && foodSprite.texture.key !== 'food')) {
+                            foodSprite.setTexture(value > 1 ? 'special-food' : 'food');
                             
-                            foodSprite.setData('glow', newGlow);
+                            // Clean up existing glow if any (no longer creating new glows)
+                            if (glow) {
+                                glow.destroy();
+                                foodSprite.setData('glow', null);
+                            }
                             
-                            // Add pulsing animation to the glow
-                            this.tweens.add({
-                                targets: newGlow,
-                                scale: { from: 1.5, to: 2.0 },
-                                alpha: { from: 0.3, to: 0.5 },
-                                duration: 800,
-                                yoyo: true,
-                                repeat: -1,
-                                ease: 'Sine.easeInOut'
-                            });
-
-                            this.startFoodIdleTweens(foodSprite, true);
-                        } else if (value === 1 && glow) {
-                            // Remove glow for normal food
-                            glow.destroy();
-                            foodSprite.setData('glow', null);
-                            
-                            // Stop rotation animation
-                            foodSprite.setAngle(0);
-                            this.startFoodIdleTweens(foodSprite, false);
+                            // Update animations based on food type
+                            const isSpecial = value > 1;
+                            if (!isSpecial) {
+                                foodSprite.setAngle(0);
+                            }
+                            this.startFoodIdleTweens(foodSprite, isSpecial);
                         }
                     }
                 }
@@ -1777,14 +2091,17 @@ export class GameScene extends Scene {
         this.startFoodIdleTweens(foodSprite, isSpecial);
     }
 
+    // 🚀 PERFORMANCE: Reduced tweens from 3-4 to 1-2 for better FPS
     private startFoodIdleTweens(foodSprite: Phaser.GameObjects.Image, isSpecial: boolean): void {
         this.stopFoodTweens(foodSprite);
         foodSprite.setAlpha(1);
         foodSprite.setScale(1);
 
+        // 🚀 PERFORMANCE: Combined scale + alpha into single tween with multiple properties
         const scaleTween = this.tweens.add({
             targets: foodSprite,
-            scale: isSpecial ? { from: 1, to: 1.35 } : { from: 0.85, to: 1.15 },
+            scale: isSpecial ? { from: 1, to: 1.35 } : { from: 0.9, to: 1.1 },
+            alpha: { from: 1, to: isSpecial ? 0.5 : 0.7 }, // Combined alpha animation
             duration: isSpecial ? 800 : 900,
             yoyo: true,
             repeat: -1,
@@ -1793,17 +2110,7 @@ export class GameScene extends Scene {
         });
         foodSprite.setData('normalTween', scaleTween);
 
-        const flashTween = this.tweens.add({
-            targets: foodSprite,
-            alpha: { from: 1, to: isSpecial ? 0.4 : 0.6 },
-            duration: 300,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut',
-            delay: Phaser.Math.Between(0, 200)
-        });
-        foodSprite.setData('flashTween', flashTween);
-
+        // 🚀 PERFORMANCE: Only add rotation for special foods (reduced from always having flash tween)
         if (isSpecial) {
             const rotationTween = this.tweens.add({
                 targets: foodSprite,
@@ -1819,17 +2126,12 @@ export class GameScene extends Scene {
         }
     }
 
+    // 🚀 PERFORMANCE: Simplified tween cleanup
     private stopFoodTweens(foodSprite: Phaser.GameObjects.Image): void {
         const normalTween = foodSprite.getData('normalTween') as Phaser.Tweens.Tween | null;
         if (normalTween) {
             normalTween.stop();
             this.tweens.remove(normalTween);
-        }
-
-        const flashTween = foodSprite.getData('flashTween') as Phaser.Tweens.Tween | null;
-        if (flashTween) {
-            flashTween.stop();
-            this.tweens.remove(flashTween);
         }
 
         const rotationTween = foodSprite.getData('rotationTween') as Phaser.Tweens.Tween | null;
@@ -1839,10 +2141,9 @@ export class GameScene extends Scene {
         }
 
         foodSprite.setData('normalTween', null);
-        foodSprite.setData('flashTween', null);
         foodSprite.setData('rotationTween', null);
     }
-
+    
     private createFoodSprite(id: string, x: number, y: number, value: number): Phaser.GameObjects.Image {
         // Create food sprite with appropriate texture based on value
         const texture = value > 1 ? 'special-food' : 'food';
@@ -1854,29 +2155,7 @@ export class GameScene extends Scene {
         // Store the food value for reference
         this.applyFoodAppearance(foodSprite, value, value === 1);
         
-        // Add a glow effect for special food
-        if (value > 1) {
-            // Create a glow sprite behind the food
-            const glow = this.add.image(x, y, texture)
-                .setTint(0xffff00) // Golden glow for special food
-                .setAlpha(0.3)
-                .setScale(1.5)
-                .setDepth(4); // Below the food
-            
-            // Store reference to the glow
-            foodSprite.setData('glow', glow);
-            
-            // Add pulsing animation to the glow
-            this.tweens.add({
-                targets: glow,
-                scale: { from: 1.5, to: 2.0 },
-                alpha: { from: 0.3, to: 0.5 },
-                duration: 800,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        }
+        // ❌ REMOVED: Glow effect for cleaner appearance
         
         return foodSprite;
     }
@@ -1901,23 +2180,6 @@ export class GameScene extends Scene {
         if (this.vipCreditText) {
             this.vipCreditText.setText(`Credit: ${this.formatCredit(credit)}`);
         }
-    }
-
-    private updateVipInfoText(): void {
-        if (!this.vipInfoText) {
-            return;
-        }
-
-        if (!this.vipConfig) {
-            this.vipInfoText.setText('');
-            return;
-        }
-
-        const entryFee = this.formatCredit(this.vipConfig.entryFee);
-        const reward = this.formatCredit(this.vipConfig.rewardRatePlayer);
-        const fee = this.formatCredit(this.vipConfig.rewardRateTreasury);
-
-        this.vipInfoText.setText(`Entry ${entryFee} • Reward ${reward} • Fee ${fee}`);
     }
 
     private normalizeVipConfig(raw: any): VipRoomConfig {
@@ -2040,12 +2302,12 @@ export class GameScene extends Scene {
             if (i < topPlayers.length) {
                 // Show and update this entry
                 const player = topPlayers[i];
-                const isCurrentPlayer = player.id === this.playerId;
+            const isCurrentPlayer = player.id === this.playerId;
                 const rowY = 75 + (i * 22);
-                
+            
                 // Update row background for current player
                 if (entry.rowBg) {
-                    if (isCurrentPlayer) {
+            if (isCurrentPlayer) {
                         entry.rowBg.clear();
                         entry.rowBg.fillStyle(0x1a5555, 0.5);
                         entry.rowBg.fillRoundedRect(-bgWidth/2 + 10, rowY - 10, bgWidth - 20, 20, 5);
@@ -2053,20 +2315,20 @@ export class GameScene extends Scene {
                     } else {
                         entry.rowBg.setVisible(false);
                     }
-                }
-                
+            }
+            
                 // Update rank text and color
                 let rankText = `${i + 1}`;
-                let rankColor = '#ffffff';
-                
+            let rankColor = '#ffffff';
+            
                 if (i === 0) {
-                    rankText = '🥇';
+                rankText = '🥇';
                     rankColor = '#ffd700';
                 } else if (i === 1) {
-                    rankText = '🥈';
+                rankText = '🥈';
                     rankColor = '#c0c0c0';
                 } else if (i === 2) {
-                    rankText = '🥉';
+                rankText = '🥉';
                     rankColor = '#cd7f32';
                 }
                 
@@ -2074,7 +2336,7 @@ export class GameScene extends Scene {
                 entry.rankText.setColor(rankColor);
                 entry.rankText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.rankText.setVisible(true);
-                
+            
                 // Update color circle
                 entry.colorCircle.clear();
                 entry.colorCircle.fillStyle(parseInt(player.color.replace('#', '0x')), 1);
@@ -2082,19 +2344,19 @@ export class GameScene extends Scene {
                 entry.colorCircle.setVisible(true);
                 
                 // Update name text
-                const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
-                const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
+            const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
+            const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
                 entry.nameText.setText(nameText);
                 entry.nameText.setColor(nameColor);
                 entry.nameText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.nameText.setVisible(true);
-                
+            
                 // Update score text
                 entry.scoreText.setText(`${player.score}`);
                 entry.scoreText.setColor(nameColor);
                 entry.scoreText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });
                 entry.scoreText.setVisible(true);
-                
+            
                 // Update kills text
                 entry.killsText.setText(`${player.kills}`);
                 entry.killsText.setColor(nameColor);
@@ -2119,6 +2381,37 @@ export class GameScene extends Scene {
             if (this.playerRankText) {
                 this.playerRankText.setText(`Rank: ${currentPlayerIndex + 1}/${players.length}`);
             }
+        }
+    }
+    
+    // 🚀 PERFORMANCE: Optimized leaderboard update with change detection
+    private updateLeaderboardOptimized() {
+        const room = this.room;
+        const playersMap = room?.state?.players;
+        if (!room || !playersMap) return;
+        
+        // Create a lightweight hash of top players to detect changes
+        const players: any[] = [];
+        playersMap.forEach((player: Player, sessionId: string) => {
+            players.push({
+                id: sessionId,
+                score: player.score,
+                kills: player.kills || 0
+            });
+        });
+        
+        players.sort((a, b) => b.score - a.score);
+        const topPlayers = players.slice(0, 10);
+        
+        // Create hash from top 10 players data
+        const currentHash = topPlayers
+            .map(p => `${p.id}:${p.score}:${p.kills}`)
+            .join('|');
+        
+        // Only update if there's a change
+        if (currentHash !== this.lastLeaderboardHash) {
+            this.lastLeaderboardHash = currentHash;
+            this.updateLeaderboard();
         }
     }
     
@@ -2313,6 +2606,54 @@ export class GameScene extends Scene {
         if (this.room) {
             this.room.removeAllListeners();
         }
+
+        if (this.headAttractionAura) {
+            this.headAttractionAura.destroy();
+            this.headAttractionAura = undefined;
+        }
+    }
+    
+    private updateHeadAttractionAura(x: number, y: number) {
+        if (!this.headAttractionAura) {
+            this.headAttractionAura = this.add.graphics();
+            this.headAttractionAura.setDepth(18);
+        }
+
+        const aura = this.headAttractionAura;
+        aura.setVisible(true);
+        aura.setPosition(x, y);
+        aura.clear();
+        aura.setBlendMode(Phaser.BlendModes.MULTIPLY);
+        const steps = 5;
+        const baseOpacity = 0.06;
+        for (let index = 0; index < steps; index += 1) {
+            const t = index / (steps - 1);
+            const opacityDecay = (steps - index - 1);
+            const opacity = baseOpacity * Math.max(opacityDecay, 0) / (steps - 1);
+            const radius = this.headAuraRadius * (0.4 + 0.6 * t);
+            aura.fillStyle(0x000000, opacity);
+            aura.fillCircle(0, 0, radius);
+        }
+    }
+
+    private resetFoodAttractionVisual(foodSprite: Phaser.GameObjects.Image) {
+        const currentValue = (foodSprite.getData('value') as number) ?? 1;
+        if (foodSprite.data && foodSprite.data.get('isAttracting')) {
+            foodSprite.setData('isAttracting', false);
+        }
+
+        const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+        if (attractTween) {
+            attractTween.stop();
+            this.tweens.remove(attractTween);
+            foodSprite.setData('attractTween', null);
+        }
+
+        this.stopFoodTweens(foodSprite);
+        foodSprite.setAlpha(1);
+        foodSprite.setScale(1);
+
+        this.startFoodIdleTweens(foodSprite, currentValue > 1);
     }
     
     // Update the attractFoodInFront method to handle glow cleanup when food is eaten
@@ -2326,136 +2667,124 @@ export class GameScene extends Scene {
         const angleRad = Phaser.Math.DegToRad(angleDeg);
         
         // Define the attraction parameters
-        const attractionDistance = 200; // Tăng khoảng cách hút lên
+        const attractionDistance = 153; // Phạm vi hút mồi phía trước (giảm 15%)
         const attractionConeAngle = Math.PI / 2.5; // Mở rộng góc hút (khoảng 72 độ)
-        const attractionStrength = 5; // Tăng lực hút lên đáng kể
-        const eatDistance = 30; // Khoảng cách để tự động ăn thức ăn
+        const attractionStrength = 5; // Lực hút cơ bản
+        const eatDistance = 45; // Khoảng cách để tự động ăn thức ăn
+        const headAuraRadius = this.headAuraRadius;
         
         // 🔥 PERFORMANCE: Pre-calculate squared distance to avoid expensive sqrt
         const maxDistanceSquared = attractionDistance * attractionDistance;
+        const headAuraRadiusSquared = headAuraRadius * headAuraRadius;
         
         // Check each food item
         this.foods.forEach((foodSprite, foodId) => {
-            // 🔥 PERFORMANCE: Fast distance check using squared distance (avoids sqrt)
             const dx = foodSprite.x - headX;
             const dy = foodSprite.y - headY;
             const distanceSquared = dx * dx + dy * dy;
+            const withinAura = distanceSquared <= headAuraRadiusSquared;
             
-            // Skip if too far away (using squared distance comparison)
-            if (distanceSquared > maxDistanceSquared) return;
+            if (!withinAura && distanceSquared > maxDistanceSquared) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
             
-            // Only calculate actual distance when needed (for foods in range)
             const distance = Math.sqrt(distanceSquared);
-            
-            // Calculate angle to food
             const foodAngle = Math.atan2(dy, dx);
             
-            // Calculate angle difference (accounting for wrapping)
             let angleDiff = Math.abs(foodAngle - angleRad);
             if (angleDiff > Math.PI) {
                 angleDiff = 2 * Math.PI - angleDiff;
             }
             
-            // Check if food is within the attraction cone
-            if (angleDiff <= attractionConeAngle / 2) {
-                // Calculate attraction force (stronger when closer and more aligned)
-                const alignmentFactor = 1 - (angleDiff / (attractionConeAngle / 2));
-                const distanceFactor = 1 - (distance / attractionDistance);
-                const attractionForce = attractionStrength * alignmentFactor * distanceFactor;
-                
-                // Calculate movement vector toward the snake head
-                const moveX = (headX - foodSprite.x) * attractionForce * 0.1; // Tăng hệ số lên gấp đôi
-                const moveY = (headY - foodSprite.y) * attractionForce * 0.1; // Tăng hệ số lên gấp đôi
-                
-                // Apply movement (only visually on the client side)
+            const withinCone = angleDiff <= attractionConeAngle / 2;
+            if (!withinAura && !withinCone) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
+
+            const alignmentFactor = withinAura ? 1 : 1 - (angleDiff / (attractionConeAngle / 2));
+            const targetRange = withinAura ? headAuraRadius : attractionDistance;
+            const distanceFactor = Phaser.Math.Clamp(1 - (distance / targetRange), 0, 1);
+            const attractionForce = attractionStrength * Phaser.Math.Clamp(alignmentFactor, 0, 1) * distanceFactor;
+
+            if (attractionForce <= 0) {
+                this.resetFoodAttractionVisual(foodSprite);
+                return;
+            }
+            
+            const moveMultiplier = withinAura ? 0.15 : 0.1;
+            const moveX = (headX - foodSprite.x) * attractionForce * moveMultiplier;
+            const moveY = (headY - foodSprite.y) * attractionForce * moveMultiplier;
+            
                 foodSprite.x += moveX;
                 foodSprite.y += moveY;
                 
-                // Check if food is close enough to be eaten
                 const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
                 if (newDistance < eatDistance) {
-                    // Kill all tweens to prevent memory leak
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Get and destroy glow if it exists before hiding the food
+                const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                if (attractTween) {
+                    attractTween.stop();
+                    this.tweens.remove(attractTween);
+                    foodSprite.setData('attractTween', null);
+                }
+
+                this.stopFoodTweens(foodSprite);
+                
                     const glow = foodSprite.getData('glow');
                     if (glow) {
-                        this.tweens.killTweensOf(glow); // Also kill glow tweens
+                    this.tweens.killTweensOf(glow);
                         glow.destroy();
                         foodSprite.setData('glow', null);
                     }
                     
-                    // Clear tween references
-                    foodSprite.setData('attractTween', null);
-                    foodSprite.setData('normalTween', null);
-                    foodSprite.setData('flashTween', null);
-                    foodSprite.setData('rotationTween', null);
-                    foodSprite.setData('isAttracting', false);
-                    
-                    // Visually "eat" the food immediately
+                foodSprite.setData('isAttracting', false);
                     foodSprite.setVisible(false);
                     foodSprite.setScale(0);
                     
-                    // Play eat sound
                     this.eatSound.play({ volume: 0.5 });
-                    
-                    // Add a visual effect at the position
                     this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
                     
-                    // Send message to server that food was eaten, including current positions
                     console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
-                    const room = this.room;
-                    if (room && !this.isQuitting) {
-                        room.send('eatFood', { 
-                            foodId: foodId,
-                            headX: headX,
-                            headY: headY,
+                const roomRef = this.room;
+                if (roomRef && !this.isQuitting) {
+                    roomRef.send('eatFood', { 
+                        foodId,
+                        headX,
+                        headY,
                             foodX: foodSprite.x,
                             foodY: foodSprite.y
                         });
                     }
+                
+                return;
                 }
                 
-                // Add a subtle visual effect to show attraction
                 if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
                     foodSprite.setData('isAttracting', true);
                     
-                    // Kill any existing tweens first to prevent memory leak
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Add a more noticeable pulsing effect
-                    const attractTween = this.tweens.add({
+                const previousAttractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                if (previousAttractTween) {
+                    previousAttractTween.stop();
+                    this.tweens.remove(previousAttractTween);
+                }
+
+                this.stopFoodTweens(foodSprite);
+                
+                const attractTween = this.tweens.add({
                         targets: foodSprite,
-                        alpha: { from: 1, to: 0.7 },
-                        scale: { from: 1, to: 1.5 },
-                        duration: 200,
+                    alpha: { from: 1, to: 0.7 },
+                    scale: { from: 1, to: 1.5 },
+                    duration: 200,
                         yoyo: true,
                         repeat: -1,
                         ease: 'Sine.easeInOut'
                     });
-                    
-                    // Store tween reference to prevent duplicates
-                    foodSprite.setData('attractTween', attractTween);
-                }
-            } else {
-                // Reset visual effect if food is no longer being attracted
-                if (foodSprite.data && foodSprite.data.get('isAttracting')) {
-                    foodSprite.setData('isAttracting', false);
-                    foodSprite.setData('attractTween', null); // Clear tween reference
-                    
-                    // Stop any existing tweens
-                    this.stopFoodTweens(foodSprite);
-                    
-                    // Reset to normal appearance
-                    foodSprite.setAlpha(1);
-                    foodSprite.setScale(1);
-                    
-                    // Restart the idle animations
-                    const nextValue = (foodSprite.getData('value') as number) ?? 1;
-                    this.startFoodIdleTweens(foodSprite, nextValue > 1);
-                }
+                
+                foodSprite.setData('attractTween', attractTween);
             }
         });
+
     }
     
     // Update the addEatEffect method to show different values for special food
@@ -2843,7 +3172,7 @@ export class GameScene extends Scene {
                 ease: 'Back.easeOut'
             });
         });
-
+        
         buttonContainer.on('pointerout', () => {
             drawButton('default');
             this.tweens.add({
@@ -2855,7 +3184,7 @@ export class GameScene extends Scene {
                 ease: 'Back.easeIn'
             });
         });
-
+        
         buttonContainer.on('pointerdown', () => {
             drawButton('active');
             buttonContainer.alpha = hoverAlpha;

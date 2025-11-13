@@ -46,8 +46,9 @@ const config: Phaser.Types.Core.GameConfig = {
         powerPreference: 'high-performance'
     },
     fps: {
-        target: 60,  // Target 120 FPS
-        forceSetTimeOut: false
+        target: 120,  // 🚀 PERFORMANCE: Target 120 FPS for smoother gameplay
+        forceSetTimeOut: false,
+        smoothStep: true // Enable frame smoothing
     }
 };
 
