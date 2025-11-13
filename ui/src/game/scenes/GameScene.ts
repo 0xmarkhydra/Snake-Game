@@ -1993,7 +1993,7 @@ export class GameScene extends Scene {
         const key = `food-color-${colorHex}`;
 
         if (!this.textures.exists(key)) {
-            const size = 16;
+            const size = 12;
             const radius = size / 2 - 2;
             const graphics = this.add.graphics({ x: 0, y: 0 });
             graphics.setVisible(false);
