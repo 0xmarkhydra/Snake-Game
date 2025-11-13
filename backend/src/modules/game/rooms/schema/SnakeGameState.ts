@@ -145,7 +145,7 @@ export class SnakeGameState extends Schema {
   worldHeight: number = 4000;
 
   @type('number')
-  maxFoods: number = 620; // Balanced amount for good gameplay experience
+  maxFoods: number = 450; // Balanced amount for good gameplay experience
 
   @type('number')
   tickRate: number = 16;

@@ -48,20 +48,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     });
 
     this.onMessage('eatFood', (client, message: { foodId: string }) => {
-      console.log(
-        `Player ${client.sessionId} attempting to eat food ${message.foodId}`,
-      );
-
       const player = this.state.players.get(client.sessionId);
       const food = this.state.foods.get(message.foodId);
 
-      if (!player || !player.alive) {
-        console.log(`Player ${client.sessionId} is not valid or not alive`);
-        return;
-      }
-
-      if (!food) {
-        console.log(`Food ${message.foodId} does not exist`);
+      if (!player || !player.alive || !food) {
         return;
       }
 
@@ -70,17 +60,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       const dy = head.y - food.position.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      console.log(`Distance to food: ${distance}`);
-
       const maxDistance = 250;
 
       if (distance <= maxDistance) {
-        console.log(
-          `Player ${client.sessionId} eating food ${message.foodId}, value: ${food.value}`,
-        );
-
         player.score += food.value;
-        console.log(`New score: ${player.score}`);
 
         const segmentsToAdd = food.value > 1 ? 3 : 1;
         for (let index = 0; index < segmentsToAdd; index += 1) {
@@ -95,14 +78,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
         this.state.foods.delete(message.foodId);
         this.spawnFood();
-      } else {
-        console.log(`Food too far away (${distance} > ${maxDistance})`);
       }
     });
 
-    this.onMessage('*', (_, type) => {
-      console.log(`Received message of type: ${type}`);
-    });
+    // Generic message handler removed for performance
 
     this.onMessage(
       'playerDied',
@@ -118,11 +97,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
         this.handleKillEvent(player, killer, { reason: 'client_message' });
 
-        if (message.killerSessionId) {
-          console.log(
-            `Broadcasting kill event: ${message.killerSessionId} killed ${player.id}`,
-          );
-        }
+        // Kill event handled
       },
     );
 
@@ -134,15 +109,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   onJoin(client: Client, options: { name: string; skinId?: number }): void {
-    console.log(`${client.sessionId} joined with options:`, options);
-
     const spawnPosition = this.getRandomPosition();
     const skinId = options.skinId !== undefined ? options.skinId : 0;
     const color = this.colors[skinId % this.colors.length];
-
-    console.log(
-      `Spawning player at position: ${spawnPosition.x}, ${spawnPosition.y} with color: ${color} and skin: ${skinId}`,
-    );
 
     const player = new Player(
       client.sessionId,
@@ -157,9 +126,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.currentTurnRate = 0;
 
     this.state.players.set(client.sessionId, player);
-    console.log(
-      `Player created with ID: ${client.sessionId}, segments: ${player.segments.length}`,
-    );
 
     client.send('welcome', {
       id: client.sessionId,
@@ -184,18 +150,14 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   onLeave(client: Client): void {
-    console.log(`${client.sessionId} left!`);
     this.state.players.delete(client.sessionId);
   }
 
   onDispose(): void {
-    console.log('Room disposed!');
     this.gameLoopInterval.clear();
   }
 
   protected gameLoop(): void {
-    const start = performance.now();
-
     this.state.players.forEach((player) => {
       if (!player.alive) {
         return;
@@ -208,9 +170,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (this.state.foods.size < this.state.maxFoods) {
       this.spawnFood();
     }
-
-    const end = performance.now();
-    console.log(`Game loop took ${end - start} milliseconds`);
   }
 
   protected resolveBaseSpeed(player: Player): number {
@@ -339,7 +298,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected checkPlayerCollisions(player: Player): void {
-    if (!player.alive) {
+    if (!player.alive || player.invulnerable) {
       return;
     }
 
@@ -348,31 +307,46 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
+    // 🚀 PERFORMANCE: Pre-calculate collision radius once
+    const baseHeadRadius = 8;
+    const turnRateMultiplier = 1 + player.currentTurnRate / this.MAX_TURN_RATE;
+    const headRadius = baseHeadRadius * turnRateMultiplier;
+    const segmentRadius = 6;
+    const collisionThreshold = headRadius + segmentRadius;
+    const collisionThresholdSq = collisionThreshold * collisionThreshold; // Use squared distance to avoid sqrt
+
+    // 🚀 PERFORMANCE: Bounding box for early culling
+    const maxCheckDistance = 200; // Only check players within 200 units
+    const maxCheckDistanceSq = maxCheckDistance * maxCheckDistance;
+
     this.state.players.forEach((otherPlayer, otherPlayerId) => {
       if (otherPlayerId === player.id || !otherPlayer.alive) {
         return;
       }
 
-      if (player.invulnerable) {
+      // 🚀 PERFORMANCE: Quick distance check using head positions
+      const otherHead = otherPlayer.segments[0];
+      if (!otherHead) return;
+
+      const headDx = head.position.x - otherHead.position.x;
+      const headDy = head.position.y - otherHead.position.y;
+      const headDistSq = headDx * headDx + headDy * headDy;
+
+      // Skip if other player is too far away
+      if (headDistSq > maxCheckDistanceSq) {
         return;
       }
 
+      // Check collision with segments (skip head at index 0)
       for (let index = 1; index < otherPlayer.segments.length; index += 1) {
         const segment = otherPlayer.segments[index];
         const dx = head.position.x - segment.position.x;
         const dy = head.position.y - segment.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const distanceSq = dx * dx + dy * dy;
 
-        // 🎯 Dynamic collision radius based on turn rate
-        const baseHeadRadius = 8;
-        const turnRateMultiplier =
-          1 + player.currentTurnRate / this.MAX_TURN_RATE;
-        const headRadius = baseHeadRadius * turnRateMultiplier;
-        const segmentRadius = 6;
-
-        if (distance < headRadius + segmentRadius) {
+        if (distanceSq < collisionThresholdSq) {
           this.handleKillEvent(player, otherPlayer, { reason: 'collision' });
-          return;
+          return; // Exit immediately after collision
         }
       }
     });
@@ -420,10 +394,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     // 🔥 PERFORMANCE FIX: Limit max food drops to prevent lag
     const MAX_FOOD_DROP = 30; // Maximum 30 foods per death
     const foodToSpawn = Math.min(segmentCount, MAX_FOOD_DROP);
-
-    console.log(
-      `[🍎] [FreeGameRoom] [spawnFoodFromDeadPlayer] Player ${player.name} died with ${segmentCount} segments. Spawning ${foodToSpawn} foods`,
-    );
 
     // 🚀 PERFORMANCE FIX: Progressive spawn in batches to reduce instant load
     const BATCH_SIZE = 10; // Spawn 10 foods at a time
@@ -473,10 +443,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         }
       }, batchIndex * BATCH_DELAY);
     }
-
-    console.log(
-      `[✅] [FreeGameRoom] [spawnFoodFromDeadPlayer] Scheduled ${foodToSpawn} foods in ${Math.ceil(foodToSpawn / BATCH_SIZE)} batches`,
-    );
   }
 
   protected initializeFood(): void {

@@ -128,6 +128,12 @@ export class GameScene extends Scene {
     private lastAngle: number = 0;
     private maxAngleChange: number = 7; // Increased from 10 to 20 degrees per frame
     
+    // 🚀 PERFORMANCE: Throttle network messages
+    private lastSentAngle: number = 0;
+    private lastMoveSentTime: number = 0;
+    private moveSendInterval: number = 50; // Send max 20 times/second instead of 60
+    private minAngleDiffToSend: number = 2; // Only send if angle changed > 2 degrees
+    
     // 🔥 PERFORMANCE: Throttle food attraction calculation
     private lastAttractionUpdate: number = 0;
     private attractionUpdateInterval: number = 33; // Update every 33ms (~30 times per second) - balanced for smooth attraction
@@ -283,7 +289,6 @@ export class GameScene extends Scene {
             // Notify that the scene is ready
             EventBus.emit('current-scene-ready', this);
             
-            console.log('Connected to game server!');
         } catch (error) {
             console.error('Failed to connect to game server:', error);
             // Emit event to return to React menu
@@ -369,7 +374,15 @@ export class GameScene extends Scene {
             this.lastAngle = angleDeg;
             
             // Send movement input to server
-            room.send('move', { angle: angleDeg });
+            // 🚀 PERFORMANCE: Throttle network messages - only send if angle changed significantly or enough time passed
+            const angleDiff = Math.abs(angleDeg - this.lastSentAngle);
+            const timeSinceLastSend = time - this.lastMoveSentTime;
+            
+            if (angleDiff > this.minAngleDiffToSend || timeSinceLastSend > this.moveSendInterval) {
+                room.send('move', { angle: angleDeg });
+                this.lastSentAngle = angleDeg;
+                this.lastMoveSentTime = time;
+            }
             
             // Update boost effect position if boosting
             if (player.boosting) {
@@ -637,7 +650,6 @@ export class GameScene extends Scene {
         
         // Handle initial foods message
         room.onMessage('initialFoods', (message) => {
-            console.log(`Received ${message.foods.length} initial foods`);
             
             // Clear existing foods
             this.foods.forEach(food => food.destroy());
@@ -676,7 +688,6 @@ export class GameScene extends Scene {
         
         // Add a specific handler for playerKilled events
         room.onMessage('playerKilled', (message) => {
-            console.log('Received playerKilled event:', message);
             
             if (message && message.killer && message.killed) {
                 this.showKillNotification(message.killer, message.killed);
@@ -689,7 +700,6 @@ export class GameScene extends Scene {
         room.onMessage('welcome', (message) => {
             // Set invulnerability for 3 seconds
             this.invulnerableUntil = this.time.now + 3000;
-            console.log('Player is invulnerable until:', this.invulnerableUntil);
         });
 
         if (this.roomType === 'vip') {
@@ -1105,7 +1115,6 @@ export class GameScene extends Scene {
         
         // Add click handler
         this.respawnButton.on('pointerdown', () => {
-            console.log('Respawn button clicked');
             this.respawn();
         });
         
@@ -1143,7 +1152,6 @@ export class GameScene extends Scene {
                 return;
             }
 
-            console.log('Menu button clicked');
             this.isQuitting = true;
 
             try {
@@ -2394,7 +2402,6 @@ export class GameScene extends Scene {
     }
     
     private handlePlayerDeath() {
-        console.log('Player died!');
         
         // Make sure deathOverlay exists before trying to use it
         if (!this.deathOverlay) {
@@ -2675,7 +2682,6 @@ export class GameScene extends Scene {
                     this.eatSound.play({ volume: 0.5 });
                     this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
                     
-                    console.log(`Sending eatFood message for food ${foodId}, distance: ${newDistance}`);
                 const roomRef = this.room;
                 if (roomRef && !this.isQuitting) {
                     roomRef.send('eatFood', { 
@@ -2789,7 +2795,6 @@ export class GameScene extends Scene {
         }
 
         players.onAdd = (player: any, key: string) => {
-            console.log(`Player added: ${key}`);
             
             // Listen for changes to the player's score to update segment count
             player.listen("score", (newScore: number, oldScore: number) => {
@@ -2826,13 +2831,11 @@ export class GameScene extends Scene {
     
     // Update the showKillNotification method with improved visuals
     private showKillNotification(killerSessionId: string, killedSessionId: string) {
-        console.log(`showKillNotification called with killer: ${killerSessionId}, killed: ${killedSessionId}`);
         
         // Get player names or use session IDs if names aren't available
         const killerName = this.getPlayerName(killerSessionId) || `Player ${killerSessionId.substr(0, 4)}`;
         const killedName = this.getPlayerName(killedSessionId) || `Player ${killedSessionId.substr(0, 4)}`;
         
-        console.log(`Notification text: ${killerName} eliminated ${killedName}!`);
         
         // Create container for the notification
         const container = this.add.container(
@@ -2992,7 +2995,6 @@ export class GameScene extends Scene {
     
     // Add the respawn method to handle respawn button clicks
     private respawn() {
-        console.log('Respawning player...');
         
         // Hide death overlay and buttons
         if (this.deathOverlay) this.deathOverlay.setVisible(false);
@@ -3001,13 +3003,11 @@ export class GameScene extends Scene {
         
         // Set invulnerability for 3 seconds
         this.invulnerableUntil = this.time.now + 3000;
-        console.log('Player is invulnerable until:', this.invulnerableUntil);
         
         // Send respawn message to server
         const room = this.room;
         if (room && !this.isQuitting) {
             room.send('respawn');
-            console.log('Sent respawn message to server');
         }
     }
 
@@ -3150,7 +3150,6 @@ export class GameScene extends Scene {
                     this.isQuitting = true;
                     buttonText.setText('Leaving...');
                     await this.leaveRoomSafely();
-                    console.log('Left the game room');
                     
                     // Emit event to return to React menu
                     EventBus.emit('game-exit');
