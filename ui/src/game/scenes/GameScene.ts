@@ -82,6 +82,7 @@ export class GameScene extends Scene {
     
     // Add this property to the class
     private playerRankText: Phaser.GameObjects.Text;
+    private backgroundLayer?: Phaser.GameObjects.TileSprite;
 
     // Quit state
     private isQuitting: boolean = false;
@@ -611,6 +612,7 @@ export class GameScene extends Scene {
             this.worldWidth = state.worldWidth;
             this.worldHeight = state.worldHeight;
             this.cameras.main.setBounds(0, 0, this.worldWidth, this.worldHeight);
+            this.updateBackgroundSize();
             
             // Add safety check for physics world
             if (this.physics && this.physics.world) {
@@ -724,83 +726,16 @@ export class GameScene extends Scene {
     
     // 🚀 PERFORMANCE: Optimized background with cached pattern
     private createBackground() {
-        // Create solid dark green/teal background
-        const bg = this.add.graphics();
-        
-        // Fill with dark teal color similar to the reference image
-        bg.fillStyle(0x0d4d4d, 1); // Dark teal base color
-        bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
-        
-        // Add darker green overlay for depth
-        bg.fillStyle(0x1a3a3a, 0.3);
-        bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
-        
-        // Create hexagon pattern with caching
-        this.createHexagonPatternOptimized();
+        this.backgroundLayer?.destroy();
+        const bg = this.add.tileSprite(0, 0, this.worldWidth, this.worldHeight, 'game-background');
+        bg.setOrigin(0, 0);
+        bg.setDepth(-100);
+        this.backgroundLayer = bg;
     }
     
-    // 🚀 PERFORMANCE: Cache hexagon pattern as texture and use TileSprite
-    private createHexagonPatternOptimized() {
-        const hexSize = 50;
-        const hexWidth = hexSize * 2;
-        const hexHeight = Math.sqrt(3) * hexSize;
-        const horizontalSpacing = hexWidth * 0.75;
-        const verticalSpacing = hexHeight;
-        
-        // Create a tile size that can repeat seamlessly
-        const tileWidth = horizontalSpacing * 4; // 4 hexagons wide
-        const tileHeight = verticalSpacing * 4; // 4 hexagons tall
-        
-        // Check if texture already exists
-        if (!this.textures.exists('hexagon-pattern')) {
-            // Create a small tile pattern once
-            const rt = this.add.renderTexture(0, 0, tileWidth, tileHeight).setVisible(false);
-            const hexGraphics = this.add.graphics();
-            
-            hexGraphics.lineStyle(2, 0x0a3333, 0.2);
-            
-            // Draw hexagons in the tile (with extra for seamless tiling)
-            for (let row = -1; row < 6; row++) {
-                for (let col = -1; col < 6; col++) {
-                    const x = col * horizontalSpacing;
-                    const y = row * verticalSpacing + (col % 2 === 1 ? verticalSpacing / 2 : 0);
-                    this.drawHexagon(hexGraphics, x, y, hexSize);
-                }
-            }
-            
-            // Render to texture
-            rt.draw(hexGraphics);
-            rt.saveTexture('hexagon-pattern');
-            
-            // Clean up
-            hexGraphics.destroy();
-            rt.destroy();
-        }
-        
-        // Use TileSprite to repeat the cached pattern
-        const tileSprite = this.add.tileSprite(0, 0, this.worldWidth, this.worldHeight, 'hexagon-pattern');
-        tileSprite.setOrigin(0, 0);
-        tileSprite.setDepth(0);
-    }
-    
-    private drawHexagon(graphics: Phaser.GameObjects.Graphics, x: number, y: number, size: number) {
-        const angle = Math.PI / 3; // 60 degrees
-        
-        graphics.beginPath();
-        
-        for (let i = 0; i < 6; i++) {
-            const xPos = x + size * Math.cos(angle * i);
-            const yPos = y + size * Math.sin(angle * i);
-            
-            if (i === 0) {
-                graphics.moveTo(xPos, yPos);
-            } else {
-                graphics.lineTo(xPos, yPos);
-            }
-        }
-        
-        graphics.closePath();
-        graphics.strokePath();
+    private updateBackgroundSize() {
+        if (!this.backgroundLayer) return;
+        this.backgroundLayer.setSize(this.worldWidth, this.worldHeight);
     }
     
     private createUI() {
@@ -2071,10 +2006,12 @@ export class GameScene extends Scene {
         if (isSpecial) {
             foodSprite.clearTint();
             foodSprite.setData('color', null);
+            foodSprite.setBlendMode(Phaser.BlendModes.ADD);
             if (foodSprite.texture.key !== 'special-food') {
                 foodSprite.setTexture('special-food');
             }
         } else {
+            foodSprite.setBlendMode(Phaser.BlendModes.NORMAL);
             let color = foodSprite.getData('color') as number | null;
             if (!color || forceNewColor) {
                 color = this.getRandomFoodColor();
@@ -2100,9 +2037,9 @@ export class GameScene extends Scene {
         // 🚀 PERFORMANCE: Combined scale + alpha into single tween with multiple properties
         const scaleTween = this.tweens.add({
             targets: foodSprite,
-            scale: isSpecial ? { from: 1, to: 1.35 } : { from: 0.9, to: 1.1 },
-            alpha: { from: 1, to: isSpecial ? 0.5 : 0.7 }, // Combined alpha animation
-            duration: isSpecial ? 800 : 900,
+            scale: isSpecial ? { from: 0.9, to: 1.2 } : { from: 0.9, to: 1.1 },
+            alpha: isSpecial ? { from: 0.55, to: 1 } : { from: 1, to: 0.7 },
+            duration: isSpecial ? 600 : 900,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut',
@@ -2110,20 +2047,8 @@ export class GameScene extends Scene {
         });
         foodSprite.setData('normalTween', scaleTween);
 
-        // 🚀 PERFORMANCE: Only add rotation for special foods (reduced from always having flash tween)
-        if (isSpecial) {
-            const rotationTween = this.tweens.add({
-                targets: foodSprite,
-                angle: 360,
-                duration: 3000,
-                repeat: -1,
-                ease: 'Linear'
-            });
-            foodSprite.setData('rotationTween', rotationTween);
-        } else {
-            foodSprite.setAngle(0);
-            foodSprite.setData('rotationTween', null);
-        }
+        foodSprite.setAngle(0);
+        foodSprite.setData('rotationTween', null);
     }
 
     // 🚀 PERFORMANCE: Simplified tween cleanup

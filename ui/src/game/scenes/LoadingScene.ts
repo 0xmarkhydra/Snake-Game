@@ -52,6 +52,7 @@ export class LoadingScene extends Scene {
         this.load.audio('death', 'sounds/death.wav');
         this.load.audio('boost', 'sounds/eat.mp3'); // Reusing eat sound for boost
         this.load.audio('background', 'sounds/background.mp3'); // Add background music
+        this.load.svg('game-background', 'images/background.svg', { width: 1080, height: 1080 });
     }
 
     // private createDummySounds() {
@@ -79,9 +80,6 @@ export class LoadingScene extends Scene {
     // }
 
     private generateTextures() {
-        // Generate background texture
-        this.generateBackgroundTexture();
-        
         // Generate snake head texture
         this.generateSnakeHeadTexture();
         
@@ -93,31 +91,10 @@ export class LoadingScene extends Scene {
         this.generateSpecialFoodTexture();
     }
     
-    private generateBackgroundTexture() {
-        // Create a graphics object for the background
-        const bgGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-        
-        // Fill with a gradient
-        bgGraphics.fillGradientStyle(0x0a2463, 0x0a2463, 0x3e92cc, 0x3e92cc, 1);
-        bgGraphics.fillRect(0, 0, 256, 256);
-        
-        // Add some grid lines
-        bgGraphics.lineStyle(1, 0xffffff, 0.1);
-        for (let i = 0; i < 256; i += 32) {
-            bgGraphics.moveTo(0, i);
-            bgGraphics.lineTo(256, i);
-            bgGraphics.moveTo(i, 0);
-            bgGraphics.lineTo(i, 256);
-        }
-        
-        // Generate texture
-        bgGraphics.generateTexture('background', 256, 256);
-        bgGraphics.destroy();
-    }
-    
     private generateSnakeHeadTexture() {
         // Create a graphics object for the snake head
-        const headGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+        const headGraphics = this.add.graphics({ x: 0, y: 0 });
+        headGraphics.setVisible(false);
         
         // Draw a circle for the head
         headGraphics.fillStyle(0xffffff);
@@ -135,7 +112,8 @@ export class LoadingScene extends Scene {
     
     private generateSnakeBodyTexture() {
         // Create a graphics object for the snake body
-        const bodyGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+        const bodyGraphics = this.add.graphics({ x: 0, y: 0 });
+        bodyGraphics.setVisible(false);
         
         // Draw a circle for the body segment
         bodyGraphics.fillStyle(0xffffff);
@@ -148,7 +126,8 @@ export class LoadingScene extends Scene {
     
     private generateFoodTexture() {
         // Create a graphics object for the food
-        const foodGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+        const foodGraphics = this.add.graphics({ x: 0, y: 0 });
+        foodGraphics.setVisible(false);
         
         // Draw a circle for the food
         foodGraphics.fillStyle(0xff0000);
@@ -161,36 +140,30 @@ export class LoadingScene extends Scene {
     
     private generateSpecialFoodTexture() {
         // Create a graphics object for the special food
-        const specialFoodGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-        
-        // Draw a star for the special food
-        specialFoodGraphics.fillStyle(0xffff00);
-        
-        // Draw a star shape
-        const centerX = 12;
-        const centerY = 12;
-        const points = 5;
-        const outerRadius = 12;
-        const innerRadius = 6;
-        
-        for (let i = 0; i < points * 2; i++) {
-            const radius = i % 2 === 0 ? outerRadius : innerRadius;
-            const angle = Math.PI * 2 * (i / (points * 2)) - Math.PI / 2;
-            const x = centerX + radius * Math.cos(angle);
-            const y = centerY + radius * Math.sin(angle);
-            
-            if (i === 0) {
-                specialFoodGraphics.moveTo(x, y);
-            } else {
-                specialFoodGraphics.lineTo(x, y);
-            }
-        }
-        
-        specialFoodGraphics.closePath();
-        specialFoodGraphics.fillPath();
-        
+        const specialFoodGraphics = this.add.graphics({ x: 0, y: 0 });
+        specialFoodGraphics.setVisible(false);
+
+        const size = 90;
+        const center = size / 2;
+
+        // Outer glow
+        specialFoodGraphics.fillStyle(0xffff66, 0.65);
+        specialFoodGraphics.fillCircle(center, center, 28);
+
+        // Mid glow
+        specialFoodGraphics.fillStyle(0xffff99, 0.65);
+        specialFoodGraphics.fillCircle(center, center, 24);
+
+        // Inner glow
+        specialFoodGraphics.fillStyle(0xfff5cc, 0.95);
+        specialFoodGraphics.fillCircle(center, center, 20);
+
+        // Core
+        specialFoodGraphics.fillStyle(0xffc93c, 3);
+        specialFoodGraphics.fillCircle(center, center, 20);
+
         // Generate texture
-        specialFoodGraphics.generateTexture('special-food', 24, 24);
+        specialFoodGraphics.generateTexture('special-food', size, size);
         specialFoodGraphics.destroy();
     }
 
