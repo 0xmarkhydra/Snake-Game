@@ -1,0 +1,34 @@
+.page--Slither {
+  background-color: #0f0d06;
+  color: var(--framer-text-color, #f0e9cf);
+  min-height: 100vh;
+}
+
+.framer-section,
+.section {
+  position: relative;
+  width: 100%;
+}
+
+.section-hero, .section-landing, .section-hero-section {
+  max-width: 1920px;
+  margin: 0 auto;
+}
+
+.section-partners, .section-integrated {
+  padding: 4rem 0;
+}
+
+.section-footer {
+  padding: 6rem 0 3rem;
+}
+
+.component-richtextcontainer {
+  text-wrap: balance;
+}
+
+@media (max-width: 1024px) {
+  .section-partners, .section-integrated {
+    padding: 3rem 1.5rem;
+  }
+}
