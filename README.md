@@ -16,7 +16,9 @@ This project contains both backend (NestJS + Colyseus) and UI (Phaser) component
 
 ## Project Structure
 
-- `/backend` - Backend NestJS (Colyseus server, APIs)
-- `/ui` - Frontend UI (Phaser 2D game)
+- `/backend`: Mã nguồn NestJS, bao gồm module Colyseus server, API, cấu hình cơ sở dữ liệu, queue và worker.
+- `/ui`: Ứng dụng frontend Phaser/Vite hiển thị game, bao gồm các scene, services và cấu hình build.
+- `/page`: Landing page tĩnh (export từ Framer) với `index.html`, `styles/`, `scripts/`, `assets/` dùng để giới thiệu sản phẩm.
+- `/docs`: Tài liệu kỹ thuật, flow nghiệp vụ và hướng dẫn bổ trợ cho dự án.
 
 > Yêu cầu: sử dụng `pnpm` cho toàn bộ thao tác cài đặt và chạy dự án.
