@@ -110,8 +110,6 @@ export class GameScene extends Scene {
     private playerSegmentHistories: Map<string, Array<{ x: number; y: number }>> = new Map(); // Store histories for all players
     private historySize: number = 1500; // Maximum history size
     private readonly baseSnakeSegments: number = 5;
-    private readonly segmentGrowthBaseThreshold: number = 1.5;
-    private readonly segmentGrowthThresholdIncrement: number = 0.3;
     private readonly baseSnakeRadius: number = 18;
     private readonly radiusGrowthBaseThreshold: number = 10;
     private readonly radiusGrowthThresholdIncrement: number = 5;
@@ -1323,15 +1321,10 @@ export class GameScene extends Scene {
             }
             
             const score = Number.isFinite(playerData.score) ? Math.max(0, playerData.score) : 0;
-            const segmentGrowth = this.computeProgressiveGrowth(
-                score,
-                this.segmentGrowthBaseThreshold,
-                this.segmentGrowthThresholdIncrement
-            );
 
-            // Ensure we have the right number of segments based on score
+            // 🔄 Get segment count directly from backend (source of truth)
             const segments = snake.getChildren();
-            const targetSegmentCount = this.baseSnakeSegments + segmentGrowth.level;
+            const targetSegmentCount = playerData.totalLength || this.baseSnakeSegments;
             const currentSegmentCount = segments.length;
             
             // 🚀 PERFORMANCE: Determine quality and dynamic history size
@@ -2794,38 +2787,12 @@ export class GameScene extends Scene {
             return;
         }
 
+        // 🔄 Segment count is now synced automatically from backend via totalLength
+        // No need for manual score listener to update segments
         players.onAdd = (player: any, key: string) => {
-            
-            // Listen for changes to the player's score to update segment count
-            player.listen("score", (newScore: number, oldScore: number) => {
-                if (key === this.playerId) {
-                    // Update segment count based on score changes
-                    const currentSnake = this.snakes.get(key);
-                    if (currentSnake) {
-                        const currentSegmentCount = currentSnake.getLength();
-                        const targetSegmentCount = 5 + Math.floor(newScore); // Base segments + score
-                        
-                        // Add segments if needed
-                        if (targetSegmentCount > currentSegmentCount) {
-                            for (let i = currentSegmentCount; i < targetSegmentCount; i++) {
-                                // Create new segment
-                                const newSegment = this.add.image(0, 0, 'snakeBody');
-                                newSegment.setDepth(10);
-                                currentSnake.add(newSegment);
-                            }
-                        }
-                        // Remove segments if needed (e.g., when boosting)
-                        else if (targetSegmentCount < currentSegmentCount) {
-                            const children = currentSnake.getChildren();
-                            for (let i = targetSegmentCount; i < children.length; i++) {
-                                children[i].destroy();
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // ... rest of existing code ...
+            void player;
+            void key;
+            // Player added - segments will be synced in updateSnakes() via totalLength
         };
     }
     

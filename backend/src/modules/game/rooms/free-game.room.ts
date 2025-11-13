@@ -19,6 +19,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   protected readonly degreeToRadian = Math.PI / 180;
   protected readonly MAX_TURN_RATE = 8; // Maximum degrees per frame
+  protected readonly SCORE_PER_SEGMENT = 5; // Score needed per segment growth
+  protected readonly INITIAL_SEGMENTS = 5; // Initial segment count
 
   onCreate(): void {
     this.setState(new SnakeGameState());
@@ -65,10 +67,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       if (distance <= maxDistance) {
         player.score += food.value;
 
-        const segmentsToAdd = food.value > 1 ? 3 : 1;
-        for (let index = 0; index < segmentsToAdd; index += 1) {
-          player.addSegment();
-        }
+        // 🔄 Sync segments to score after eating food
+        this.syncSegmentsToScore(player);
 
         this.broadcast('foodConsumed', {
           id: message.foodId,
@@ -124,6 +124,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.skinId = skinId;
     player.previousAngle = player.angle;
     player.currentTurnRate = 0;
+    player.totalLength = player.segments.length; // 🔄 Sync totalLength on join
 
     this.state.players.set(client.sessionId, player);
 
@@ -251,12 +252,14 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       if (player.boostTime >= 500) {
         player.boostTime = 0;
 
-        if (player.segments.length > 5) {
+        if (player.segments.length > this.INITIAL_SEGMENTS) {
           player.score = Math.max(0, player.score - 1);
 
-          if (player.segments.length > 5) {
-            player.segments.pop();
-          } else {
+          // 🔄 Sync segments to score after boost penalty
+          this.syncSegmentsToScore(player);
+
+          // Stop boosting if reached minimum segments
+          if (player.segments.length <= this.INITIAL_SEGMENTS) {
             player.boosting = false;
           }
         } else {
@@ -379,12 +382,12 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       }
     }, 3000);
 
-    const initialSegments = 5;
-    for (let index = 0; index < initialSegments; index += 1) {
+    for (let index = 0; index < this.INITIAL_SEGMENTS; index += 1) {
       player.segments.push(
         new SnakeSegment(spawnPosition.x - index * 20, spawnPosition.y),
       );
     }
+    player.totalLength = this.INITIAL_SEGMENTS; // 🔄 Sync totalLength after respawn
   }
 
   protected spawnFoodFromDeadPlayer(player: Player): void {
@@ -478,6 +481,33 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     return Math.max(0, Math.min(value, max));
   }
 
+  /**
+   * 🔄 Sync player segments to match their score
+   * Formula: segments = INITIAL_SEGMENTS + floor(score / SCORE_PER_SEGMENT)
+   */
+  protected syncSegmentsToScore(player: Player): void {
+    const targetSegmentCount =
+      this.INITIAL_SEGMENTS + Math.floor(player.score / this.SCORE_PER_SEGMENT);
+    const currentSegmentCount = player.segments.length;
+
+    if (targetSegmentCount > currentSegmentCount) {
+      // Add segments
+      const segmentsToAdd = targetSegmentCount - currentSegmentCount;
+      for (let index = 0; index < segmentsToAdd; index += 1) {
+        player.addSegment();
+      }
+    } else if (targetSegmentCount < currentSegmentCount) {
+      // Remove segments
+      const segmentsToRemove = currentSegmentCount - targetSegmentCount;
+      for (let index = 0; index < segmentsToRemove; index += 1) {
+        if (player.segments.length > this.INITIAL_SEGMENTS) {
+          player.segments.pop();
+          player.totalLength = player.segments.length;
+        }
+      }
+    }
+  }
+
   protected wrapCoordinate(value: number, max: number): number {
     if (value < 0) {
       return max + (value % max);
@@ -527,6 +557,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (killer) {
       killer.score += Math.floor(victim.score / 2);
       killer.kills += 1;
+
+      // 🔄 Sync segments to score after kill reward
+      this.syncSegmentsToScore(killer);
 
       this.broadcast('playerKilled', {
         killed: victim.id,

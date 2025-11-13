@@ -43,6 +43,8 @@ export class SnakeSegment extends Schema {
 }
 
 export class Player extends Schema {
+  static readonly INITIAL_SEGMENTS = 5;
+
   @type('string')
   id: string;
 
@@ -82,6 +84,7 @@ export class Player extends Schema {
   @type('number')
   credit: number = 0;
 
+  @type([SnakeSegment])
   segments = new ArraySchema<SnakeSegment>();
 
   @type('number')
@@ -101,10 +104,10 @@ export class Player extends Schema {
     this.id = id;
     this.name = name;
     this.color = color;
-    this.totalLength = 5;
+    this.totalLength = Player.INITIAL_SEGMENTS;
     this.headPosition = new Vector2(x, y);
 
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < Player.INITIAL_SEGMENTS; index += 1) {
       this.segments.push(new SnakeSegment(x - index * 20, y));
     }
   }
@@ -120,6 +123,7 @@ export class Player extends Schema {
       lastSegment.position.y,
     );
     this.segments.push(newSegment);
+    this.totalLength = this.segments.length;
   }
 
   updateHeadPosition(): void {
