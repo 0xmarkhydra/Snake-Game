@@ -56,6 +56,12 @@ export class Player extends Schema {
   angle: number = 0;
 
   @type('number')
+  previousAngle: number = 0;
+
+  @type('number')
+  currentTurnRate: number = 0;
+
+  @type('number')
   speed: number = 5;
 
   @type('string')
@@ -133,10 +139,10 @@ export class SnakeGameState extends Schema {
   foods = new MapSchema<Food>();
 
   @type('number')
-  worldWidth: number = 5000;
+  worldWidth: number = 4000;
 
   @type('number')
-  worldHeight: number = 5000;
+  worldHeight: number = 4000;
 
   @type('number')
   maxFoods: number = 620; // Balanced amount for good gameplay experience

@@ -18,6 +18,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   ];
 
   protected readonly degreeToRadian = Math.PI / 180;
+  protected readonly MAX_TURN_RATE = 8; // Maximum degrees per frame
 
   onCreate(): void {
     this.setState(new SnakeGameState());
@@ -152,6 +153,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     );
 
     player.skinId = skinId;
+    player.previousAngle = player.angle;
+    player.currentTurnRate = 0;
 
     this.state.players.set(client.sessionId, player);
     console.log(
@@ -249,6 +252,31 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
+    // 🎯 Apply turn rate limiting
+    const targetAngle = player.angle;
+    let angleDelta = targetAngle - player.previousAngle;
+
+    // Normalize angle delta to [-180, 180] range
+    while (angleDelta > 180) angleDelta -= 360;
+    while (angleDelta < -180) angleDelta += 360;
+
+    // Clamp angle delta to MAX_TURN_RATE
+    const clampedDelta = Math.max(
+      -this.MAX_TURN_RATE,
+      Math.min(this.MAX_TURN_RATE, angleDelta),
+    );
+
+    // Apply limited angle change
+    player.angle = player.previousAngle + clampedDelta;
+
+    // Normalize final angle to [0, 360] range
+    while (player.angle < 0) player.angle += 360;
+    while (player.angle >= 360) player.angle -= 360;
+
+    // Track turn rate for collision detection
+    player.currentTurnRate = Math.abs(clampedDelta);
+    player.previousAngle = player.angle;
+
     const head = player.segments[0];
     const angleRad = player.angle * this.degreeToRadian;
     const baseSpeed = this.resolveBaseSpeed(player);
@@ -335,7 +363,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         const dy = head.position.y - segment.position.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        const headRadius = 8;
+        // 🎯 Dynamic collision radius based on turn rate
+        const baseHeadRadius = 8;
+        const turnRateMultiplier =
+          1 + player.currentTurnRate / this.MAX_TURN_RATE;
+        const headRadius = baseHeadRadius * turnRateMultiplier;
         const segmentRadius = 6;
 
         if (distance < headRadius + segmentRadius) {
@@ -362,6 +394,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.score = 0;
     player.kills = 0;
     player.segments.clear();
+    player.previousAngle = player.angle;
+    player.currentTurnRate = 0;
 
     player.invulnerable = true;
 

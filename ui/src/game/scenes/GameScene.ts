@@ -728,18 +728,6 @@ export class GameScene extends Scene {
         const bg = this.add.graphics();
         bg.fillStyle(0x14161f, 1); // Dark navy charcoal base color
         bg.fillRect(0, 0, this.worldWidth, this.worldHeight);
-        
-        // Use TileSprite with preloaded Polygon.png texture
-        // This is much more performant than drawing hexagons
-        const hexagonBg = this.add.tileSprite(
-            0, 0, 
-            this.worldWidth, 
-            this.worldHeight, 
-            'hexagon-bg'
-        );
-        hexagonBg.setOrigin(0, 0);
-        hexagonBg.setDepth(0);
-        hexagonBg.setAlpha(1); // Full opacity for the hexagon pattern
     }
     
     private createUI() {
@@ -2030,27 +2018,29 @@ export class GameScene extends Scene {
         this.startFoodIdleTweens(foodSprite, isSpecial);
     }
 
-    // 🚀 PERFORMANCE: Reduced tweens from 3-4 to 1-2 for better FPS
+    // 🚀 PERFORMANCE: Reduced tweens - only special food has animation, normal food is static
     private startFoodIdleTweens(foodSprite: Phaser.GameObjects.Image, isSpecial: boolean): void {
         this.stopFoodTweens(foodSprite);
         foodSprite.setAlpha(1);
         foodSprite.setScale(1);
+        foodSprite.setAngle(0);
 
-        // 🚀 PERFORMANCE: Combined scale + alpha into single tween with multiple properties
-        const scaleTween = this.tweens.add({
-            targets: foodSprite,
-            scale: isSpecial ? { from: 1, to: 1.35 } : { from: 0.7, to: 0.9 }, // Reduced normal food size
-            alpha: { from: 1, to: isSpecial ? 0.5 : 0.7 }, // Combined alpha animation
-            duration: isSpecial ? 800 : 900,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut',
-            delay: Phaser.Math.Between(0, 250)
-        });
-        foodSprite.setData('normalTween', scaleTween);
-
-        // 🚀 PERFORMANCE: Only add rotation for special foods (reduced from always having flash tween)
+        // Only apply animations to special food
         if (isSpecial) {
+            // Scale + alpha animation for special food
+            const scaleTween = this.tweens.add({
+                targets: foodSprite,
+                scale: { from: 1, to: 1.35 },
+                alpha: { from: 1, to: 0.5 },
+                duration: 800,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut',
+                delay: Phaser.Math.Between(0, 250)
+            });
+            foodSprite.setData('normalTween', scaleTween);
+
+            // Rotation animation for special food
             const rotationTween = this.tweens.add({
                 targets: foodSprite,
                 angle: 360,
@@ -2060,7 +2050,8 @@ export class GameScene extends Scene {
             });
             foodSprite.setData('rotationTween', rotationTween);
         } else {
-            foodSprite.setAngle(0);
+            // Normal food is completely static - no animations
+            foodSprite.setData('normalTween', null);
             foodSprite.setData('rotationTween', null);
         }
     }
