@@ -18,9 +18,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   ];
 
   protected readonly degreeToRadian = Math.PI / 180;
-  protected readonly MAX_TURN_RATE = 8; // Maximum degrees per frame
+  protected readonly MAX_TURN_RATE = 4; // Maximum degrees per frame (reduced for harder control)
+  protected readonly TURN_SPEED_PENALTY = 0.7; // Speed multiplier when turning (0.7 = 30% slower)
   protected readonly SCORE_PER_SEGMENT = 5; // Score needed per segment growth
   protected readonly INITIAL_SEGMENTS = 5; // Initial segment count
+  protected readonly MAX_SEGMENTS = 100; // Maximum segments per snake
 
   onCreate(): void {
     this.setState(new SnakeGameState());
@@ -270,9 +272,15 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       player.boostTime = 0;
     }
 
-    const speedMultiplier = player.boosting
+    let speedMultiplier = player.boosting
       ? boostTargetMultiplier
       : normalMultiplier;
+
+    // 🎮 Apply speed penalty when turning (makes control harder)
+    const isTurning = player.currentTurnRate > 1; // Threshold for considering as turning
+    if (isTurning) {
+      speedMultiplier *= this.TURN_SPEED_PENALTY;
+    }
 
     const dx = Math.cos(angleRad) * baseSpeed * speedMultiplier;
     const dy = Math.sin(angleRad) * baseSpeed * speedMultiplier;
@@ -311,15 +319,17 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     }
 
     // 🚀 PERFORMANCE: Pre-calculate collision radius once
+    // 🎮 Increased collision risk when turning (makes control harder)
     const baseHeadRadius = 8;
-    const turnRateMultiplier = 1 + player.currentTurnRate / this.MAX_TURN_RATE;
+    const turnRateMultiplier =
+      1 + (player.currentTurnRate / this.MAX_TURN_RATE) * 1.5;
     const headRadius = baseHeadRadius * turnRateMultiplier;
     const segmentRadius = 6;
     const collisionThreshold = headRadius + segmentRadius;
-    const collisionThresholdSq = collisionThreshold * collisionThreshold; // Use squared distance to avoid sqrt
+    const collisionThresholdSq = collisionThreshold * collisionThreshold;
 
-    // 🚀 PERFORMANCE: Bounding box for early culling
-    const maxCheckDistance = 200; // Only check players within 200 units
+    // 🚀 PERFORMANCE: Only check segments within this distance from player head
+    const maxCheckDistance = 200;
     const maxCheckDistanceSq = maxCheckDistance * maxCheckDistance;
 
     this.state.players.forEach((otherPlayer, otherPlayerId) => {
@@ -327,29 +337,21 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         return;
       }
 
-      // 🚀 PERFORMANCE: Quick distance check using head positions
-      const otherHead = otherPlayer.segments[0];
-      if (!otherHead) return;
-
-      const headDx = head.position.x - otherHead.position.x;
-      const headDy = head.position.y - otherHead.position.y;
-      const headDistSq = headDx * headDx + headDy * headDy;
-
-      // Skip if other player is too far away
-      if (headDistSq > maxCheckDistanceSq) {
-        return;
-      }
-
-      // Check collision with segments (skip head at index 0)
+      // ✅ FIX: Check each segment individually instead of checking head distance first
+      // This prevents the bug where snakes can pass through long snake bodies
+      // when the heads are far apart but bodies are close
       for (let index = 1; index < otherPlayer.segments.length; index += 1) {
         const segment = otherPlayer.segments[index];
         const dx = head.position.x - segment.position.x;
         const dy = head.position.y - segment.position.y;
         const distanceSq = dx * dx + dy * dy;
 
-        if (distanceSq < collisionThresholdSq) {
-          this.handleKillEvent(player, otherPlayer, { reason: 'collision' });
-          return; // Exit immediately after collision
+        // 🚀 PERFORMANCE: Only check collision if segment is within range
+        if (distanceSq <= maxCheckDistanceSq) {
+          if (distanceSq < collisionThresholdSq) {
+            this.handleKillEvent(player, otherPlayer, { reason: 'collision' });
+            return; // Exit immediately after collision
+          }
         }
       }
     });
@@ -484,17 +486,22 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   /**
    * 🔄 Sync player segments to match their score
    * Formula: segments = INITIAL_SEGMENTS + floor(score / SCORE_PER_SEGMENT)
+   * 🎯 Limited to MAX_SEGMENTS to prevent performance issues
    */
   protected syncSegmentsToScore(player: Player): void {
-    const targetSegmentCount =
-      this.INITIAL_SEGMENTS + Math.floor(player.score / this.SCORE_PER_SEGMENT);
+    const targetSegmentCount = Math.min(
+      this.MAX_SEGMENTS,
+      this.INITIAL_SEGMENTS + Math.floor(player.score / this.SCORE_PER_SEGMENT),
+    );
     const currentSegmentCount = player.segments.length;
 
     if (targetSegmentCount > currentSegmentCount) {
-      // Add segments
+      // Add segments (but not exceed MAX_SEGMENTS)
       const segmentsToAdd = targetSegmentCount - currentSegmentCount;
       for (let index = 0; index < segmentsToAdd; index += 1) {
-        player.addSegment();
+        if (player.segments.length < this.MAX_SEGMENTS) {
+          player.addSegment();
+        }
       }
     } else if (targetSegmentCount < currentSegmentCount) {
       // Remove segments

@@ -674,12 +674,34 @@ export class GameScene extends Scene {
             // Remove food sprite if it exists
             const foodSprite = this.foods.get(message.id);
             if (foodSprite) {
+                // 🎯 Save food position and value before destroying
+                const foodX = foodSprite.x;
+                const foodY = foodSprite.y;
+                const foodValue = foodSprite.getData('value') || 1;
+                
+                // 🧹 Stop all tweens and cleanup
+                const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                if (attractTween) {
+                    attractTween.stop();
+                    this.tweens.remove(attractTween);
+                }
+                
+                this.stopFoodTweens(foodSprite);
+                
+                const glow = foodSprite.getData('glow');
+                if (glow) {
+                    this.tweens.killTweensOf(glow);
+                    glow.destroy();
+                }
+                
+                // 🗑️ Destroy food sprite
                 foodSprite.destroy();
                 this.foods.delete(message.id);
                 
-                // Play eat sound only if it's the current player who ate the food
+                // 🎮 Play effects only if it's the current player who ate the food
                 if (message.playerId === this.playerId) {
                     this.eatSound.play({ volume: 0.5 });
+                    this.addEatEffect(foodX, foodY, foodValue);
                 }
             }
         });
@@ -2652,41 +2674,20 @@ export class GameScene extends Scene {
                 
                 const newDistance = Phaser.Math.Distance.Between(headX, headY, foodSprite.x, foodSprite.y);
                 if (newDistance < eatDistance) {
-                const attractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
-                if (attractTween) {
-                    attractTween.stop();
-                    this.tweens.remove(attractTween);
-                    foodSprite.setData('attractTween', null);
-                }
-
-                this.stopFoodTweens(foodSprite);
-                
-                    const glow = foodSprite.getData('glow');
-                    if (glow) {
-                    this.tweens.killTweensOf(glow);
-                        glow.destroy();
-                        foodSprite.setData('glow', null);
-                    }
-                    
-                foodSprite.setData('isAttracting', false);
-                    foodSprite.setVisible(false);
-                    foodSprite.setScale(0);
-                    
-                    this.eatSound.play({ volume: 0.5 });
-                    this.addEatEffect(foodSprite.x, foodSprite.y, foodSprite.getData('value') || 1);
-                    
-                const roomRef = this.room;
-                if (roomRef && !this.isQuitting) {
-                    roomRef.send('eatFood', { 
-                        foodId,
-                        headX,
-                        headY,
+                    // 🎯 Server-Authoritative: Only send message to server, let server validate
+                    // Animation and effects will be triggered when receiving 'foodConsumed' event
+                    const roomRef = this.room;
+                    if (roomRef && !this.isQuitting) {
+                        roomRef.send('eatFood', { 
+                            foodId,
+                            headX,
+                            headY,
                             foodX: foodSprite.x,
                             foodY: foodSprite.y
                         });
                     }
-                
-                return;
+                    
+                    return;
                 }
                 
                 if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
