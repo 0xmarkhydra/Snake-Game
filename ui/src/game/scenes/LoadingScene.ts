@@ -47,6 +47,9 @@ export class LoadingScene extends Scene {
             this.scene.start('MenuScene', { isAuthenticated: authService.isAuthenticated() });
         });
 
+        // Load hexagon background texture
+        this.load.image('hexagon-bg', 'images/Polygon.png');
+        
         // Load audio files
         this.load.audio('eat', 'sounds/eat.mp3');
         this.load.audio('death', 'sounds/death.wav');

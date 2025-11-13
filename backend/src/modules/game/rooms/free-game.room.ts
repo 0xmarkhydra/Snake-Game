@@ -215,43 +215,33 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const initialBaseSpeed = player.speed * 0.75; // 3.75 with default speed = 5
     const speedIncreasePerPoint = 0.01;
     const maxSpeed = 6.0;
-    
     return Math.min(
       initialBaseSpeed + player.score * speedIncreasePerPoint,
-      maxSpeed
+      maxSpeed,
     );
   }
 
   protected resolveNormalMultiplier(player: Player): number {
-    // Normal speed multiplier increases slightly as player score increases
-    const normalMultiplierBase = 2.2;
-    const multiplierIncreasePerPoint = 0.002;
-    const maxNormalMultiplier = 2.8;
-
-    return Math.min(
-      normalMultiplierBase + player.score * multiplierIncreasePerPoint,
-      maxNormalMultiplier
-    );
+    // Normal speed multiplier is fixed to prevent exponential speed growth
+    void player; // Unused parameter
+    return 2.5;
   }
 
   protected resolveBoostTargetMultiplier(
     player: Player,
     normalMultiplier: number,
   ): number {
-    // Boost speed multiplier increases slightly as player score increases
-    const baseBoostMultiplier = 5.0;
-    const boostIncreasePerPoint = 0.005;
-    const maxBoostMultiplier = 6.5;
-    const minBoostMargin = 0.8; // Boost must be faster than normal by at least this margin
+    // Boost speed DECREASES as player gets bigger (penalty for large snakes)
+    // but always maintains at least 1.5x normal speed
+    const baseBoostMultiplier = 5.0; // High starting boost for small snakes
+    const boostDecreasePerPoint = 0.001; // Decreases with score
+    const minBoostMargin = 1.5; // Boost must be at least 1.5x normal speed
 
-    const rawBoostMultiplier = Math.min(
-      baseBoostMultiplier + player.score * boostIncreasePerPoint,
-      maxBoostMultiplier
-    );
+    const rawBoostMultiplier =
+      baseBoostMultiplier - player.score * boostDecreasePerPoint;
+    const minimumBoostMultiplier = normalMultiplier * minBoostMargin;
 
-    const minimumBoostMultiplier = normalMultiplier + minBoostMargin;
-
-    return Math.max(minimumBoostMultiplier, rawBoostMultiplier);
+    return Math.max(rawBoostMultiplier, minimumBoostMultiplier);
   }
 
   protected movePlayer(player: Player): void {
@@ -263,7 +253,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const angleRad = player.angle * this.degreeToRadian;
     const baseSpeed = this.resolveBaseSpeed(player);
     const normalMultiplier = this.resolveNormalMultiplier(player);
-    const boostTargetMultiplier = this.resolveBoostTargetMultiplier(player, normalMultiplier);
+    const boostTargetMultiplier = this.resolveBoostTargetMultiplier(
+      player,
+      normalMultiplier,
+    );
 
     if (player.boosting) {
       player.boostTime += this.tickRate;
@@ -294,11 +287,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const dx = Math.cos(angleRad) * baseSpeed * speedMultiplier;
     const dy = Math.sin(angleRad) * baseSpeed * speedMultiplier;
 
-    const newX = this.wrapCoordinate(
+    const newX = this.clampCoordinate(
       head.position.x + dx,
       this.state.worldWidth,
     );
-    const newY = this.wrapCoordinate(
+    const newY = this.clampCoordinate(
       head.position.y + dy,
       this.state.worldHeight,
     );
@@ -351,17 +344,6 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         }
       }
     });
-
-    if (this.state.worldBoundaryCollisions) {
-      if (
-        head.position.x < 0 ||
-        head.position.x > this.state.worldWidth ||
-        head.position.y < 0 ||
-        head.position.y > this.state.worldHeight
-      ) {
-        this.handleKillEvent(player, undefined, { reason: 'boundary' });
-      }
-    }
   }
 
   protected killPlayer(player: Player): void {
@@ -490,6 +472,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       x: Math.random() * this.state.worldWidth,
       y: Math.random() * this.state.worldHeight,
     };
+  }
+
+  protected clampCoordinate(value: number, max: number): number {
+    return Math.max(0, Math.min(value, max));
   }
 
   protected wrapCoordinate(value: number, max: number): number {
