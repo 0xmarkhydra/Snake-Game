@@ -46,7 +46,8 @@ const config: Phaser.Types.Core.GameConfig = {
         powerPreference: 'high-performance'
     },
     fps: {
-        target: 120,  // 🚀 PERFORMANCE: Target 120 FPS for smoother gameplay
+        // 🚀 MOBILE OPTIMIZATION: Lower target FPS on mobile for better performance
+        target: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768 ? 60 : 120,
         forceSetTimeOut: false,
         smoothStep: true // Enable frame smoothing
     }

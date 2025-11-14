@@ -2571,19 +2571,40 @@ export class GameScene extends Scene {
     }
     
     private setupAudio() {
-        // Set up sound effects
+        // 🚀 MOBILE OPTIMIZATION: Lazy load sounds
+        // Set up essential sound effects (already loaded)
         this.eatSound = this.sound.add('eat');
         this.deathSound = this.sound.add('death');
-        this.boostSound = this.sound.add('boost');
         
-        // Set up background music with loop
-        this.backgroundMusic = this.sound.add('background', {
-            volume: 0.3,
-            loop: true
-        });
+        // 🚀 MOBILE OPTIMIZATION: Reuse eat sound for boost (no need to load separately)
+        this.boostSound = this.eatSound; // Reuse eat sound
         
-        // Start playing background music
-        this.backgroundMusic.play();
+        // 🚀 MOBILE OPTIMIZATION: Lazy load background music only if available and on desktop
+        const isMobile = this.isMobileDevice();
+        if (!isMobile && this.cache.audio.exists('background')) {
+            this.backgroundMusic = this.sound.add('background', {
+                volume: 0.3,
+                loop: true
+            });
+            // Don't auto-play on mobile to save bandwidth and battery
+            this.backgroundMusic.play();
+        } else {
+            // Create a dummy sound object for mobile
+            this.backgroundMusic = {
+                play: () => {},
+                stop: () => {},
+                pause: () => {},
+                resume: () => {},
+                isPlaying: false,
+                destroy: () => {}
+            } as any;
+        }
+    }
+    
+    // 🚀 MOBILE OPTIMIZATION: Detect mobile device
+    private isMobileDevice(): boolean {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768);
     }
     
     private toggleMusic() {
