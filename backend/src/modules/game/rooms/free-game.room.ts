@@ -167,6 +167,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       }
 
       this.movePlayer(player);
+      this.checkWorldBoundaryCollision(player);
       this.checkPlayerCollisions(player);
     });
 
@@ -285,14 +286,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const dx = Math.cos(angleRad) * baseSpeed * speedMultiplier;
     const dy = Math.sin(angleRad) * baseSpeed * speedMultiplier;
 
-    const newX = this.clampCoordinate(
-      head.position.x + dx,
-      this.state.worldWidth,
-    );
-    const newY = this.clampCoordinate(
-      head.position.y + dy,
-      this.state.worldHeight,
-    );
+    // Allow snake to move freely (boundary collision will be checked separately)
+    const newX = head.position.x + dx;
+    const newY = head.position.y + dy;
 
     for (let index = player.segments.length - 1; index > 0; index -= 1) {
       const segment = player.segments[index];
@@ -306,6 +302,33 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     head.position.y = newY;
 
     player.updateHeadPosition();
+  }
+
+  protected checkWorldBoundaryCollision(player: Player): void {
+    if (!player.alive || player.invulnerable) {
+      return;
+    }
+
+    if (!this.state.worldBoundaryCollisions) {
+      return;
+    }
+
+    const head = player.segments[0];
+    if (!head) {
+      return;
+    }
+
+    // Check if head is outside world boundaries
+    const headRadius = 8; // Base head radius for collision detection
+    const isOutOfBounds =
+      head.position.x < headRadius ||
+      head.position.x >= this.state.worldWidth - headRadius ||
+      head.position.y < headRadius ||
+      head.position.y >= this.state.worldHeight - headRadius;
+
+    if (isOutOfBounds) {
+      this.handleKillEvent(player, undefined, { reason: 'wall_collision' });
+    }
   }
 
   protected checkPlayerCollisions(player: Player): void {

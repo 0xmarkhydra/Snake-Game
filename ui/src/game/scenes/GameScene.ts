@@ -240,6 +240,9 @@ export class GameScene extends Scene {
             this.updateVipCreditDisplay(this.vipCredit);
         }
         
+        // Create death overlay early to ensure it's ready
+        this.createDeathOverlay();
+        
         // Set up audio
         this.setupAudio();
         
@@ -638,12 +641,17 @@ export class GameScene extends Scene {
         
         // Handle player died event
         room.onMessage('playerDied', (message) => {
-            if (message.playerId === this.playerId) {
+            console.log('[GameScene] [setupRoomHandlers] [playerDied] Received:', message, 'Current playerId:', this.playerId);
+            
+            if (message && message.playerId === this.playerId) {
+                console.log('[GameScene] [setupRoomHandlers] [playerDied] Player died, showing death overlay');
                 this.handlePlayerDeath();
             }
             
             // Play death sound
-            this.deathSound.play();
+            if (this.deathSound) {
+                this.deathSound.play();
+            }
         });
         
         // Handle initial foods message
@@ -2417,9 +2425,11 @@ export class GameScene extends Scene {
     }
     
     private handlePlayerDeath() {
+        console.log('[GameScene] [handlePlayerDeath] Called');
         
         // Make sure deathOverlay exists before trying to use it
         if (!this.deathOverlay) {
+            console.log('[GameScene] [handlePlayerDeath] Creating death overlay');
             this.createDeathOverlay();
         }
         
@@ -2428,16 +2438,26 @@ export class GameScene extends Scene {
     }
     
     private showDeathOverlay() {
+        console.log('[GameScene] [showDeathOverlay] Called');
+        
         // Make sure deathOverlay exists before trying to use it
         if (!this.deathOverlay) {
+            console.log('[GameScene] [showDeathOverlay] Creating death overlay');
             this.createDeathOverlay();
         }
         
         this.deathOverlay.setVisible(true);
+        console.log('[GameScene] [showDeathOverlay] Death overlay visible:', this.deathOverlay.visible);
         
         // Also show the buttons
-        if (this.respawnButton) this.respawnButton.setVisible(true);
-        if (this.menuButton) this.menuButton.setVisible(true);
+        if (this.respawnButton) {
+            this.respawnButton.setVisible(true);
+            console.log('[GameScene] [showDeathOverlay] Respawn button visible:', this.respawnButton.visible);
+        }
+        if (this.menuButton) {
+            this.menuButton.setVisible(true);
+            console.log('[GameScene] [showDeathOverlay] Menu button visible:', this.menuButton.visible);
+        }
         
         // Update score on death screen
         const player = this.gameState.players.get(this.playerId);

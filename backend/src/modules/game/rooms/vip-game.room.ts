@@ -167,18 +167,60 @@ export class VipGameRoom extends FreeGameRoom {
     killer?: Player,
     context?: { reason?: string },
   ): void {
-    if (!killer) {
-      return;
-    }
-
-    const killerSession = this.sessionInfo.get(killer.id);
     const victimSession = this.sessionInfo.get(victim.id);
 
-    if (!killerSession || !victimSession) {
+    if (!victimSession) {
       return;
     }
 
-    void this.processKillReward(killerSession, victimSession, context?.reason);
+    // Handle wall collision penalty (no killer)
+    if (!killer && context?.reason === 'wall_collision') {
+      void this.processWallCollisionPenalty(victimSession);
+      return;
+    }
+
+    // Handle kill reward (with killer)
+    if (killer) {
+      const killerSession = this.sessionInfo.get(killer.id);
+
+      if (!killerSession) {
+        return;
+      }
+
+      void this.processKillReward(killerSession, victimSession, context?.reason);
+    }
+  }
+
+  private async processWallCollisionPenalty(
+    victimSession: SessionInfo,
+  ): Promise<void> {
+    try {
+      const result = await VipGameRoom.vipGameService!.processWallCollisionPenalty(
+        victimSession.ticketId,
+        this.roomId,
+      );
+
+      victimSession.credit = VipGameServiceUtils.parseCredit(result.credit);
+
+      this.updatePlayerCreditByTicket(
+        victimSession.ticketId,
+        victimSession.credit,
+      );
+
+      const victimId = this.findPlayerIdByTicket(victimSession.ticketId);
+
+      if (victimId) {
+        this.broadcast('vip:credit-updated', {
+          playerId: victimId,
+          credit: victimSession.credit,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to process VIP wall collision penalty', error);
+      this.broadcast('vip:error', {
+        message: 'Wall collision penalty processing failed. Please continue playing.',
+      });
+    }
   }
 
   private async processKillReward(

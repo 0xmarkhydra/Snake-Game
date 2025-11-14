@@ -70,6 +70,13 @@ export type VipRespawnResult = {
   transaction?: TransactionEntity;
 };
 
+export type VipWallCollisionPenaltyResult = {
+  credit: string;
+  penaltyAmount: string;
+  killLog: KillLogEntity;
+  transaction?: TransactionEntity;
+};
+
 type ProcessKillRewardParams = {
   killerTicketId: string;
   victimTicketId: string;
@@ -438,6 +445,107 @@ export class VipGameService {
         throw error;
       }
       throw new InternalServerErrorException('Unable to process kill reward');
+    }
+  }
+
+  async processWallCollisionPenalty(
+    ticketId: string,
+    roomInstanceId: string,
+  ): Promise<VipWallCollisionPenaltyResult> {
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const killLogRepository = manager.getRepository(KillLogEntity);
+        const ticketRepository = manager.getRepository(VipTicketEntity);
+        const walletRepository = manager.getRepository(WalletBalanceEntity);
+        const transactionRepository =
+          manager.getRepository(TransactionEntity);
+
+        const ticket = await this.findTicketWithLock(ticketId, manager);
+
+        const config = await this.getActiveConfig(ticket.roomType, manager);
+
+        // Use same penalty as being killed (rewardRatePlayer + rewardRateTreasury)
+        const penaltyAmount = this.toNumber(config.rewardRatePlayer);
+        const feeAmount = this.toNumber(config.rewardRateTreasury);
+        const totalPenalty = penaltyAmount + feeAmount;
+
+        const { balance } = await this.getOrCreateWalletBalance(
+          ticket.user.id,
+          walletRepository,
+          true,
+        );
+
+        const currentCredit = this.toNumber(balance.availableAmount);
+
+        if (currentCredit < totalPenalty) {
+          throw new UnauthorizedException(
+            'Insufficient credit to cover wall collision penalty',
+          );
+        }
+
+        balance.availableAmount = this.formatAmount(
+          currentCredit - totalPenalty,
+        );
+
+        // Create kill log for wall collision (no killer)
+        const killReference = `wall-collision-${uuid()}`;
+        const killLog = await killLogRepository.save(
+          killLogRepository.create({
+            roomInstanceId,
+            roomType: ticket.roomType,
+            killerUser: null, // No killer for wall collision
+            victimUser: ticket.user,
+            killerTicket: null, // No killer ticket
+            victimTicket: ticket,
+            rewardAmount: this.formatAmount(0), // No reward for wall collision
+            feeAmount: this.formatAmount(feeAmount),
+            killReference,
+            metadata: {
+              processedAt: new Date().toISOString(),
+              source: 'vip-wall-collision',
+              reason: 'wall_collision',
+            },
+          }),
+        );
+
+        const transaction = transactionRepository.create({
+          user: ticket.user,
+          type: TransactionType.PENALTY,
+          status: TransactionStatus.CONFIRMED,
+          amount: this.formatAmount(totalPenalty),
+          feeAmount: this.formatAmount(feeAmount),
+          referenceId: killLog.id,
+          metadata: {
+            source: 'vip-wall-collision',
+            roomInstanceId,
+            ticketId: ticket.id,
+            killReference,
+          },
+          processedAt: new Date(),
+          occurredAt: new Date(),
+        });
+
+        const savedTransaction = await transactionRepository.save(transaction);
+
+        balance.lastTransactionId = savedTransaction.id;
+
+        await walletRepository.save(balance);
+
+        return {
+          credit: balance.availableAmount,
+          penaltyAmount: this.formatAmount(totalPenalty),
+          killLog,
+          transaction: savedTransaction,
+        };
+      });
+    } catch (error) {
+      this.logger.error(error, 'Failed to process VIP wall collision penalty');
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Unable to process wall collision penalty',
+      );
     }
   }
 
