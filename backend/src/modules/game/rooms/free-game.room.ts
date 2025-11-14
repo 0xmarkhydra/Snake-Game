@@ -1,10 +1,28 @@
 import { Client, Delayed, Room } from '@colyseus/core';
 import { Food, Player, SnakeGameState, SnakeSegment } from './schema';
+import { BotAI } from '../bot-ai';
 
 export class FreeGameRoom extends Room<SnakeGameState> {
   maxClients = 20;
   tickRate = 16;
   gameLoopInterval: Delayed;
+  
+  // Bot management
+  private bots: Map<string, BotAI> = new Map();
+  private readonly minPlayersForBots = 1; // Minimum real players before adding bots
+  private readonly maxBots = 10; // Maximum number of bots
+  private readonly targetTotalPlayers = 10; // Target total players (real + bots) - spawn bots if less than 10
+  private botNames: string[] = [
+    'Bot Alpha',
+    'Bot Beta',
+    'Bot Gamma',
+    'Bot Delta',
+    'Bot Epsilon',
+    'Bot Zeta',
+    'Bot Eta',
+    'Bot Theta',
+  ];
+  private usedBotNames: Set<string> = new Set();
 
   protected readonly colors = [
     '#FF5733',
@@ -105,6 +123,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
     this.initializeFood();
 
+    // Initialize bots if needed
+    this.manageBots();
+
     this.gameLoopInterval = this.clock.setInterval(() => {
       this.gameLoop();
     }, this.tickRate);
@@ -154,22 +175,63 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   onLeave(client: Client): void {
     this.state.players.delete(client.sessionId);
+    // Manage bots when real player leaves
+    this.manageBots();
   }
 
   onDispose(): void {
     this.gameLoopInterval.clear();
   }
 
+  private lastBotManagementTime: number = 0;
+  private readonly botManagementInterval: number = 5000; // Check every 5 seconds
+
   protected gameLoop(): void {
-    this.state.players.forEach((player) => {
+    const currentTime = Date.now();
+    
+    this.state.players.forEach((player, playerId) => {
       if (!player.alive) {
         return;
+      }
+
+      // Update bot AI if this is a bot
+      if (this.bots.has(playerId)) {
+        const botAI = this.bots.get(playerId);
+        if (botAI) {
+          // Calculate new angle for bot
+          const newAngle = botAI.calculateAngle(
+            player,
+            this.state.players,
+            this.state.foods,
+            this.state.worldWidth,
+            this.state.worldHeight,
+            currentTime,
+          );
+          player.angle = newAngle;
+
+          // Handle bot boost
+          const shouldBoost = botAI.shouldBoost(player, this.state.players);
+          if (shouldBoost && !player.boosting && player.score >= 1) {
+            player.boosting = true;
+          } else if (!shouldBoost) {
+            player.boosting = false;
+          }
+
+          // Auto-eat food for bots
+          this.checkBotFoodCollision(player);
+        }
       }
 
       this.movePlayer(player);
       this.checkWorldBoundaryCollision(player);
       this.checkPlayerCollisions(player);
     });
+
+    // Manage bots periodically
+    if (currentTime - this.lastBotManagementTime >= this.botManagementInterval) {
+      this.manageBots();
+      this.lastBotManagementTime = currentTime;
+    }
 
     if (this.state.foods.size < this.state.maxFoods) {
       this.spawnFood();
@@ -417,11 +479,70 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   protected spawnFoodFromDeadPlayer(player: Player, score: number): void {
     // 🍎 Spawn food based on victim's score (1 point = 1 food)
+    
+    // ✅ FIX: Save segments positions immediately before they might be cleared
+    const segmentPositions: Array<{ x: number; y: number }> = [];
     const segmentCount = player.segments.length;
+    
+    // If segments exist, save their positions
+    if (segmentCount > 0) {
+      for (let i = 0; i < segmentCount; i++) {
+        const segment = player.segments[i];
+        if (segment && segment.position) {
+          segmentPositions.push({
+            x: segment.position.x,
+            y: segment.position.y,
+          });
+        }
+      }
+    }
+    
+    // If no segments saved, use headPosition as fallback
+    if (segmentPositions.length === 0 && player.headPosition) {
+      segmentPositions.push({
+        x: player.headPosition.x,
+        y: player.headPosition.y,
+      });
+    }
+    
+    // If still no positions, can't spawn food
+    if (segmentPositions.length === 0) {
+      return;
+    }
 
     // 🔥 PERFORMANCE FIX: Limit max food drops to prevent lag
     const MAX_FOOD_DROP = 100; // Maximum 100 foods per death
-    const foodToSpawn = Math.min(score, MAX_FOOD_DROP);
+    
+    // ✅ FIX: Check current food count and limit spawn to maxFoods
+    const currentFoodCount = this.state.foods.size;
+    const availableSlots = Math.max(0, this.state.maxFoods - currentFoodCount);
+    
+    // Only spawn food that fits within maxFoods limit
+    const requestedFood = Math.min(score, MAX_FOOD_DROP);
+    
+    // If food is full, still spawn some food (replace existing food)
+    // But limit to reasonable amount to prevent lag
+    let foodToSpawn: number;
+    if (availableSlots <= 0) {
+      // Food is full, but still spawn some (up to 50) to replace
+      foodToSpawn = Math.min(requestedFood, 50);
+    } else {
+      // Normal case: spawn within available slots
+      foodToSpawn = Math.min(requestedFood, availableSlots);
+    }
+
+    // Don't spawn if no score
+    if (score <= 0 || foodToSpawn <= 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[spawnFoodFromDeadPlayer] Skipped - Player: ${player.name}, Score: ${score}, FoodToSpawn: ${foodToSpawn}, AvailableSlots: ${availableSlots}`);
+      }
+      return;
+    }
+    
+    // Debug log (can remove in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[spawnFoodFromDeadPlayer] Player: ${player.name}, Score: ${score}, Segments: ${segmentPositions.length}, FoodToSpawn: ${foodToSpawn}, AvailableSlots: ${availableSlots}, CurrentFood: ${currentFoodCount}`);
+    }
 
     // 🚀 PERFORMANCE FIX: Progressive spawn in batches to reduce instant load
     const BATCH_SIZE = 10; // Spawn 10 foods at a time
@@ -437,12 +558,42 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
       // Schedule batch spawn with delay
       this.clock.setTimeout(() => {
-        for (let index = batchStart; index < batchEnd; index += 1) {
-          // Use evenly distributed segments to sample from the snake
-          const segmentIndex = Math.floor((index / foodToSpawn) * segmentCount);
-          const segment = player.segments[segmentIndex] || player.segments[0];
+        // Check food count again before spawning (may have changed)
+        const currentCount = this.state.foods.size;
+        const canSpawn = Math.max(0, this.state.maxFoods - currentCount);
+        
+        // If food is full, allow spawning up to 50 foods (replace existing)
+        // Otherwise, respect maxFoods limit
+        const maxAllowedSpawn = canSpawn > 0 ? canSpawn : 50;
+        
+        if (maxAllowedSpawn <= 0 && canSpawn <= 0) {
+          return; // Stop spawning if reached max and not replacing
+        }
 
-          if (!segment) continue;
+        const actualBatchEnd = Math.min(batchEnd, batchStart + maxAllowedSpawn);
+
+        for (let index = batchStart; index < actualBatchEnd; index += 1) {
+          // If food is full, remove one old food before adding new one
+          if (this.state.foods.size >= this.state.maxFoods && canSpawn <= 0) {
+            // Remove a random food to make room
+            const foodIds = Array.from(this.state.foods.keys());
+            if (foodIds.length > 0) {
+              const randomIndex = Math.floor(Math.random() * foodIds.length);
+              const foodToRemove = foodIds[randomIndex];
+              this.state.foods.delete(foodToRemove);
+            }
+          }
+          
+          // Double check before each spawn (safety)
+          if (this.state.foods.size >= this.state.maxFoods && canSpawn > 0) {
+            break; // Stop if reached max and we're not replacing
+          }
+
+          // Use evenly distributed segments to sample from the snake
+          const segmentIndex = Math.floor((index / foodToSpawn) * segmentPositions.length);
+          const segmentPos = segmentPositions[segmentIndex] || segmentPositions[0];
+
+          if (!segmentPos) continue;
 
           // Generate unique food ID
           const foodId = `food_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
@@ -450,10 +601,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           // Spawn food at segment position with slight random offset for visual variety
           const offsetRange = 20; // Slightly larger offset for better spread
           const foodX =
-            segment.position.x +
+            segmentPos.x +
             (Math.random() * offsetRange * 2 - offsetRange);
           const foodY =
-            segment.position.y +
+            segmentPos.y +
             (Math.random() * offsetRange * 2 - offsetRange);
 
           // Create food with value 1 (normal food)
@@ -582,6 +733,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     killer?: Player,
     context?: { reason?: string },
   ): void {
+    // ✅ FIX: Save score before killing player (score might be reset)
+    const victimScore = victim.score;
+    const victimSegmentsCount = victim.segments.length;
+    
     this.killPlayer(victim);
 
     if (killer) {
@@ -595,7 +750,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     }
 
     // Convert victim's score to food at death location
-    this.spawnFoodFromDeadPlayer(victim, victim.score);
+    // Use saved score instead of victim.score (might be 0 after kill)
+    if (victimScore > 0) {
+      this.spawnFoodFromDeadPlayer(victim, victimScore);
+    }
+    
     this.afterKillProcessed(victim, killer, context);
   }
 
@@ -607,5 +766,241 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     void victim;
     void killer;
     void context;
+    
+    // Respawn bot if it was killed
+    if (this.bots.has(victim.id)) {
+      this.clock.setTimeout(() => {
+        this.respawnBot(victim.id);
+      }, 2000); // Respawn after 2 seconds
+    }
+  }
+
+  /**
+   * Manage bot population based on real player count
+   * Spawn bots if total players < 10
+   */
+  protected manageBots(): void {
+    const realPlayerCount = this.clients.length;
+    
+    // Count only alive bots
+    let aliveBotCount = 0;
+    this.bots.forEach((_, botId) => {
+      const bot = this.state.players.get(botId);
+      if (bot && bot.alive) {
+        aliveBotCount++;
+      }
+    });
+    
+    const totalPlayers = realPlayerCount + aliveBotCount;
+
+    // Only add bots if we have minimum real players
+    if (realPlayerCount < this.minPlayersForBots) {
+      // Remove all bots if no real players
+      this.removeAllBots();
+      return;
+    }
+
+    // If total players < 10, add bots to reach 10
+    if (totalPlayers < this.targetTotalPlayers) {
+      const botsNeeded = this.targetTotalPlayers - totalPlayers;
+      const currentBotCount = this.bots.size;
+      const canAddBots = Math.min(botsNeeded, this.maxBots - currentBotCount);
+
+      // Add bots if needed and within limit
+      if (canAddBots > 0) {
+        for (let i = 0; i < canAddBots; i++) {
+          this.spawnBot();
+        }
+      }
+    } else if (totalPlayers > this.targetTotalPlayers) {
+      // Remove excess bots if total > 10 (only remove alive bots)
+      const excessBots = totalPlayers - this.targetTotalPlayers;
+      const botIds = Array.from(this.bots.keys());
+      let removedCount = 0;
+      
+      for (const botId of botIds) {
+        if (removedCount >= excessBots) break;
+        
+        const bot = this.state.players.get(botId);
+        if (bot && bot.alive) {
+          this.removeBot(botId);
+          removedCount++;
+        }
+      }
+    }
+
+    // Clean up bots that are no longer in state (shouldn't happen, but safety check)
+    const botIdsToRemove: string[] = [];
+    this.bots.forEach((_, botId) => {
+      const bot = this.state.players.get(botId);
+      if (!bot) {
+        // Bot was removed from state but still in bots map - cleanup
+        botIdsToRemove.push(botId);
+      }
+    });
+    
+    botIdsToRemove.forEach(botId => {
+      // Get bot name before removing from bots map
+      const bot = this.state.players.get(botId);
+      if (bot) {
+        this.usedBotNames.delete(bot.name);
+      }
+      this.bots.delete(botId);
+    });
+  }
+
+  /**
+   * Spawn a new bot
+   */
+  protected spawnBot(): void {
+    // Generate unique bot ID
+    const botId = `bot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Get unused bot name
+    const availableNames = this.botNames.filter(name => !this.usedBotNames.has(name));
+    if (availableNames.length === 0) {
+      // Reset if all names used
+      this.usedBotNames.clear();
+    }
+    const botName = availableNames[Math.floor(Math.random() * availableNames.length)] || this.botNames[0];
+    this.usedBotNames.add(botName);
+
+    // Spawn position
+    const spawnPosition = this.getRandomPosition();
+    const skinId = Math.floor(Math.random() * this.colors.length);
+    const color = this.colors[skinId];
+
+    // Create bot player
+    const bot = new Player(
+      botId,
+      botName,
+      spawnPosition.x,
+      spawnPosition.y,
+      color,
+    );
+
+    bot.skinId = skinId;
+    bot.previousAngle = bot.angle;
+    bot.currentTurnRate = 0;
+    bot.totalLength = bot.segments.length;
+    bot.angle = Math.random() * 360; // Random initial direction
+
+    // Add to game state
+    this.state.players.set(botId, bot);
+
+    // Create bot AI
+    const botAI = new BotAI({
+      detectionRange: 400,
+      foodSeekRange: 600,
+      wallAvoidanceDistance: 200,
+      minPlayerDistance: 250,
+    });
+    this.bots.set(botId, botAI);
+
+    // Broadcast bot join (optional, can be silent)
+    this.broadcast('welcome', {
+      id: botId,
+      position: spawnPosition,
+      color,
+    });
+  }
+
+  /**
+   * Remove a bot
+   */
+  protected removeBot(botId: string): void {
+    const bot = this.state.players.get(botId);
+    if (bot) {
+      // Free up bot name
+      this.usedBotNames.delete(bot.name);
+      
+      // Remove from game state
+      this.state.players.delete(botId);
+      
+      // Remove AI
+      this.bots.delete(botId);
+    }
+  }
+
+  /**
+   * Remove all bots
+   */
+  protected removeAllBots(): void {
+    const botIds = Array.from(this.bots.keys());
+    botIds.forEach(botId => {
+      this.removeBot(botId);
+    });
+  }
+
+  /**
+   * Check if bot can eat food and handle it automatically
+   */
+  protected checkBotFoodCollision(bot: Player): void {
+    if (!bot.alive) {
+      return;
+    }
+
+    const head = bot.head;
+    const maxDistance = 250; // Same as player food collision distance
+
+    this.state.foods.forEach((food, foodId) => {
+      const dx = head.x - food.position.x;
+      const dy = head.y - food.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= maxDistance) {
+        // Bot eats the food
+        bot.score += food.value;
+
+        // Sync segments to score after eating food
+        this.syncSegmentsToScore(bot);
+
+        this.broadcast('foodConsumed', {
+          id: foodId,
+          playerId: bot.id,
+          value: food.value,
+        });
+
+        this.state.foods.delete(foodId);
+        this.spawnFood();
+      }
+    });
+  }
+
+  /**
+   * Respawn a dead bot
+   */
+  protected respawnBot(botId: string): void {
+    const bot = this.state.players.get(botId);
+    if (!bot || !this.bots.has(botId)) {
+      return;
+    }
+
+    const spawnPosition = this.getRandomPosition();
+    bot.alive = true;
+    bot.score = 0;
+    bot.kills = 0;
+    bot.segments.clear();
+    bot.previousAngle = bot.angle;
+    bot.currentTurnRate = 0;
+    bot.angle = Math.random() * 360; // Random direction
+    bot.invulnerable = true;
+
+    // Remove invulnerability after 3 seconds
+    this.clock.setTimeout(() => {
+      if (bot) {
+        bot.invulnerable = false;
+      }
+    }, 3000);
+
+    // Recreate segments
+    for (let index = 0; index < this.INITIAL_SEGMENTS; index += 1) {
+      bot.segments.push(
+        new SnakeSegment(spawnPosition.x - index * 20, spawnPosition.y),
+      );
+    }
+    bot.totalLength = this.INITIAL_SEGMENTS;
+    bot.headPosition.x = spawnPosition.x;
+    bot.headPosition.y = spawnPosition.y;
   }
 }
