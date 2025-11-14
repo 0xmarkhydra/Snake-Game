@@ -155,6 +155,16 @@ export class GameScene extends Scene {
     private blinkTimers: Map<string, number> = new Map(); // Timer for each snake
     private isBlinking: Map<string, boolean> = new Map(); // Blink state for each snake
     
+    // 🚀 PERFORMANCE: Cache eyes graphics state to avoid redrawing every frame
+    private lastEyesAngle: Map<string, number> = new Map();
+    private lastEyesBoosting: Map<string, boolean> = new Map();
+    private lastEyesBlinking: Map<string, boolean> = new Map();
+    private lastEyesRadius: Map<string, number> = new Map();
+    
+    // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame
+    private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake
+    private segmentUpdateFrameCounter: number = 0;
+    
     // Leaderboard cached objects for performance
     private leaderboardEntries: Map<number, {
         rankText: Phaser.GameObjects.Text,
@@ -192,8 +202,9 @@ export class GameScene extends Scene {
     private readonly SEGMENT_COUNT_MEDIUM = 100; // Medium quality
     private readonly SEGMENT_COUNT_HIGH = 150; // Low quality
     
-    // 🚀 PERFORMANCE: Viewport culling - reduced from 200 to 150 for better performance
-    private viewportBuffer: number = 150; // Extra pixels around viewport to render
+    // 🚀 PERFORMANCE: Viewport culling - optimized buffer size
+    private viewportBuffer: number = 100; // Reduced from 150 to 100 for better performance
+    private cameraMoveThreshold: number = 50; // Only recalculate viewport when camera moves significantly
     
     // Wall warning system
     private wallWarningGraphics: Phaser.GameObjects.Graphics;
@@ -603,14 +614,43 @@ export class GameScene extends Scene {
         return 'low';
     }
     
-    // 🚀 PERFORMANCE: Check if position is in viewport
+    // 🚀 PERFORMANCE: Cached viewport bounds to avoid recalculation
+    private cachedViewportBounds: {
+        left: number;
+        right: number;
+        top: number;
+        bottom: number;
+        cameraX: number;
+        cameraY: number;
+    } | null = null;
+    
+    // 🚀 PERFORMANCE: Check if position is in viewport with cached bounds
     private isInViewport(x: number, y: number): boolean {
         const cam = this.cameras.main;
+        const currentCameraX = cam.scrollX;
+        const currentCameraY = cam.scrollY;
+        
+        // Only recalculate bounds if camera moved significantly or bounds are not cached
+        if (!this.cachedViewportBounds || 
+            Math.abs(currentCameraX - this.cachedViewportBounds.cameraX) > this.cameraMoveThreshold ||
+            Math.abs(currentCameraY - this.cachedViewportBounds.cameraY) > this.cameraMoveThreshold) {
+            
+            this.cachedViewportBounds = {
+                left: currentCameraX - this.viewportBuffer,
+                right: currentCameraX + cam.width + this.viewportBuffer,
+                top: currentCameraY - this.viewportBuffer,
+                bottom: currentCameraY + cam.height + this.viewportBuffer,
+                cameraX: currentCameraX,
+                cameraY: currentCameraY
+            };
+        }
+        
+        const bounds = this.cachedViewportBounds;
         return (
-            x >= cam.scrollX - this.viewportBuffer &&
-            x <= cam.scrollX + cam.width + this.viewportBuffer &&
-            y >= cam.scrollY - this.viewportBuffer &&
-            y <= cam.scrollY + cam.height + this.viewportBuffer
+            x >= bounds.left &&
+            x <= bounds.right &&
+            y >= bounds.top &&
+            y <= bounds.bottom
         );
     }
     
@@ -1329,8 +1369,17 @@ export class GameScene extends Scene {
                 // Remove segment history
                 this.playerSegmentHistories.delete(id);
                 this.playerRenderPositions.delete(id);
+                
+                // 🚀 PERFORMANCE: Clean up eyes cache
+                this.lastEyesAngle.delete(id);
+                this.lastEyesBoosting.delete(id);
+                this.lastEyesBlinking.delete(id);
+                this.lastEyesRadius.delete(id);
             }
         });
+        
+        // 🚀 PERFORMANCE: Increment batch update counter for segment batching
+        this.segmentUpdateFrameCounter++;
         
         // Then, update or create snakes
         this.gameState.players.forEach((playerData: any, id: string) => {
@@ -1514,7 +1563,7 @@ export class GameScene extends Scene {
                         headObj.clearTint();
                     }
                     
-                    // 🚀 PERFORMANCE: Draw eyes on overlay graphics
+                    // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
                     let eyesGraphics = this.snakeEyes.get(id);
                     if (!eyesGraphics || !eyesGraphics.scene) {
                         if (eyesGraphics) {
@@ -1527,10 +1576,32 @@ export class GameScene extends Scene {
                     
                     eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
                     eyesGraphics.setVisible(true);
-                    eyesGraphics.clear();
                     
+                    // Check if eyes need to be redrawn
                     this.updateBlinkEffect(id);
-                    this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
+                    const currentBlinking = this.isBlinking.get(id) || false;
+                    const lastAngle = this.lastEyesAngle.get(id);
+                    const lastBoosting = this.lastEyesBoosting.get(id);
+                    const lastBlinking = this.lastEyesBlinking.get(id);
+                    const lastRadius = this.lastEyesRadius.get(id);
+                    
+                    const needsRedraw = 
+                        lastAngle === undefined || 
+                        Math.abs(lastAngle - playerData.angle) > 0.5 || // Redraw if angle changed > 0.5 degrees
+                        lastBoosting !== playerData.boosting ||
+                        lastBlinking !== currentBlinking ||
+                        lastRadius === undefined ||
+                        Math.abs(lastRadius - snakeRadius) > 0.5; // Redraw if radius changed significantly
+                    
+                    if (needsRedraw) {
+                        eyesGraphics.clear();
+                        this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
+                        // Cache current state
+                        this.lastEyesAngle.set(id, playerData.angle);
+                        this.lastEyesBoosting.set(id, playerData.boosting);
+                        this.lastEyesBlinking.set(id, currentBlinking);
+                        this.lastEyesRadius.set(id, snakeRadius);
+                    }
                 } else {
                     headObj.setVisible(false);
                     const eyesGraphics = this.snakeEyes.get(id);
@@ -1540,10 +1611,27 @@ export class GameScene extends Scene {
                 }
             }
 
-            // 🚀 PERFORMANCE: Render body segments with sprites and viewport culling
+            // 🚀 PERFORMANCE: Render body segments with batch updates and viewport culling
+            // Calculate which segments to update this frame (batch update)
+            // Note: isCurrentPlayer already declared above for this player
+            const totalSegments = segments.length - 1; // Exclude head
+            // Always update all segments for current player, batch others
+            const segmentsToUpdate = isCurrentPlayer ? totalSegments : Math.min(this.segmentUpdateBatchSize, totalSegments);
+            const startIndex = isCurrentPlayer ? 1 : (1 + (this.segmentUpdateFrameCounter % Math.ceil(totalSegments / this.segmentUpdateBatchSize)) * this.segmentUpdateBatchSize);
+            
             for (let i = 1; i < segments.length; i++) {
                 const segmentObj = segments[i] as Phaser.GameObjects.Sprite;
                 if (!segmentObj) continue;
+                
+                // 🚀 PERFORMANCE: Only update segments in current batch (except for current player)
+                if (!isCurrentPlayer && (i < startIndex || i >= startIndex + segmentsToUpdate)) {
+                    // Skip update but still check visibility
+                    const lastKnownX = segmentObj.x;
+                    const lastKnownY = segmentObj.y;
+                    const shouldRender = this.isInViewport(lastKnownX, lastKnownY);
+                    segmentObj.setVisible(shouldRender);
+                    continue;
+                }
                     
                 const targetDistance = i * this.segmentSpacing;
                 const targetPosition = this.getPositionFromHistory(segmentHistory, targetDistance, renderPosition);
@@ -1570,7 +1658,7 @@ export class GameScene extends Scene {
                 );
 
                 // 🚀 PERFORMANCE: Viewport culling - only render visible segments
-                const shouldRender = id === this.playerId || this.isInViewport(clamped.x, clamped.y);
+                const shouldRender = isCurrentPlayer || this.isInViewport(clamped.x, clamped.y);
                 
                 if (shouldRender) {
                     segmentObj.setVisible(true);
@@ -1910,12 +1998,38 @@ export class GameScene extends Scene {
     private updateFoods() {
         if (!this.gameState || !this.gameState.foods) return;
         
-        // 🚀 PERFORMANCE: Get camera bounds once for culling
+        // 🚀 PERFORMANCE: Use cached viewport bounds if available
         const cam = this.cameras.main;
-        const viewLeft = cam.scrollX - this.viewportBuffer;
-        const viewRight = cam.scrollX + cam.width + this.viewportBuffer;
-        const viewTop = cam.scrollY - this.viewportBuffer;
-        const viewBottom = cam.scrollY + cam.height + this.viewportBuffer;
+        const currentCameraX = cam.scrollX;
+        const currentCameraY = cam.scrollY;
+        
+        let viewLeft: number, viewRight: number, viewTop: number, viewBottom: number;
+        
+        // Use cached bounds if camera hasn't moved significantly
+        if (this.cachedViewportBounds && 
+            Math.abs(currentCameraX - this.cachedViewportBounds.cameraX) <= this.cameraMoveThreshold &&
+            Math.abs(currentCameraY - this.cachedViewportBounds.cameraY) <= this.cameraMoveThreshold) {
+            viewLeft = this.cachedViewportBounds.left;
+            viewRight = this.cachedViewportBounds.right;
+            viewTop = this.cachedViewportBounds.top;
+            viewBottom = this.cachedViewportBounds.bottom;
+        } else {
+            // Recalculate bounds
+            viewLeft = currentCameraX - this.viewportBuffer;
+            viewRight = currentCameraX + cam.width + this.viewportBuffer;
+            viewTop = currentCameraY - this.viewportBuffer;
+            viewBottom = currentCameraY + cam.height + this.viewportBuffer;
+            
+            // Update cache
+            this.cachedViewportBounds = {
+                left: viewLeft,
+                right: viewRight,
+                top: viewTop,
+                bottom: viewBottom,
+                cameraX: currentCameraX,
+                cameraY: currentCameraY
+            };
+        }
         
         // First, handle removed foods
         this.foods.forEach((foodSprite, foodId) => {

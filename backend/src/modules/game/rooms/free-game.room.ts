@@ -4,7 +4,7 @@ import { BotAI } from '../bot-ai';
 
 export class FreeGameRoom extends Room<SnakeGameState> {
   maxClients = 20;
-  tickRate = 16;
+  tickRate = 8; // Increased from 16ms to 8ms (120fps) to match client target FPS
   gameLoopInterval: Delayed;
   
   // Bot management

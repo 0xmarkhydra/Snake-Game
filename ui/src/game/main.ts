@@ -15,8 +15,9 @@ const config: Phaser.Types.Core.GameConfig = {
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,
-        width: window.innerWidth*window.devicePixelRatio,
-        height: window.innerHeight*window.devicePixelRatio
+        // 🚀 PERFORMANCE: Cap devicePixelRatio to max 2 to avoid excessive resolution on high-DPI displays
+        width: window.innerWidth * Math.min(window.devicePixelRatio || 1, 2),
+        height: window.innerHeight * Math.min(window.devicePixelRatio || 1, 2)
     },
     title: GAME_INFO.name,
     scene: [
@@ -27,8 +28,9 @@ const config: Phaser.Types.Core.GameConfig = {
     // Enhanced graphics settings
     pixelArt: false, // Set to true for pixel art games
     roundPixels: false, // Prevents pixel interpolation for pixel art
-    antialias: true, // Enables anti-aliasing for smoother graphics
-    antialiasGL: true, // WebGL specific anti-aliasing
+    // 🚀 PERFORMANCE: Disable antialiasing for better performance on high resolution
+    antialias: false, // Disabled for performance
+    antialiasGL: false, // Disabled for performance
     desynchronized: true, // Reduces input lag
     physics: {
         default: 'arcade',
