@@ -162,8 +162,14 @@ export class GameScene extends Scene {
     private lastEyesRadius: Map<string, number> = new Map();
     
     // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame
-    private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake
+    private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake (adaptive)
     private segmentUpdateFrameCounter: number = 0;
+    
+    // 🚀 PERFORMANCE: Low-end device optimizations
+    private enableVisualEffects: boolean = true; // Enable/disable visual effects based on FPS
+    private enableParticleEffects: boolean = true; // Enable/disable particle effects
+    private enableFoodAnimations: boolean = true; // Enable/disable food animations
+    private enableAttractionAura: boolean = true; // Enable/disable attraction aura
     
     // Leaderboard cached objects for performance
     private leaderboardEntries: Map<number, {
@@ -334,6 +340,9 @@ export class GameScene extends Scene {
             this.currentFPS = Math.round(this.game.loop.actualFps);
             this.fpsText.setText(`FPS: ${this.currentFPS}`);
             this.fpsUpdateTime = time;
+            
+            // 🚀 PERFORMANCE: Adaptive FPS target for low-end devices
+            this.adaptFPSTarget();
         }
         
         // 🚀 PERFORMANCE: Adaptive quality based on current FPS
@@ -419,17 +428,26 @@ export class GameScene extends Scene {
             }
             
             // Update boost effect position if boosting
-            if (player.boosting) {
+            if (player.boosting && this.enableParticleEffects) {
                 const boostX = renderPosition?.x ?? headPosition.x;
                 const boostY = renderPosition?.y ?? headPosition.y;
                 this.updateBoostEffect(boostX, boostY, angleDeg);
+            } else if (this.boostEffect && this.isBoosting) {
+                this.boostEffect.stop();
             }
             
-            this.updateHeadAttractionAura(headPosition.x, headPosition.y);
+            // 🚀 PERFORMANCE: Only update attraction aura if enabled
+            if (this.enableAttractionAura) {
+                this.updateHeadAttractionAura(headPosition.x, headPosition.y);
+            } else if (this.headAttractionAura) {
+                this.headAttractionAura.setVisible(false);
+            }
 
             // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
-            if (time - this.lastAttractionUpdate > this.attractionUpdateInterval) {
-            this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
+            // Reduce frequency when FPS is low, but don't disable completely to preserve gameplay
+            const attractionInterval = this.currentFPS < 30 ? this.attractionUpdateInterval * 2 : this.attractionUpdateInterval;
+            if (time - this.lastAttractionUpdate > attractionInterval) {
+                this.attractFoodInFront(headPosition.x, headPosition.y, angleDeg);
                 this.lastAttractionUpdate = time;
             }
         } else if (this.headAttractionAura) {
@@ -662,24 +680,120 @@ export class GameScene extends Scene {
             this.updatePlayerTextsInterval = 2;
             this.minimapUpdateInterval = 3;
             this.leaderboardUpdateInterval = 10;
+            this.segmentUpdateBatchSize = 10;
+            this.enableVisualEffects = true;
+            this.enableParticleEffects = true;
+            this.enableFoodAnimations = true;
+            this.enableAttractionAura = true;
         } else if (this.currentFPS >= 45) {
             // Medium performance - reduce some quality
             this.viewportBuffer = 120;
             this.updatePlayerTextsInterval = 3;
             this.minimapUpdateInterval = 4;
             this.leaderboardUpdateInterval = 12;
+            this.segmentUpdateBatchSize = 15;
+            this.enableVisualEffects = true;
+            this.enableParticleEffects = true;
+            this.enableFoodAnimations = true;
+            this.enableAttractionAura = true;
         } else if (this.currentFPS >= 35) {
             // Low performance - aggressive optimization
             this.viewportBuffer = 100;
             this.updatePlayerTextsInterval = 4;
             this.minimapUpdateInterval = 6;
             this.leaderboardUpdateInterval = 15;
-        } else {
+            this.segmentUpdateBatchSize = 20;
+            this.enableVisualEffects = true;
+            this.enableParticleEffects = false; // Disable particle effects
+            this.enableFoodAnimations = true;
+            this.enableAttractionAura = false; // Disable attraction aura
+        } else if (this.currentFPS >= 25) {
             // Very low performance - maximum optimization
             this.viewportBuffer = 80;
             this.updatePlayerTextsInterval = 5;
             this.minimapUpdateInterval = 8;
             this.leaderboardUpdateInterval = 20;
+            this.segmentUpdateBatchSize = 25;
+            this.enableVisualEffects = false; // Disable visual effects
+            this.enableParticleEffects = false;
+            this.enableFoodAnimations = false; // Disable food animations
+            this.enableAttractionAura = false;
+        } else {
+            // Extremely low performance - minimal everything
+            this.viewportBuffer = 60;
+            this.updatePlayerTextsInterval = 6;
+            this.minimapUpdateInterval = 10;
+            this.leaderboardUpdateInterval = 30;
+            this.segmentUpdateBatchSize = 30;
+            this.enableVisualEffects = false;
+            this.enableParticleEffects = false;
+            this.enableFoodAnimations = false;
+            this.enableAttractionAura = false;
+        }
+        
+        // Apply visual effects changes
+        this.applyVisualEffectsSettings();
+    }
+    
+    // 🚀 PERFORMANCE: Apply visual effects settings based on FPS
+    private applyVisualEffectsSettings(): void {
+        // Disable/enable boost particle effect
+        if (this.boostEffect) {
+            if (!this.enableParticleEffects && this.isBoosting) {
+                this.boostEffect.stop();
+            }
+        }
+        
+        // Disable/enable attraction aura
+        if (this.headAttractionAura) {
+            if (!this.enableAttractionAura) {
+                this.headAttractionAura.setVisible(false);
+            }
+        }
+    }
+    
+    // 🚀 PERFORMANCE: Adaptive FPS target - reduce target FPS when performance is low
+    private lastFPSAdaptationTime: number = 0;
+    private readonly fpsAdaptationInterval: number = 2000; // Check every 2 seconds
+    private currentTargetFPS: number = 120; // Start with default target
+    
+    private adaptFPSTarget(): void {
+        const now = this.time.now;
+        
+        // Only adapt FPS target periodically
+        if (now - this.lastFPSAdaptationTime < this.fpsAdaptationInterval) {
+            return;
+        }
+        
+        this.lastFPSAdaptationTime = now;
+        
+        const targetFPS = this.game.config.fps?.target || 120;
+        const actualFPS = this.currentFPS;
+        
+        // If actual FPS is consistently below 70% of target, reduce target FPS
+        if (actualFPS < targetFPS * 0.7) {
+            if (targetFPS > 60) {
+                // Reduce to 60 FPS
+                this.currentTargetFPS = 60;
+                this.game.loop.targetFps = 60;
+                console.log(`[Performance] Reduced target FPS to 60 (actual: ${actualFPS})`);
+            } else if (targetFPS > 30 && actualFPS < 42) {
+                // Reduce to 30 FPS if still struggling
+                this.currentTargetFPS = 30;
+                this.game.loop.targetFps = 30;
+                console.log(`[Performance] Reduced target FPS to 30 (actual: ${actualFPS})`);
+            }
+        } else if (actualFPS >= targetFPS * 0.9 && targetFPS < 120) {
+            // If FPS is stable and good, try increasing target FPS back
+            if (targetFPS === 30 && actualFPS >= 27) {
+                this.currentTargetFPS = 60;
+                this.game.loop.targetFps = 60;
+                console.log(`[Performance] Increased target FPS to 60 (actual: ${actualFPS})`);
+            } else if (targetFPS === 60 && actualFPS >= 54) {
+                this.currentTargetFPS = 120;
+                this.game.loop.targetFps = 120;
+                console.log(`[Performance] Increased target FPS to 120 (actual: ${actualFPS})`);
+            }
         }
     }
     
@@ -1320,8 +1434,8 @@ export class GameScene extends Scene {
         // Play boost sound
         this.boostSound.play({ volume: 0.3 });
         
-        // Start particle effect
-        if (this.boostEffect) {
+        // Start particle effect only if enabled
+        if (this.boostEffect && this.enableParticleEffects) {
             this.boostEffect.start();
         }
     }
@@ -2205,6 +2319,11 @@ export class GameScene extends Scene {
         foodSprite.setScale(1);
         foodSprite.setAngle(0);
 
+        // 🚀 PERFORMANCE: Disable food animations when FPS is low
+        if (!this.enableFoodAnimations) {
+            return; // No animations at all
+        }
+
         // Only apply animations to special food
         if (isSpecial) {
             // Scale + alpha animation for special food
@@ -2826,9 +2945,13 @@ export class GameScene extends Scene {
         const angleRad = Phaser.Math.DegToRad(angleDeg);
         
         // Define the attraction parameters
+        // 🚀 PERFORMANCE: Reduce attraction strength when FPS is low, but keep it functional for gameplay
+        const baseAttractionStrength = 5;
+        const attractionStrengthMultiplier = this.currentFPS < 30 ? 0.7 : (this.currentFPS < 40 ? 0.85 : 1.0);
+        
         const attractionDistance = 153; // Phạm vi hút mồi phía trước (giảm 15%)
         const attractionConeAngle = Math.PI / 2.5; // Mở rộng góc hút (khoảng 72 độ)
-        const attractionStrength = 5; // Lực hút cơ bản
+        const attractionStrength = baseAttractionStrength * attractionStrengthMultiplier; // Reduced strength when FPS is low
         const eatDistance = 45; // Khoảng cách để tự động ăn thức ăn
         const headAuraRadius = this.headAuraRadius;
         
@@ -2900,32 +3023,40 @@ export class GameScene extends Scene {
                 if (!foodSprite.data || !foodSprite.data.get('isAttracting')) {
                     foodSprite.setData('isAttracting', true);
                     
-                const previousAttractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
-                if (previousAttractTween) {
-                    previousAttractTween.stop();
-                    this.tweens.remove(previousAttractTween);
-                }
+                    // 🚀 PERFORMANCE: Only create attraction tween if food animations are enabled
+                    if (this.enableFoodAnimations) {
+                        const previousAttractTween = foodSprite.getData('attractTween') as Phaser.Tweens.Tween | null;
+                        if (previousAttractTween) {
+                            previousAttractTween.stop();
+                            this.tweens.remove(previousAttractTween);
+                        }
 
-                this.stopFoodTweens(foodSprite);
-                
-                const attractTween = this.tweens.add({
-                        targets: foodSprite,
-                    alpha: { from: 1, to: 0.7 },
-                    scale: { from: 1, to: 1.5 },
-                    duration: 200,
-                        yoyo: true,
-                        repeat: -1,
-                        ease: 'Sine.easeInOut'
-                    });
-                
-                foodSprite.setData('attractTween', attractTween);
-            }
+                        this.stopFoodTweens(foodSprite);
+                        
+                        const attractTween = this.tweens.add({
+                            targets: foodSprite,
+                            alpha: { from: 1, to: 0.7 },
+                            scale: { from: 1, to: 1.5 },
+                            duration: 200,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: 'Sine.easeInOut'
+                        });
+                        
+                        foodSprite.setData('attractTween', attractTween);
+                    }
+                }
         });
 
     }
     
     // Update the addEatEffect method to show different values for special food
     private addEatEffect(x: number, y: number, value: number = 1) {
+        // 🚀 PERFORMANCE: Skip visual effects if disabled
+        if (!this.enableVisualEffects) {
+            return;
+        }
+        
         // Create a flash effect
         const flash = this.add.circle(x, y, 30, value > 1 ? 0xffff00 : 0xffffff, 0.7);
         flash.setDepth(30);
@@ -2942,26 +3073,29 @@ export class GameScene extends Scene {
             }
         });
         
-        // Create particle burst effect
-        const particles = this.add.particles(x, y, value > 1 ? 'special-food' : 'food', {
-            speed: { min: 50, max: 200 },
-            scale: { start: 0.6, end: 0 },
-            alpha: { start: 1, end: 0 },
-            lifespan: 500,
-            quantity: value > 1 ? 15 : 10,
-            blendMode: 'ADD',
-            emitting: false
-        });
+        // 🚀 PERFORMANCE: Only create particle burst if particle effects are enabled
+        if (this.enableParticleEffects) {
+            // Create particle burst effect
+            const particles = this.add.particles(x, y, value > 1 ? 'special-food' : 'food', {
+                speed: { min: 50, max: 200 },
+                scale: { start: 0.6, end: 0 },
+                alpha: { start: 1, end: 0 },
+                lifespan: 500,
+                quantity: value > 1 ? 15 : 10,
+                blendMode: 'ADD',
+                emitting: false
+            });
+            
+            // Emit particles once
+            particles.explode(value > 1 ? 15 : 10);
+            
+            // Auto-destroy after animation completes
+            this.time.delayedCall(500, () => {
+                particles.destroy();
+            });
+        }
         
-        // Emit particles once
-        particles.explode(value > 1 ? 15 : 10);
-        
-        // Auto-destroy after animation completes
-        this.time.delayedCall(500, () => {
-            particles.destroy();
-        });
-        
-        // Add a score popup text
+        // Add a score popup text (always show)
         const scoreText = this.add.text(x, y - 20, `+${value}`, {
             fontFamily: 'Arial',
             fontSize: value > 1 ? '24px' : '20px',
