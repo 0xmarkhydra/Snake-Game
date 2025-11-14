@@ -392,13 +392,13 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.totalLength = this.INITIAL_SEGMENTS; // 🔄 Sync totalLength after respawn
   }
 
-  protected spawnFoodFromDeadPlayer(player: Player): void {
-    // 🍎 Spawn food based on snake segments (optimized for performance)
+  protected spawnFoodFromDeadPlayer(player: Player, score: number): void {
+    // 🍎 Spawn food based on victim's score (1 point = 1 food)
     const segmentCount = player.segments.length;
 
     // 🔥 PERFORMANCE FIX: Limit max food drops to prevent lag
-    const MAX_FOOD_DROP = 30; // Maximum 30 foods per death
-    const foodToSpawn = Math.min(segmentCount, MAX_FOOD_DROP);
+    const MAX_FOOD_DROP = 100; // Maximum 100 foods per death
+    const foodToSpawn = Math.min(score, MAX_FOOD_DROP);
 
     // 🚀 PERFORMANCE FIX: Progressive spawn in batches to reduce instant load
     const BATCH_SIZE = 10; // Spawn 10 foods at a time
@@ -417,7 +417,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         for (let index = batchStart; index < batchEnd; index += 1) {
           // Use evenly distributed segments to sample from the snake
           const segmentIndex = Math.floor((index / foodToSpawn) * segmentCount);
-          const segment = player.segments[segmentIndex];
+          const segment = player.segments[segmentIndex] || player.segments[0];
 
           if (!segment) continue;
 
@@ -562,11 +562,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     this.killPlayer(victim);
 
     if (killer) {
-      killer.score += Math.floor(victim.score / 2);
+      // Killer only gets kill count, not score
       killer.kills += 1;
-
-      // 🔄 Sync segments to score after kill reward
-      this.syncSegmentsToScore(killer);
 
       this.broadcast('playerKilled', {
         killed: victim.id,
@@ -574,7 +571,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       });
     }
 
-    this.spawnFoodFromDeadPlayer(victim);
+    // Convert victim's score to food at death location
+    this.spawnFoodFromDeadPlayer(victim, victim.score);
     this.afterKillProcessed(victim, killer, context);
   }
 
