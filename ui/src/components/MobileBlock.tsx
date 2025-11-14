@@ -59,25 +59,25 @@ export const MobileBlock = () => {
               WebkitTextFillColor: 'transparent'
             }}
           >
-            Thiết bị không được hỗ trợ
+            Device Not Supported
           </h1>
 
           <div className="h-1 w-32 mx-auto bg-red-500 mb-6"></div>
 
           <p className="text-white text-base sm:text-lg mb-6 leading-relaxed">
-            Game này chỉ hỗ trợ trên thiết bị máy tính (desktop).
+            This game only supports desktop devices.
             <br />
-            Vui lòng sử dụng máy tính để chơi game.
+            Please use a computer to play the game.
           </p>
 
           <div className="bg-game-dark/70 rounded-lg p-4 border-2 border-game-blue/50">
             <p className="text-yellow-400 text-sm font-semibold mb-2">
-              💻 Yêu cầu thiết bị:
+              💻 Device Requirements:
             </p>
             <ul className="text-gray-300 text-sm text-left space-y-1">
-              <li>• Máy tính để bàn (Desktop)</li>
+              <li>• Desktop Computer</li>
               <li>• Laptop</li>
-              <li>• Màn hình lớn hơn 768px</li>
+              <li>• Screen larger than 768px</li>
             </ul>
           </div>
         </div>
