@@ -89,7 +89,34 @@ export function usePWAInstall() {
   }, [isInstalled, isInstallable]);
 
   const installPWA = async () => {
-    // Detect platform
+    // 🚀 PWA: If we have deferredPrompt, show install prompt immediately
+    if (deferredPrompt) {
+      try {
+        console.log('[PWA] Showing install prompt');
+        // Show the install prompt
+        await deferredPrompt.prompt();
+
+        // Wait for user response
+        const { outcome } = await deferredPrompt.userChoice;
+
+        if (outcome === 'accepted') {
+          console.log('[PWA] User accepted the install prompt');
+          setIsInstalled(true);
+        } else {
+          console.log('[PWA] User dismissed the install prompt');
+        }
+
+        // Clear the deferred prompt
+        setDeferredPrompt(null);
+        setIsInstallable(false);
+        return;
+      } catch (error) {
+        console.error('[PWA] Error showing install prompt:', error);
+        // Fall through to show manual instructions
+      }
+    }
+
+    // 🚀 PWA: If no deferredPrompt, show manual instructions based on platform
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isMacOS = /Macintosh|Mac OS X/.test(navigator.userAgent);
     const isWindows = /Windows/.test(navigator.userAgent);
@@ -113,10 +140,8 @@ export function usePWAInstall() {
         alert('Để cài đặt trên macOS Safari:\n1. Nhấn Share (hình vuông với mũi tên)\n2. Chọn "Add to Dock"\n\nHoặc dùng Chrome/Edge để có trải nghiệm PWA tốt hơn.');
         return;
       } else if (isChrome || isEdge) {
-        if (!deferredPrompt) {
-          alert('Để cài đặt trên macOS:\n1. Nhấn vào menu của browser (3 chấm ở góc trên bên phải)\n2. Chọn "Install [App Name]..." hoặc "Install App"\n3. Nhấn "Install" trong popup');
-          return;
-        }
+        alert('Để cài đặt trên macOS:\n1. Nhấn vào menu của browser (3 chấm ở góc trên bên phải)\n2. Chọn "Install [App Name]..." hoặc "Install App"\n3. Nhấn "Install" trong popup');
+        return;
       } else if (isFirefox) {
         alert('Firefox trên macOS không hỗ trợ PWA install.\nVui lòng dùng Chrome hoặc Edge để cài đặt app.');
         return;
@@ -126,10 +151,8 @@ export function usePWAInstall() {
     // Windows instructions
     if (isWindows) {
       if (isChrome || isEdge) {
-        if (!deferredPrompt) {
-          alert('Để cài đặt trên Windows:\n1. Nhấn vào menu của browser (3 chấm)\n2. Chọn "Install [App Name]..." hoặc "Install App"\n3. Nhấn "Install" trong popup');
-          return;
-        }
+        alert('Để cài đặt trên Windows:\n1. Nhấn vào menu của browser (3 chấm)\n2. Chọn "Install [App Name]..." hoặc "Install App"\n3. Nhấn "Install" trong popup');
+        return;
       } else if (isFirefox) {
         alert('Firefox trên Windows không hỗ trợ PWA install.\nVui lòng dùng Chrome hoặc Edge để cài đặt app.');
         return;
@@ -138,47 +161,12 @@ export function usePWAInstall() {
 
     // Android instructions
     if (isAndroid) {
-      if (!deferredPrompt) {
-        alert('Để cài đặt trên Android:\n1. Nhấn vào menu của browser (3 chấm)\n2. Chọn "Install App" hoặc "Add to Home Screen"');
-        return;
-      }
-    }
-
-    // Try to show install prompt if available
-    if (!deferredPrompt) {
-      console.warn('[PWA] No install prompt available');
-      // Generic fallback
-      alert('Để cài đặt app:\n1. Nhấn vào menu của browser (3 chấm)\n2. Tìm "Install App" hoặc "Add to Home Screen"\n3. Nhấn "Install"');
+      alert('Để cài đặt trên Android:\n1. Nhấn vào menu của browser (3 chấm)\n2. Chọn "Install App" hoặc "Add to Home Screen"');
       return;
     }
 
-    try {
-      console.log('[PWA] Showing install prompt');
-      // Show the install prompt
-      await deferredPrompt.prompt();
-
-      // Wait for user response
-      const { outcome } = await deferredPrompt.userChoice;
-
-      if (outcome === 'accepted') {
-        console.log('[PWA] User accepted the install prompt');
-        setIsInstalled(true);
-      } else {
-        console.log('[PWA] User dismissed the install prompt');
-      }
-
-      // Clear the deferred prompt
-      setDeferredPrompt(null);
-      setIsInstallable(false);
-    } catch (error) {
-      console.error('[PWA] Error installing PWA:', error);
-      // Fallback with platform-specific instructions
-      if (isMacOS && (isChrome || isEdge)) {
-        alert('Để cài đặt trên macOS:\n1. Nhấn vào menu của browser (3 chấm)\n2. Chọn "Install [App Name]..." hoặc "Install App"');
-      } else {
-        alert('Để cài đặt app:\n1. Nhấn vào menu của browser\n2. Tìm "Install App" hoặc "Add to Home Screen"');
-      }
-    }
+    // Generic fallback
+    alert('Để cài đặt app:\n1. Nhấn vào menu của browser (3 chấm)\n2. Tìm "Install App" hoặc "Add to Home Screen"\n3. Nhấn "Install"');
   };
 
   return {
