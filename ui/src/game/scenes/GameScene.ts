@@ -1353,15 +1353,20 @@ export class GameScene extends Scene {
                 createdNewSnake = true;
             }
 
+            // Check if this is the current player
+            const isCurrentPlayer = id === this.playerId;
+            const displayName = isCurrentPlayer ? `${playerData.name} (me)` : playerData.name;
+            const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff'; // Yellow for current player, white for others
+            
             let nameText = this.playerTexts.get(id);
             if (!nameText || !nameText.scene) {
                 if (nameText) {
                     nameText.destroy();
                 }
-                nameText = this.add.text(0, 0, playerData.name, {
+                nameText = this.add.text(0, 0, displayName, {
                     fontFamily: 'Arial',
                     fontSize: '18px',
-                    color: '#ffffff',
+                    color: nameColor,
                     stroke: '#000000',
                     strokeThickness: 4,
                     shadow: {
@@ -1376,7 +1381,8 @@ export class GameScene extends Scene {
                 nameText.setDepth(100);
                 this.playerTexts.set(id, nameText);
             } else {
-                nameText.setText(playerData.name);
+                nameText.setText(displayName);
+                nameText.setColor(nameColor);
             }
             
             const score = Number.isFinite(playerData.score) ? Math.max(0, playerData.score) : 0;
@@ -2335,7 +2341,8 @@ export class GameScene extends Scene {
                 
                 // Update name text
             const nameColor = isCurrentPlayer ? '#ffff00' : '#ffffff';
-            const nameText = player.name.length > 10 ? player.name.substr(0, 8) + '..' : player.name;
+            const displayName = isCurrentPlayer ? `${player.name} (me)` : player.name;
+            const nameText = displayName.length > 10 ? displayName.substr(0, 8) + '..' : displayName;
                 entry.nameText.setText(nameText);
                 entry.nameText.setColor(nameColor);
                 entry.nameText.setStyle({ fontStyle: isCurrentPlayer ? 'bold' : 'normal' });

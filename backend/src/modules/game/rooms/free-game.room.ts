@@ -252,8 +252,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           );
           player.angle = newAngle;
 
-          // Handle bot boost
-          const shouldBoost = botAI.shouldBoost(player, this.state.players);
+          // Handle bot boost (with current time for throttling)
+          const shouldBoost = botAI.shouldBoost(player, this.state.players, currentTime);
           if (shouldBoost && !player.boosting && player.score >= 1) {
             player.boosting = true;
           } else if (!shouldBoost) {
@@ -887,11 +887,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     // Add to game state
     this.state.players.set(botId, bot);
 
-    // Create bot AI with pro player settings
+    // Create bot AI with pro player settings (optimized for survival and killing)
     const botAI = new BotAI({
       detectionRange: 600, // Very good detection (pro players see threats early)
       foodSeekRange: 1000, // Look far for food (pro players plan ahead)
-      wallAvoidanceDistance: 300, // Early wall avoidance (pro players avoid corners)
+      wallAvoidanceDistance: 500, // Much earlier wall avoidance (increased for better survival)
       minPlayerDistance: 350, // Safe distance (pro players keep safe)
     });
     this.bots.set(botId, botAI);
