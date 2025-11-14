@@ -10,17 +10,59 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   // Bot management
   private bots: Map<string, BotAI> = new Map();
   private readonly minPlayersForBots = 1; // Minimum real players before adding bots
-  private readonly maxBots = 10; // Maximum number of bots
-  private readonly targetTotalPlayers = 10; // Target total players (real + bots) - spawn bots if less than 10
+  private readonly maxBots = 3; // Maximum 3 bots per game
+  private readonly targetBots = 3; // Target: spawn 3 bots random
   private botNames: string[] = [
-    'Bot Alpha',
-    'Bot Beta',
-    'Bot Gamma',
-    'Bot Delta',
-    'Bot Epsilon',
-    'Bot Zeta',
-    'Bot Eta',
-    'Bot Theta',
+    'Alex',
+    'Jordan',
+    'Sam',
+    'Taylor',
+    'Casey',
+    'Morgan',
+    'Riley',
+    'Avery',
+    'Quinn',
+    'Blake',
+    'Cameron',
+    'Dakota',
+    'Emery',
+    'Finley',
+    'Harper',
+    'Jamie',
+    'Kai',
+    'Logan',
+    'Noah',
+    'Parker',
+    'River',
+    'Sage',
+    'Skyler',
+    'Tyler',
+    'Zoe',
+    'Max',
+    'Leo',
+    'Aria',
+    'Luna',
+    'Maya',
+    'Ethan',
+    'Liam',
+    'Emma',
+    'Olivia',
+    'Sophia',
+    'Mia',
+    'Isabella',
+    'Charlotte',
+    'Amelia',
+    'Harper',
+    'Evelyn',
+    'Abigail',
+    'Emily',
+    'Elizabeth',
+    'Mila',
+    'Ella',
+    'Avery',
+    'Sofia',
+    'Camila',
+    'Aria',
   ];
   private usedBotNames: Set<string> = new Set();
 
@@ -97,7 +139,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         });
 
         this.state.foods.delete(message.foodId);
-        this.spawnFood();
+        // ✅ FIX: Không spawn food tự động khi ăn - chỉ spawn khi snake chết
       }
     });
 
@@ -185,6 +227,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   private lastBotManagementTime: number = 0;
   private readonly botManagementInterval: number = 5000; // Check every 5 seconds
+  private botFoodCheckCounter: number = 0; // Counter to throttle bot food collision check
 
   protected gameLoop(): void {
     const currentTime = Date.now();
@@ -217,8 +260,12 @@ export class FreeGameRoom extends Room<SnakeGameState> {
             player.boosting = false;
           }
 
-          // Auto-eat food for bots
-          this.checkBotFoodCollision(player);
+          // ✅ FIX: Check food collision less frequently (every 2 frames) to match player behavior
+          // Player only checks when client sends message, so bot shouldn't check every frame
+          this.botFoodCheckCounter++;
+          if (this.botFoodCheckCounter % 2 === 0) {
+            this.checkBotFoodCollision(player);
+          }
         }
       }
 
@@ -233,8 +280,17 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       this.lastBotManagementTime = currentTime;
     }
 
-    if (this.state.foods.size < this.state.maxFoods) {
+    // ✅ FIX: Đảm bảo luôn có đủ food để chơi
+    // Nếu food quá ít (< 50), spawn thêm để đảm bảo game vẫn chơi được
+    const currentFoodCount = this.state.foods.size;
+    const minFoodThreshold = 50; // Tối thiểu 50 food để game vẫn chơi được
+    
+    if (currentFoodCount < minFoodThreshold) {
+      // Spawn thêm food để đạt minFoodThreshold
+      const foodsToSpawn = minFoodThreshold - currentFoodCount;
+      for (let i = 0; i < foodsToSpawn; i++) {
       this.spawnFood();
+      }
     }
   }
 
@@ -478,12 +534,17 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected spawnFoodFromDeadPlayer(player: Player, score: number): void {
-    // 🍎 Spawn food based on victim's score (1 point = 1 food)
+    // 🍎 Đơn giản: Trả lại số food đã ăn (1 point = 1 food)
+    // Không giới hạn bởi maxFoods - đơn giản là trả lại số food đã ăn
+    
+    if (score <= 0) {
+      return; // Không có score thì không spawn
+    }
     
     // ✅ FIX: Save segments positions immediately before they might be cleared
     const segmentPositions: Array<{ x: number; y: number }> = [];
     const segmentCount = player.segments.length;
-    
+
     // If segments exist, save their positions
     if (segmentCount > 0) {
       for (let i = 0; i < segmentCount; i++) {
@@ -510,43 +571,13 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
-    // 🔥 PERFORMANCE FIX: Limit max food drops to prevent lag
-    const MAX_FOOD_DROP = 100; // Maximum 100 foods per death
-    
-    // ✅ FIX: Check current food count and limit spawn to maxFoods
-    const currentFoodCount = this.state.foods.size;
-    const availableSlots = Math.max(0, this.state.maxFoods - currentFoodCount);
-    
-    // Only spawn food that fits within maxFoods limit
-    const requestedFood = Math.min(score, MAX_FOOD_DROP);
-    
-    // If food is full, still spawn some food (replace existing food)
-    // But limit to reasonable amount to prevent lag
-    let foodToSpawn: number;
-    if (availableSlots <= 0) {
-      // Food is full, but still spawn some (up to 50) to replace
-      foodToSpawn = Math.min(requestedFood, 50);
-    } else {
-      // Normal case: spawn within available slots
-      foodToSpawn = Math.min(requestedFood, availableSlots);
-    }
+    // 🔥 PERFORMANCE: Limit max food drops to prevent lag (nhưng vẫn spawn đủ)
+    const MAX_FOOD_DROP = 200; // Maximum 200 foods per death để tránh lag
+    const foodToSpawn = Math.min(score, MAX_FOOD_DROP);
 
-    // Don't spawn if no score
-    if (score <= 0 || foodToSpawn <= 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[spawnFoodFromDeadPlayer] Skipped - Player: ${player.name}, Score: ${score}, FoodToSpawn: ${foodToSpawn}, AvailableSlots: ${availableSlots}`);
-      }
-      return;
-    }
-    
-    // Debug log (can remove in production)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[spawnFoodFromDeadPlayer] Player: ${player.name}, Score: ${score}, Segments: ${segmentPositions.length}, FoodToSpawn: ${foodToSpawn}, AvailableSlots: ${availableSlots}, CurrentFood: ${currentFoodCount}`);
-    }
-
-    // 🚀 PERFORMANCE FIX: Progressive spawn in batches to reduce instant load
-    const BATCH_SIZE = 10; // Spawn 10 foods at a time
-    const BATCH_DELAY = 50; // 50ms delay between batches
+    // 🚀 PERFORMANCE: Progressive spawn in batches to reduce instant load
+    const BATCH_SIZE = 20; // Spawn 20 foods at a time
+    const BATCH_DELAY = 30; // 30ms delay between batches
 
     for (
       let batchIndex = 0;
@@ -558,37 +589,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
       // Schedule batch spawn with delay
       this.clock.setTimeout(() => {
-        // Check food count again before spawning (may have changed)
-        const currentCount = this.state.foods.size;
-        const canSpawn = Math.max(0, this.state.maxFoods - currentCount);
-        
-        // If food is full, allow spawning up to 50 foods (replace existing)
-        // Otherwise, respect maxFoods limit
-        const maxAllowedSpawn = canSpawn > 0 ? canSpawn : 50;
-        
-        if (maxAllowedSpawn <= 0 && canSpawn <= 0) {
-          return; // Stop spawning if reached max and not replacing
-        }
-
-        const actualBatchEnd = Math.min(batchEnd, batchStart + maxAllowedSpawn);
-
-        for (let index = batchStart; index < actualBatchEnd; index += 1) {
-          // If food is full, remove one old food before adding new one
-          if (this.state.foods.size >= this.state.maxFoods && canSpawn <= 0) {
-            // Remove a random food to make room
-            const foodIds = Array.from(this.state.foods.keys());
-            if (foodIds.length > 0) {
-              const randomIndex = Math.floor(Math.random() * foodIds.length);
-              const foodToRemove = foodIds[randomIndex];
-              this.state.foods.delete(foodToRemove);
-            }
-          }
-          
-          // Double check before each spawn (safety)
-          if (this.state.foods.size >= this.state.maxFoods && canSpawn > 0) {
-            break; // Stop if reached max and we're not replacing
-          }
-
+        for (let index = batchStart; index < batchEnd; index += 1) {
           // Use evenly distributed segments to sample from the snake
           const segmentIndex = Math.floor((index / foodToSpawn) * segmentPositions.length);
           const segmentPos = segmentPositions[segmentIndex] || segmentPositions[0];
@@ -610,7 +611,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           // Create food with value 1 (normal food)
           const food = new Food(foodId, foodX, foodY, 1);
 
-          // Add to game state
+          // Add to game state (không kiểm tra maxFoods - đơn giản là thêm vào)
           this.state.foods.set(foodId, food);
 
           // Broadcast to all clients to spawn food
@@ -776,8 +777,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   /**
-   * Manage bot population based on real player count
-   * Spawn bots if total players < 10
+   * Manage bot population - spawn exactly 3 bots per game
    */
   protected manageBots(): void {
     const realPlayerCount = this.clients.length;
@@ -791,7 +791,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       }
     });
     
-    const totalPlayers = realPlayerCount + aliveBotCount;
+    const currentBotCount = this.bots.size;
 
     // Only add bots if we have minimum real players
     if (realPlayerCount < this.minPlayersForBots) {
@@ -800,10 +800,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
-    // If total players < 10, add bots to reach 10
-    if (totalPlayers < this.targetTotalPlayers) {
-      const botsNeeded = this.targetTotalPlayers - totalPlayers;
-      const currentBotCount = this.bots.size;
+    // Spawn bots to reach target (3 bots)
+    if (aliveBotCount < this.targetBots) {
+      const botsNeeded = this.targetBots - aliveBotCount;
       const canAddBots = Math.min(botsNeeded, this.maxBots - currentBotCount);
 
       // Add bots if needed and within limit
@@ -812,9 +811,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           this.spawnBot();
         }
       }
-    } else if (totalPlayers > this.targetTotalPlayers) {
-      // Remove excess bots if total > 10 (only remove alive bots)
-      const excessBots = totalPlayers - this.targetTotalPlayers;
+    } else if (aliveBotCount > this.targetBots) {
+      // Remove excess bots if more than 3 (only remove alive bots)
+      const excessBots = aliveBotCount - this.targetBots;
       const botIds = Array.from(this.bots.keys());
       let removedCount = 0;
       
@@ -888,12 +887,12 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     // Add to game state
     this.state.players.set(botId, bot);
 
-    // Create bot AI
+    // Create bot AI with pro player settings
     const botAI = new BotAI({
-      detectionRange: 400,
-      foodSeekRange: 600,
-      wallAvoidanceDistance: 200,
-      minPlayerDistance: 250,
+      detectionRange: 600, // Very good detection (pro players see threats early)
+      foodSeekRange: 1000, // Look far for food (pro players plan ahead)
+      wallAvoidanceDistance: 300, // Early wall avoidance (pro players avoid corners)
+      minPlayerDistance: 350, // Safe distance (pro players keep safe)
     });
     this.bots.set(botId, botAI);
 
@@ -934,6 +933,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   /**
    * Check if bot can eat food and handle it automatically
+   * ✅ FIX: Use same collision distance as player and check less frequently
    */
   protected checkBotFoodCollision(bot: Player): void {
     if (!bot.alive) {
@@ -941,13 +941,14 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     }
 
     const head = bot.head;
-    const maxDistance = 250; // Same as player food collision distance
+    const maxDistance = 250; // Same as player food collision distance (EXACTLY the same)
 
     this.state.foods.forEach((food, foodId) => {
       const dx = head.x - food.position.x;
       const dy = head.y - food.position.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
+      // ✅ FIX: Use exact same distance check as player (<= 250)
       if (distance <= maxDistance) {
         // Bot eats the food
         bot.score += food.value;
@@ -962,7 +963,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         });
 
         this.state.foods.delete(foodId);
-        this.spawnFood();
+        // ✅ FIX: Không spawn food tự động khi bot ăn - chỉ spawn khi snake chết
+        return; // Exit after eating one food (same as player behavior)
       }
     });
   }

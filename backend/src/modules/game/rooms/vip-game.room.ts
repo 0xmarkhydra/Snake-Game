@@ -148,7 +148,8 @@ export class VipGameRoom extends FreeGameRoom {
   }
 
   onLeave(client: Client): void {
-    super.onLeave(client);
+    this.state.players.delete(client.sessionId);
+    // VIP room: Don't manage bots (no bots in VIP room)
     this.sessionInfo.delete(client.sessionId);
   }
 
@@ -332,6 +333,15 @@ export class VipGameRoom extends FreeGameRoom {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Override manageBots to disable bot spawning in VIP room
+   * VIP rooms should only have real players, no bots
+   */
+  protected manageBots(): void {
+    // VIP room: No bots allowed - do nothing
+    return;
   }
 }
 
