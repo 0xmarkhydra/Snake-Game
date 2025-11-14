@@ -4,6 +4,8 @@ import { MainMenuPage, GameStartData } from './pages/MainMenuPage';
 import { IRefPhaserGame, PhaserGame } from './game/PhaserGame';
 import { EventBus } from './game/EventBus';
 import { authService } from './services/AuthService';
+import { MobileBlock } from './components/MobileBlock';
+import { isMobileDevice } from './utils/device';
 import './App.css';
 
 type GameState = 'loading' | 'menu' | 'playing';
@@ -13,6 +15,19 @@ function App() {
     () => window.location.pathname.replace(/\/$/, '') === '/deposit-test',
     [],
   );
+
+  // Check if device is mobile
+  const [isMobile, setIsMobile] = useState(() => isMobileDevice());
+
+  useEffect(() => {
+    // Re-check on window resize
+    const handleResize = () => {
+      setIsMobile(isMobileDevice());
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [gameState, setGameState] = useState<GameState>('loading');
   const phaserRef = useRef<IRefPhaserGame | null>(null);
@@ -64,6 +79,15 @@ function App() {
       }, 100);
     }
   }, [gameState]);
+
+  // Block mobile devices
+  if (isMobile && !isDepositTest) {
+    return (
+      <div id="app" className="fullscreen">
+        <MobileBlock />
+      </div>
+    );
+  }
 
   if (isDepositTest) {
     return (
