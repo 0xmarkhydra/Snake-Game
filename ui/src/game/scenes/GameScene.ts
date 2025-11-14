@@ -195,6 +195,13 @@ export class GameScene extends Scene {
     // 🚀 PERFORMANCE: Viewport culling - reduced from 200 to 150 for better performance
     private viewportBuffer: number = 150; // Extra pixels around viewport to render
     
+    // Wall warning system
+    private wallWarningGraphics: Phaser.GameObjects.Graphics;
+    private readonly wallWarningDistance: number = 300; // Distance to start showing warning
+    private readonly wallDangerDistance: number = 150; // Distance for strong warning
+    private lastWallWarningUpdate: number = 0;
+    private wallWarningUpdateInterval: number = 16; // Update every ~16ms (60fps)
+    
     constructor() {
         super({
             key: 'GameScene',
@@ -239,6 +246,11 @@ export class GameScene extends Scene {
         
         // Set up UI
         this.createUI();
+        
+        // Create wall warning graphics
+        this.wallWarningGraphics = this.add.graphics();
+        this.wallWarningGraphics.setDepth(200); // Above everything
+        this.wallWarningGraphics.setScrollFactor(0); // Fixed to camera
 
         if (this.roomType === 'vip') {
             this.updateVipCreditDisplay(this.vipCredit);
@@ -331,6 +343,12 @@ export class GameScene extends Scene {
         if (this.updatePlayerTextsCounter >= this.updatePlayerTextsInterval) {
             this.updatePlayerTexts();
             this.updatePlayerTextsCounter = 0;
+        }
+        
+        // Update wall warning
+        if (time - this.lastWallWarningUpdate >= this.wallWarningUpdateInterval) {
+            this.updateWallWarning();
+            this.lastWallWarningUpdate = time;
         }
         
         // Calculate angle from player's snake head to mouse pointer
@@ -3200,5 +3218,102 @@ export class GameScene extends Scene {
                 }
             }
         });
+    }
+    
+    /**
+     * Update wall warning display when player snake is near walls
+     */
+    private updateWallWarning(): void {
+        if (!this.wallWarningGraphics || !this.gameState) {
+            return;
+        }
+        
+        const player = this.gameState.players.get(this.playerId);
+        if (!player || !player.alive || !player.headPosition) {
+            this.wallWarningGraphics.clear();
+            return;
+        }
+        
+        const headX = player.headPosition.x;
+        const headY = player.headPosition.y;
+        
+        // Calculate distances to each wall
+        const distToLeft = headX;
+        const distToRight = this.worldWidth - headX;
+        const distToTop = headY;
+        const distToBottom = this.worldHeight - headY;
+        
+        // Find minimum distance to any wall
+        const minDistance = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+        
+        // Clear previous warning
+        this.wallWarningGraphics.clear();
+        
+        // Only show warning if within warning distance
+        if (minDistance > this.wallWarningDistance) {
+            return;
+        }
+        
+        // Calculate warning intensity (0 = far, 1 = very close)
+        const warningIntensity = 1 - (minDistance / this.wallWarningDistance);
+        
+        // Get camera viewport
+        const camera = this.cameras.main;
+        const cameraWidth = camera.width;
+        const cameraHeight = camera.height;
+        
+        // Determine which walls to highlight
+        const showLeft = distToLeft <= this.wallWarningDistance;
+        const showRight = distToRight <= this.wallWarningDistance;
+        const showTop = distToTop <= this.wallWarningDistance;
+        const showBottom = distToBottom <= this.wallWarningDistance;
+        
+        // Draw warning borders on screen edges
+        const borderThickness = 8 + (warningIntensity * 12); // Thicker when closer
+        const pulseTime = Date.now() / 200;
+        
+        // Left wall warning
+        if (showLeft) {
+            const leftIntensity = 1 - (distToLeft / this.wallWarningDistance);
+            const leftAlpha = Math.max(0.3, Math.min(0.8, leftIntensity * 0.8));
+            const leftColor = distToLeft <= this.wallDangerDistance ? 0xff0000 : 0xffaa00;
+            // Add pulsing effect
+            const pulseAlpha = leftAlpha * (0.7 + 0.3 * Math.sin(pulseTime));
+            this.wallWarningGraphics.fillStyle(leftColor, pulseAlpha);
+            this.wallWarningGraphics.fillRect(0, 0, borderThickness, cameraHeight);
+        }
+        
+        // Right wall warning
+        if (showRight) {
+            const rightIntensity = 1 - (distToRight / this.wallWarningDistance);
+            const rightAlpha = Math.max(0.3, Math.min(0.8, rightIntensity * 0.8));
+            const rightColor = distToRight <= this.wallDangerDistance ? 0xff0000 : 0xffaa00;
+            // Add pulsing effect
+            const pulseAlpha = rightAlpha * (0.7 + 0.3 * Math.sin(pulseTime));
+            this.wallWarningGraphics.fillStyle(rightColor, pulseAlpha);
+            this.wallWarningGraphics.fillRect(cameraWidth - borderThickness, 0, borderThickness, cameraHeight);
+        }
+        
+        // Top wall warning
+        if (showTop) {
+            const topIntensity = 1 - (distToTop / this.wallWarningDistance);
+            const topAlpha = Math.max(0.3, Math.min(0.8, topIntensity * 0.8));
+            const topColor = distToTop <= this.wallDangerDistance ? 0xff0000 : 0xffaa00;
+            // Add pulsing effect
+            const pulseAlpha = topAlpha * (0.7 + 0.3 * Math.sin(pulseTime));
+            this.wallWarningGraphics.fillStyle(topColor, pulseAlpha);
+            this.wallWarningGraphics.fillRect(0, 0, cameraWidth, borderThickness);
+        }
+        
+        // Bottom wall warning
+        if (showBottom) {
+            const bottomIntensity = 1 - (distToBottom / this.wallWarningDistance);
+            const bottomAlpha = Math.max(0.3, Math.min(0.8, bottomIntensity * 0.8));
+            const bottomColor = distToBottom <= this.wallDangerDistance ? 0xff0000 : 0xffaa00;
+            // Add pulsing effect
+            const pulseAlpha = bottomAlpha * (0.7 + 0.3 * Math.sin(pulseTime));
+            this.wallWarningGraphics.fillStyle(bottomColor, pulseAlpha);
+            this.wallWarningGraphics.fillRect(0, cameraHeight - borderThickness, cameraWidth, borderThickness);
+        }
     }
 } 
