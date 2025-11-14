@@ -40,5 +40,7 @@ export default defineConfig({
                 comments: false
             }
         }
-    }
+    },
+    // 🚀 PWA: Ensure service worker and manifest are copied to dist
+    publicDir: 'public'
 });

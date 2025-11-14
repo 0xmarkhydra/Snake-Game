@@ -1,0 +1,30 @@
+{
+  "name": "Snake Game - Multiplayer",
+  "short_name": "Snake Game",
+  "description": "Multiplayer Snake Game - Play free or VIP mode",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#028af8",
+  "theme_color": "#028af8",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "screenshots": [],
+  "shortcuts": [],
+  "prefer_related_applications": false
+}
+

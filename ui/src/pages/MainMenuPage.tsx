@@ -7,6 +7,7 @@ import { WalletInfo } from '../components/WalletInfo';
 import { SkinSelector } from '../components/SkinSelector';
 import { LoginModal } from '../components/LoginModal';
 import { DepositModal } from '../components/DepositModal';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 import { GAME_INFO } from '../configs/game';
 import type { RoomType, VipAccessCheckResult, VipRoomConfig } from '../types/Game.types';
 
@@ -33,6 +34,9 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
   const [depositMessage, setDepositMessage] = useState<string | undefined>();
   const [vipProcessing, setVipProcessing] = useState(false);
   const [vipInfoText, setVipInfoText] = useState('');
+  
+  // 🚀 PWA: Install prompt hook
+  const { isInstallable, isInstalled, installPWA } = usePWAInstall();
 
   useEffect(() => {
     // Check authentication
@@ -175,17 +179,17 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, delay: 0.3, ease: 'backOut' }}
-        className="absolute inset-0 flex items-center justify-center overflow-y-auto py-4 sm:py-0"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden"
       >
-        <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4">
+        <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4 h-full flex flex-col justify-center">
           {/* Title */}
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-center mb-6 sm:mb-12 mt-14 sm:mt-0"
+            className="text-center mb-2 sm:mb-4 flex-shrink-0"
           >
             <h1
-              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-2 sm:mb-4 drop-shadow-lg"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold mb-0 sm:mb-1 drop-shadow-lg"
               style={{
                 background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
                 WebkitBackgroundClip: 'text',
@@ -197,7 +201,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
               {GAME_INFO.name}
             </h1>
             <p
-              className="text-xl sm:text-2xl md:text-3xl font-bold stroke-black"
+              className="text-sm sm:text-base md:text-lg font-bold stroke-black"
               style={{
                 background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
                 WebkitBackgroundClip: 'text',
@@ -215,24 +219,24 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="bg-game-dark/70 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 sm:border-4 border-game-blue/80 p-4 sm:p-6 md:p-8 shadow-2xl"
+            className="bg-game-dark/70 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 sm:border-4 border-game-blue/80 p-3 sm:p-4 md:p-6 shadow-2xl flex-shrink-0"
           >
             {/* Player Name Input */}
-            <div className="mb-4 sm:mb-6 md:mb-8">
-              <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] text-center mb-2">YOUR NAME</h3>
-              <div className="h-0.5 w-32 sm:w-40 mx-auto bg-game-blue mb-3 sm:mb-4"></div>
+            <div className="mb-2 sm:mb-3">
+              <h3 className="text-sm sm:text-base md:text-lg font-bold text-[#39FF14] text-center mb-1">YOUR NAME</h3>
+              <div className="h-0.5 w-24 sm:w-32 mx-auto bg-game-blue mb-2"></div>
               <input
                 type="text"
                 maxLength={15}
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-base sm:text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
+                className="w-full max-w-[260px] mx-auto block px-2 sm:px-3 py-1.5 sm:py-2 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-sm sm:text-base outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
               />
             </div>
 
             {/* Skin Selector */}
-            <div className="mb-4 sm:mb-6 md:mb-8">
+            <div className="mb-2 sm:mb-3">
               <SkinSelector
                 selectedSkin={selectedSkin}
                 onSelectSkin={setSelectedSkin}
@@ -240,7 +244,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             </div>
 
             {/* Play Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-6 justify-center mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-2 sm:mb-3">
               {/* Free Button */}
               <motion.button
                 onClick={handlePlayFree}
@@ -249,7 +253,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 className="relative group w-full sm:w-auto"
               >
                 <div className="absolute inset-0 bg-green-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-sm sm:text-base md:text-lg py-2 sm:py-2.5 px-6 sm:px-8 rounded-xl sm:rounded-2xl border-2 sm:border-3 border-white/80 shadow-lg">
                   PLAY FREE
                 </div>
               </motion.button>
@@ -263,7 +267,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 className="relative group w-full sm:w-auto"
               >
                 <div className="absolute inset-0 bg-orange-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm sm:text-base md:text-lg py-2 sm:py-2.5 px-6 sm:px-8 rounded-xl sm:rounded-2xl border-2 sm:border-3 border-white/80 shadow-lg">
                   {vipProcessing ? 'LOADING...' : 'PLAY VIP'}
                 </div>
               </motion.button>
@@ -271,7 +275,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
 
             {/* VIP Info Text */}
             <p 
-              className={`text-center text-xs sm:text-sm ${
+              className={`text-center text-xs ${
                 vipInfoText.includes('Ready') 
                   ? 'text-[#9ad6ff]' 
                   : vipInfoText.includes('🔒') 
@@ -283,21 +287,54 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             </p>
           </motion.div>
 
-          {/* Instructions */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-center text-white mt-4 sm:mt-6 text-sm sm:text-base max-w-lg mx-auto px-2"
-            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
-          >
-            Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!
-          </motion.p>
+          {/* Bottom Section - Instructions, PWA Button, Version */}
+          <div className="flex-shrink-0 mt-2 sm:mt-3 space-y-1">
+            {/* Instructions */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-center text-white text-xs sm:text-sm max-w-lg mx-auto px-2"
+              style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
+            >
+              Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!
+            </motion.p>
 
-          {/* Version */}
-          <p className="text-center text-gray-400 text-xs mt-2 mb-4 sm:mb-0">
-            v{GAME_INFO.version}
-          </p>
+            {/* PWA Install Button */}
+            {isInstallable && !isInstalled && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1 }}
+                className="flex justify-center"
+              >
+                <motion.button
+                  onClick={installPWA}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative group flex items-center gap-1.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-xs sm:text-sm py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg border-2 border-white/80 shadow-lg transition-all"
+                >
+                  <div className="absolute inset-0 bg-purple-400/50 rounded-lg blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <svg className="relative w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span className="relative">📱 Install App</span>
+                </motion.button>
+              </motion.div>
+            )}
+            
+            {/* Debug info (remove in production) */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="text-center text-xs text-gray-500">
+                PWA: Installable={isInstallable ? 'Yes' : 'No'}, Installed={isInstalled ? 'Yes' : 'No'}
+              </div>
+            )}
+
+            {/* Version */}
+            <p className="text-center text-gray-400 text-xs">
+              v{GAME_INFO.version}
+            </p>
+          </div>
         </div>
       </motion.div>
 

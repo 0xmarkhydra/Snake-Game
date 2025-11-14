@@ -424,7 +424,7 @@ export class GameScene extends Scene {
         // 🚀 PERFORMANCE: Throttle camera update
         this.cameraUpdateCounter++;
         if (this.cameraUpdateCounter >= this.cameraUpdateInterval) {
-            this.updateCamera();
+        this.updateCamera();
             this.cameraUpdateCounter = 0;
         }
         
@@ -661,7 +661,7 @@ export class GameScene extends Scene {
             
             // Play death sound
             if (this.deathSound) {
-                this.deathSound.play();
+            this.deathSound.play();
             }
         });
         
@@ -2582,12 +2582,12 @@ export class GameScene extends Scene {
         // 🚀 MOBILE OPTIMIZATION: Lazy load background music only if available and on desktop
         const isMobile = this.isMobileDevice();
         if (!isMobile && this.cache.audio.exists('background')) {
-            this.backgroundMusic = this.sound.add('background', {
-                volume: 0.3,
-                loop: true
-            });
+        this.backgroundMusic = this.sound.add('background', {
+            volume: 0.3,
+            loop: true
+        });
             // Don't auto-play on mobile to save bandwidth and battery
-            this.backgroundMusic.play();
+        this.backgroundMusic.play();
         } else {
             // Create a dummy sound object for mobile
             this.backgroundMusic = {

@@ -181,13 +181,13 @@ export class VipGameRoom extends FreeGameRoom {
 
     // Handle kill reward (with killer)
     if (killer) {
-      const killerSession = this.sessionInfo.get(killer.id);
+    const killerSession = this.sessionInfo.get(killer.id);
 
       if (!killerSession) {
-        return;
-      }
+      return;
+    }
 
-      void this.processKillReward(killerSession, victimSession, context?.reason);
+    void this.processKillReward(killerSession, victimSession, context?.reason);
     }
   }
 
