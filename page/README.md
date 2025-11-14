@@ -1,4 +1,4 @@
-# Landing page Slither.fun
+# Landing page Slither.fitg
 
 ## Tổng quan
 - Thư mục `page/` chứa bản dựng tĩnh của landing page quảng bá cho dự án Snake Game.

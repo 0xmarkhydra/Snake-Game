@@ -1,0 +1,20 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect width="1080" height="1080" fill="#0F0E14"/>
+<rect width="1080" height="1080" fill="url(#pattern0_2971_7)" fill-opacity="0.3"/>
+<defs>
+<pattern id="pattern0_2971_7" patternUnits="userSpaceOnUse" patternTransform="matrix(59.85 0 0 119.7 512.721 508.987)" preserveAspectRatio="none" viewBox="6.69922 0.773438 95 190" width="1" height="1">
+<use xlink:href="#pattern0_2971_7_inner" transform="translate(-47.5 -95)"/>
+<use xlink:href="#pattern0_2971_7_inner" transform="translate(47.5 -95)"/>
+<use xlink:href="#pattern0_2971_7_inner" transform="translate(-95 0)"/>
+<g id="pattern0_2971_7_inner">
+<path d="M49 4.04102C49.6187 3.68389 50.3813 3.68389 51 4.04102L89.3008 26.1543C89.9196 26.5116 90.3017 27.1722 90.3018 27.8867V72.1133C90.3017 72.8278 89.9196 73.4884 89.3008 73.8457L51 95.959C50.3813 96.3161 49.6187 96.3161 49 95.959L10.6982 73.8457C10.0796 73.4884 9.69923 72.8277 9.69922 72.1133V27.8867C9.69923 27.1722 10.0804 26.5116 10.6992 26.1543L10.6982 26.1533L49 4.04102Z" fill="url(#paint0_linear_2971_7)" stroke="#040205" stroke-width="6"/>
+</g>
+<use xlink:href="#pattern0_2971_7_inner" transform="translate(-47.5 95)"/>
+<use xlink:href="#pattern0_2971_7_inner" transform="translate(47.5 95)"/>
+</pattern><linearGradient id="paint0_linear_2971_7" x1="50" y1="100" x2="50" y2="0" gradientUnits="userSpaceOnUse">
+<stop stop-color="#1D1F27"/>
+<stop offset="1" stop-color="#7582A9"/>
+</linearGradient>
+</defs>
+</svg>
+
