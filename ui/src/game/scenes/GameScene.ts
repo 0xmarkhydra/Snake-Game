@@ -99,6 +99,10 @@ export class GameScene extends Scene {
     private minimapUpdateCounter: number = 0;
     private minimapUpdateInterval: number = 3; // Update every 3 frames (~50ms at 60fps)
     
+    // 🚀 PERFORMANCE: Camera update throttling
+    private cameraUpdateCounter: number = 0;
+    private cameraUpdateInterval: number = 1; // Update every frame (can be increased if needed)
+    
     // 🚀 PERFORMANCE: Adaptive quality based on FPS
     private currentFPS: number = 60;
     private fpsCheckCounter: number = 0;
@@ -417,7 +421,12 @@ export class GameScene extends Scene {
             this.leaderboardUpdateCounter = 0;
         }
         
-        this.updateCamera();
+        // 🚀 PERFORMANCE: Throttle camera update
+        this.cameraUpdateCounter++;
+        if (this.cameraUpdateCounter >= this.cameraUpdateInterval) {
+            this.updateCamera();
+            this.cameraUpdateCounter = 0;
+        }
         
         // Remove the checkPlayerCollisions() call and keep only the visual effect for invulnerability
         if (time < this.invulnerableUntil) {
@@ -641,10 +650,12 @@ export class GameScene extends Scene {
         
         // Handle player died event
         room.onMessage('playerDied', (message) => {
-            console.log('[GameScene] [setupRoomHandlers] [playerDied] Received:', message, 'Current playerId:', this.playerId);
+            // 🚀 PERFORMANCE: Only log in development
+            if (process.env.NODE_ENV === 'development') {
+                console.log('[GameScene] [setupRoomHandlers] [playerDied] Received:', message, 'Current playerId:', this.playerId);
+            }
             
             if (message && message.playerId === this.playerId) {
-                console.log('[GameScene] [setupRoomHandlers] [playerDied] Player died, showing death overlay');
                 this.handlePlayerDeath();
             }
             
@@ -2379,6 +2390,9 @@ export class GameScene extends Scene {
     private updateMinimap() {
         if (!this.gameState) return;
         
+        // 🚀 PERFORMANCE: Skip minimap update if not visible or game is paused
+        if (!this.minimap || !this.minimap.visible) return;
+        
         // Clear the minimap
         this.minimap.clear();
         
@@ -2386,50 +2400,69 @@ export class GameScene extends Scene {
         this.minimap.lineStyle(1, 0xFFFFFF, 0.5);
         this.minimap.strokeRect(0, 0, 150, 150);
         
-        // Calculate scale factors
+        // Calculate scale factors once
         const scaleX = 150 / this.worldWidth;
         const scaleY = 150 / this.worldHeight;
         
-        // Draw all players
+        // 🚀 PERFORMANCE: Batch draw operations
+        const playerDots: Array<{x: number, y: number, color: number, size: number}> = [];
+        const foodDots: Array<{x: number, y: number, color: number}> = [];
+        
+        // Collect player positions
         this.gameState.players.forEach((player: any) => {
             if (!player.alive || !player.headPosition) return;
             
-            // Use headPosition instead of segments[0]
             const headPosition = player.headPosition;
-            
-            // Calculate minimap position
             const minimapX = headPosition.x * scaleX;
             const minimapY = headPosition.y * scaleY;
-            
-            // Draw player dot
             const isCurrentPlayer = player.id === this.playerId;
-            const color = isCurrentPlayer ? 0xFFFF00 : 0xFFFFFF;
-            const size = isCurrentPlayer ? 4 : 2;
             
-            this.minimap.fillStyle(color, 1);
-            this.minimap.fillCircle(minimapX, minimapY, size);
+            playerDots.push({
+                x: minimapX,
+                y: minimapY,
+                color: isCurrentPlayer ? 0xFFFF00 : 0xFFFFFF,
+                size: isCurrentPlayer ? 4 : 2
+            });
         });
         
-        // Draw food dots (smaller and with different color)
+        // Collect food positions (limit to visible foods for performance)
+        let foodCount = 0;
+        const maxFoodsOnMinimap = 200; // Limit foods on minimap
         this.foods.forEach((food) => {
+            if (foodCount >= maxFoodsOnMinimap) return;
             const minimapX = food.x * scaleX;
             const minimapY = food.y * scaleY;
-            
-            // Use different colors for different food values
             const isSpecialFood = food.getData('value') > 1;
-            const foodColor = isSpecialFood ? 0xFF00FF : 0x00FF00;
             
-            this.minimap.fillStyle(foodColor, 0.7);
-            this.minimap.fillCircle(minimapX, minimapY, 1);
+            foodDots.push({
+                x: minimapX,
+                y: minimapY,
+                color: isSpecialFood ? 0xFF00FF : 0x00FF00
+            });
+            foodCount++;
+        });
+        
+        // Batch draw players
+        playerDots.forEach(dot => {
+            this.minimap.fillStyle(dot.color, 1);
+            this.minimap.fillCircle(dot.x, dot.y, dot.size);
+        });
+        
+        // Batch draw foods
+        foodDots.forEach(dot => {
+            this.minimap.fillStyle(dot.color, 0.7);
+            this.minimap.fillCircle(dot.x, dot.y, 1);
         });
     }
     
     private handlePlayerDeath() {
-        console.log('[GameScene] [handlePlayerDeath] Called');
+        // 🚀 PERFORMANCE: Only log in development
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[GameScene] [handlePlayerDeath] Called');
+        }
         
         // Make sure deathOverlay exists before trying to use it
         if (!this.deathOverlay) {
-            console.log('[GameScene] [handlePlayerDeath] Creating death overlay');
             this.createDeathOverlay();
         }
         
@@ -2438,25 +2471,19 @@ export class GameScene extends Scene {
     }
     
     private showDeathOverlay() {
-        console.log('[GameScene] [showDeathOverlay] Called');
-        
         // Make sure deathOverlay exists before trying to use it
         if (!this.deathOverlay) {
-            console.log('[GameScene] [showDeathOverlay] Creating death overlay');
             this.createDeathOverlay();
         }
         
         this.deathOverlay.setVisible(true);
-        console.log('[GameScene] [showDeathOverlay] Death overlay visible:', this.deathOverlay.visible);
         
         // Also show the buttons
         if (this.respawnButton) {
             this.respawnButton.setVisible(true);
-            console.log('[GameScene] [showDeathOverlay] Respawn button visible:', this.respawnButton.visible);
         }
         if (this.menuButton) {
             this.menuButton.setVisible(true);
-            console.log('[GameScene] [showDeathOverlay] Menu button visible:', this.menuButton.visible);
         }
         
         // Update score on death screen
