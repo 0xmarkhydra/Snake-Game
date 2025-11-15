@@ -1,4 +1,4 @@
-# snake-game
+# snake-game1
 
 This project contains both backend (NestJS + Colyseus) and UI (Phaser) components.
 
