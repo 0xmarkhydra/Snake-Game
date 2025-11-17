@@ -117,6 +117,12 @@ export class AuthService {
         referredBy: referredBy ? { id: referredBy.id } : undefined,
         referredAt: referredBy ? new Date() : undefined,
       });
+    } else {
+      // User exists but may not have referral code (created before migration)
+      // Generate referral code if missing
+      if (!user.referralCode) {
+        user.referralCode = await this.referralService.generateUniqueReferralCode();
+      }
     }
 
     user.lastLoginAt = new Date();

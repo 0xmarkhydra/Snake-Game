@@ -20,6 +20,7 @@ import {
   TransactionStatus,
   TransactionType,
   UserEntity,
+  WalletBalanceEntity,
 } from '@/database/entities';
 
 type ProcessGameCommissionParams = {
@@ -214,121 +215,144 @@ export class ReferralService {
     page: number = 1,
     limit: number = 10,
   ) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    const skip = (page - 1) * limit;
-
-    // Get total referrals count
-    const totalReferrals = await this.userRepository.count({
-      where: { referredById: userId },
-    });
-
-    // Get referrals with pagination
-    const referrals = await this.userRepository.find({
-      where: { referredById: userId },
-      skip,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
-
-    // Get total earned
-    const confirmedRewards = await this.referralRewardRepository.find({
-      where: {
-        referrerId: userId,
-        status: ReferralRewardStatus.CONFIRMED,
-      },
-    });
-
-    let totalEarned = 0;
-    let earnedFromKills = 0;
-    let earnedFromDeaths = 0;
-
-    for (const reward of confirmedRewards) {
-      const amount = this.toNumber(reward.amount);
-      totalEarned += amount;
-
-      const actionType = reward.metadata?.action_type as string;
-      if (actionType === 'kill') {
-        earnedFromKills += amount;
-      } else if (actionType === 'death') {
-        earnedFromDeaths += amount;
+    try {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new BadRequestException('User not found');
       }
-    }
 
-    // Get stats per referee
-    const referralsWithStats = await Promise.all(
-      referrals.map(async (referee) => {
-        const refereeRewards = await this.referralRewardRepository.find({
-          where: {
-            referrerId: userId,
-            refereeId: referee.id,
-            status: ReferralRewardStatus.CONFIRMED,
-          },
-        });
+      // Generate referral code if missing (for users created before migration)
+      if (!user.referralCode) {
+        user.referralCode = await this.generateUniqueReferralCode();
+        await this.userRepository.save(user);
+      }
 
-        let refereeEarned = 0;
-        let refereeEarnedFromKills = 0;
-        let refereeEarnedFromDeaths = 0;
+      const skip = (page - 1) * limit;
 
-        for (const reward of refereeRewards) {
-          const amount = this.toNumber(reward.amount);
-          refereeEarned += amount;
+      // Get total referrals count
+      const totalReferrals = await this.userRepository
+        .createQueryBuilder('user')
+        .where('user.referred_by_id = :userId', { userId })
+        .getCount();
 
-          const actionType = reward.metadata?.action_type as string;
-          if (actionType === 'kill') {
-            refereeEarnedFromKills += amount;
-          } else if (actionType === 'death') {
-            refereeEarnedFromDeaths += amount;
-          }
+      // Get referrals with pagination
+      const referrals = await this.userRepository
+        .createQueryBuilder('user')
+        .where('user.referred_by_id = :userId', { userId })
+        .orderBy('user.created_at', 'DESC')
+        .skip(skip)
+        .take(limit)
+        .getMany();
+
+      // Get total earned
+      const confirmedRewards = await this.referralRewardRepository
+        .createQueryBuilder('reward')
+        .where('reward.referrer_id = :userId', { userId })
+        .andWhere('reward.status = :status', {
+          status: ReferralRewardStatus.CONFIRMED,
+        })
+        .getMany();
+
+      let totalEarned = 0;
+      let earnedFromKills = 0;
+      let earnedFromDeaths = 0;
+
+      for (const reward of confirmedRewards) {
+        const amount = this.toNumber(reward.amount);
+        if (isNaN(amount)) continue;
+        totalEarned += amount;
+
+        const actionType = reward.metadata?.action_type as string;
+        if (actionType === 'kill') {
+          earnedFromKills += amount;
+        } else if (actionType === 'death') {
+          earnedFromDeaths += amount;
         }
+      }
 
-        return {
-          refereeId: referee.id,
-          refereeWallet: referee.walletAddress,
-          refereeDisplayName: referee.displayName,
-          joinedAt: referee.createdAt,
-          totalEarned: this.formatAmount(refereeEarned),
-          earnedFromKills: this.formatAmount(refereeEarnedFromKills),
-          earnedFromDeaths: this.formatAmount(refereeEarnedFromDeaths),
-          lastActivityAt: referee.lastLoginAt,
-        };
-      }),
-    );
+      // Get stats per referee
+      const referralsWithStats = await Promise.all(
+        referrals.map(async (referee) => {
+          const refereeRewards = await this.referralRewardRepository
+            .createQueryBuilder('reward')
+            .where('reward.referrer_id = :userId', { userId })
+            .andWhere('reward.referee_id = :refereeId', { refereeId: referee.id })
+            .andWhere('reward.status = :status', {
+              status: ReferralRewardStatus.CONFIRMED,
+            })
+            .getMany();
 
-    return {
-      referralCode: user.referralCode,
-      referralLink: user.referralCode
-        ? `https://game.com?ref=${user.referralCode}`
-        : null,
-      totalReferrals,
-      activeReferrals: totalReferrals, // TODO: Calculate active referrals based on last activity
-      totalEarned: this.formatAmount(totalEarned),
-      earnedFromKills: this.formatAmount(earnedFromKills),
-      earnedFromDeaths: this.formatAmount(earnedFromDeaths),
-      referrals: referralsWithStats,
-      pagination: {
-        page,
-        limit,
-        total: totalReferrals,
-        totalPages: Math.ceil(totalReferrals / limit),
-      },
-    };
+          let refereeEarned = 0;
+          let refereeEarnedFromKills = 0;
+          let refereeEarnedFromDeaths = 0;
+
+          for (const reward of refereeRewards) {
+            const amount = this.toNumber(reward.amount);
+            if (isNaN(amount)) continue;
+            refereeEarned += amount;
+
+            const actionType = reward.metadata?.action_type as string;
+            if (actionType === 'kill') {
+              refereeEarnedFromKills += amount;
+            } else if (actionType === 'death') {
+              refereeEarnedFromDeaths += amount;
+            }
+          }
+
+          return {
+            refereeId: referee.id,
+            refereeWallet: referee.walletAddress,
+            refereeDisplayName: referee.displayName || '',
+            joinedAt: referee.created_at,
+            totalEarned: this.formatAmount(refereeEarned),
+            earnedFromKills: this.formatAmount(refereeEarnedFromKills),
+            earnedFromDeaths: this.formatAmount(refereeEarnedFromDeaths),
+            lastActivityAt: referee.lastLoginAt || null,
+          };
+        }),
+      );
+
+      const frontendUrl =
+        this.configService.get<string>('app.frontendUrl') ||
+        this.configService.get<string>('FRONTEND_URL') ||
+        'https://game.com';
+
+      return {
+        referralCode: user.referralCode || '',
+        referralLink: user.referralCode
+          ? `${frontendUrl}?ref=${user.referralCode}`
+          : '',
+        totalReferrals,
+        activeReferrals: totalReferrals, // TODO: Calculate active referrals based on last activity
+        totalEarned: this.formatAmount(totalEarned),
+        earnedFromKills: this.formatAmount(earnedFromKills),
+        earnedFromDeaths: this.formatAmount(earnedFromDeaths),
+        referrals: referralsWithStats,
+        pagination: {
+          page,
+          limit,
+          total: totalReferrals,
+          totalPages: Math.ceil(totalReferrals / limit) || 1,
+        },
+      };
+    } catch (error) {
+      console.error('[ReferralService] getReferralStats error:', error);
+      throw error;
+    }
   }
 
   private async getTotalCommissionFromReferee(
     referrerId: string,
     refereeId: string,
   ): Promise<number> {
-    const rewards = await this.referralRewardRepository.find({
-      where: {
-        referrerId,
-        refereeId,
+    const rewards = await this.referralRewardRepository
+      .createQueryBuilder('reward')
+      .where('reward.referrer_id = :referrerId', { referrerId })
+      .andWhere('reward.referee_id = :refereeId', { refereeId })
+      .andWhere('reward.status = :status', {
         status: ReferralRewardStatus.CONFIRMED,
-      },
-    });
+      })
+      .getMany();
 
     return rewards.reduce(
       (sum, reward) => sum + this.toNumber(reward.amount),
@@ -372,8 +396,10 @@ export class ReferralService {
     return value.toFixed(this.tokenDecimals);
   }
 
-  private toNumber(value: string | number): number {
-    return typeof value === 'string' ? parseFloat(value) : value;
+  private toNumber(value: string | number | null | undefined): number {
+    if (value === null || value === undefined) return 0;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return isNaN(num) ? 0 : num;
   }
 }
 
