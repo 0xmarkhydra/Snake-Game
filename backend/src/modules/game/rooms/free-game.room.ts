@@ -79,11 +79,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   ];
 
   protected readonly degreeToRadian = Math.PI / 180;
-  protected readonly MAX_TURN_RATE = 6; // Maximum degrees per frame (increased for easier control)
+  protected readonly MAX_TURN_RATE = 20; // Maximum degrees per frame (increased for easier control)
   protected readonly TURN_SPEED_PENALTY = 0.85; // Speed multiplier when turning (0.85 = 15% slower)
   protected readonly SCORE_PER_SEGMENT = 5; // Score needed per segment growth
   protected readonly INITIAL_SEGMENTS = 5; // Initial segment count
-  protected readonly MAX_SEGMENTS = 100; // Maximum segments per snake
+  protected readonly MAX_SEGMENTS = 80; // Maximum segments per snake
 
   onCreate(): void {
     this.setState(new SnakeGameState());
