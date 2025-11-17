@@ -3,6 +3,7 @@ import { GAME_INFO } from '../configs/game';
 import { LoadingScene } from './scenes/LoadingScene';
 // import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
+import { getOptimalDevicePixelRatio, getOptimalTargetFPS } from '../utils/device';
 
 //  Find out more information about the Game Config at:
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
@@ -15,9 +16,9 @@ const config: Phaser.Types.Core.GameConfig = {
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,
-        // 🚀 PERFORMANCE: Cap devicePixelRatio to max 2 to avoid excessive resolution on high-DPI displays
-        width: window.innerWidth * Math.min(window.devicePixelRatio || 1, 2),
-        height: window.innerHeight * Math.min(window.devicePixelRatio || 1, 2)
+        // 🚀 PERFORMANCE: Use optimal devicePixelRatio based on OS (Mac handles high DPI better than Windows)
+        width: window.innerWidth * getOptimalDevicePixelRatio(),
+        height: window.innerHeight * getOptimalDevicePixelRatio()
     },
     title: GAME_INFO.name,
     scene: [
@@ -28,9 +29,9 @@ const config: Phaser.Types.Core.GameConfig = {
     // Enhanced graphics settings
     pixelArt: false, // Set to true for pixel art games
     roundPixels: false, // Prevents pixel interpolation for pixel art
-    // 🚀 PERFORMANCE: Disable antialiasing for better performance on high resolution
-    antialias: false, // Disabled for performance
-    antialiasGL: false, // Disabled for performance
+    // Enable antialiasing for crisp text rendering
+    antialias: true, // Enabled for sharp text
+    antialiasGL: true, // Enabled for sharp text
     desynchronized: true, // Reduces input lag
     physics: {
         default: 'arcade',
@@ -48,8 +49,8 @@ const config: Phaser.Types.Core.GameConfig = {
         powerPreference: 'high-performance'
     },
     fps: {
-        // 🚀 MOBILE OPTIMIZATION: Lower target FPS on mobile for better performance
-        target: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768 ? 60 : 120,
+        // 🚀 PERFORMANCE: Use optimal FPS based on OS (Mac: 120fps, Windows: 60fps for stability)
+        target: getOptimalTargetFPS(),
         forceSetTimeOut: false,
         smoothStep: true // Enable frame smoothing
     }

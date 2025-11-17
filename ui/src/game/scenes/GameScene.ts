@@ -243,6 +243,18 @@ export class GameScene extends Scene {
         this.isQuitting = false;
     }
     
+    // Helper method to create sharp text with high resolution
+    private createSharpText(x: number, y: number, text: string, style?: Phaser.Types.GameObjects.Text.TextStyle): Phaser.GameObjects.Text {
+        const textObj = this.add.text(x, y, text, style);
+        // Set high resolution for crisp text rendering
+        // Import getOptimalDevicePixelRatio at top of file if needed, or use inline calculation
+        const resolution = Math.min(window.devicePixelRatio || 1, 2);
+        if (textObj.setResolution) {
+            textObj.setResolution(resolution);
+        }
+        return textObj;
+    }
+    
     async create() {
         // Set up world bounds - with safety check
         this.cameras.main?.setBounds(0, 0, this.worldWidth, this.worldHeight);
@@ -979,7 +991,7 @@ export class GameScene extends Scene {
         titleBg.fillRoundedRect(0, 0, cardWidth, 30, { tl: 10, tr: 10, bl: 0, br: 0 });
         this.statsPanel.add(titleBg);
         
-        const title = this.add.text(cardWidth / 2, 15, 'PLAYER STATS', { 
+        const title = this.createSharpText(cardWidth / 2, 15, 'PLAYER STATS', { 
             fontFamily: 'Arial', 
             fontSize: '16px', 
             fontStyle: 'bold',
@@ -995,7 +1007,7 @@ export class GameScene extends Scene {
             .setScale(1.2);
         this.statsPanel.add(scoreIcon);
         
-        this.scoreText = this.add.text(45, 50, 'Score: 0', { 
+        this.scoreText = this.createSharpText(45, 50, 'Score: 0', { 
             fontFamily: 'Arial', 
             fontSize: '16px',
             color: '#ffffff',
@@ -1010,7 +1022,7 @@ export class GameScene extends Scene {
             .setScale(1.2);
         this.statsPanel.add(rankIcon);
         
-        this.playerRankText = this.add.text(45, 80, 'Rank: -/-', { 
+        this.playerRankText = this.createSharpText(45, 80, 'Rank: -/-', { 
             fontFamily: 'Arial', 
             fontSize: '16px',
             color: '#ffffff',
@@ -1025,7 +1037,7 @@ export class GameScene extends Scene {
             .setScale(1.2);
         this.statsPanel.add(fpsIcon);
         
-        this.fpsText = this.add.text(45, 110, 'FPS: 0', { 
+        this.fpsText = this.createSharpText(45, 110, 'FPS: 0', { 
             fontFamily: 'Arial', 
             fontSize: '16px',
             color: '#ffffff',
@@ -1040,7 +1052,7 @@ export class GameScene extends Scene {
                 .setScale(1.2);
             this.statsPanel.add(vipIcon);
 
-            this.vipCreditText = this.add.text(45, 140, 'Credit: 0', {
+            this.vipCreditText = this.createSharpText(45, 140, 'Credit: 0', {
                 fontFamily: 'Arial',
                 fontSize: '16px',
                 color: '#ffeb8a',
@@ -1049,7 +1061,7 @@ export class GameScene extends Scene {
             }).setOrigin(0, 0.5);
             this.statsPanel.add(this.vipCreditText);
 
-            this.vipInfoText = this.add.text(10, cardHeight - 10, '', {
+            this.vipInfoText = this.createSharpText(10, cardHeight - 10, '', {
                 fontFamily: 'Arial',
                 fontSize: '12px',
                 color: '#ffe9b5',
@@ -1098,7 +1110,7 @@ export class GameScene extends Scene {
         this.leaderboardPanel.add(titleBg);
         
         // Title (cached)
-        this.leaderboardTitle = this.add.text(0, 20, 'LEADERBOARD', { 
+        this.leaderboardTitle = this.createSharpText(0, 20, 'LEADERBOARD', { 
             fontFamily: 'Arial',
             fontSize: '20px',
             fontStyle: 'bold',
@@ -1111,25 +1123,25 @@ export class GameScene extends Scene {
         // Column headers (cached)
         const headerY = 50;
         this.leaderboardHeaders = {
-            rank: this.add.text(-bgWidth/2 + 20, headerY, 'RANK', { 
+            rank: this.createSharpText(-bgWidth/2 + 20, headerY, 'RANK', { 
                     fontFamily: 'Arial',
                 fontSize: '12px',
                 color: '#aaaaff',
                 fontStyle: 'bold'
             }),
-            name: this.add.text(-bgWidth/2 + 60, headerY, 'NAME', { 
+            name: this.createSharpText(-bgWidth/2 + 60, headerY, 'NAME', { 
                 fontFamily: 'Arial', 
                 fontSize: '12px',
                 color: '#aaaaff',
                 fontStyle: 'bold'
             }),
-            score: this.add.text(-bgWidth/2 + 140, headerY, 'SCORE', { 
+            score: this.createSharpText(-bgWidth/2 + 140, headerY, 'SCORE', { 
                 fontFamily: 'Arial', 
                 fontSize: '12px',
                 color: '#aaaaff',
                 fontStyle: 'bold'
             }),
-            kills: this.add.text(-bgWidth/2 + 190, headerY, 'KILLS', { 
+            kills: this.createSharpText(-bgWidth/2 + 190, headerY, 'KILLS', { 
                 fontFamily: 'Arial', 
                 fontSize: '12px',
                 color: '#aaaaff',
@@ -1158,7 +1170,7 @@ export class GameScene extends Scene {
             this.leaderboardPanel.add(rowBg);
             
             // Rank text
-            const rankText = this.add.text(-bgWidth/2 + 20, rowY, '', { 
+            const rankText = this.createSharpText(-bgWidth/2 + 20, rowY, '', { 
                 fontFamily: 'Arial', 
                 fontSize: '14px',
                 color: '#ffffff'
@@ -1168,21 +1180,21 @@ export class GameScene extends Scene {
             const colorCircle = this.add.graphics();
             
             // Name text
-            const nameText = this.add.text(-bgWidth/2 + 65, rowY, '', { 
+            const nameText = this.createSharpText(-bgWidth/2 + 65, rowY, '', { 
                 fontFamily: 'Arial', 
                 fontSize: '14px',
                 color: '#ffffff'
             }).setOrigin(0, 0.5);
             
             // Score text
-            const scoreText = this.add.text(-bgWidth/2 + 140, rowY, '', { 
+            const scoreText = this.createSharpText(-bgWidth/2 + 140, rowY, '', { 
                 fontFamily: 'Arial', 
                 fontSize: '14px',
                 color: '#ffffff'
             }).setOrigin(0, 0.5);
             
             // Kills text
-            const killsText = this.add.text(-bgWidth/2 + 190, rowY, '', { 
+            const killsText = this.createSharpText(-bgWidth/2 + 190, rowY, '', { 
                 fontFamily: 'Arial', 
                 fontSize: '14px',
                 color: '#ffffff'
@@ -1246,7 +1258,7 @@ export class GameScene extends Scene {
         this.minimap.setDepth(91);
         
         // Add a title for the minimap
-        const minimapTitle = this.add.text(
+        const minimapTitle = this.createSharpText(
             this.cameras.main.width - minimapSize/2 - margin,
             this.cameras.main.height - minimapSize - margin - 15,
             'MAP',
@@ -1274,7 +1286,7 @@ export class GameScene extends Scene {
         this.deathOverlay.add(bg);
         
         // Add death message
-        const deathText = this.add.text(width/2, height/2 - 100, 'YOU DIED', {
+        const deathText = this.createSharpText(width/2, height/2 - 100, 'YOU DIED', {
             fontFamily: 'Arial',
             fontSize: '64px',
             color: '#ff0000',
@@ -1284,7 +1296,7 @@ export class GameScene extends Scene {
         this.deathOverlay.add(deathText);
         
         // Add score text with a name so we can find it later
-        const scoreText = this.add.text(width/2, height/2, 'Score: 0', {
+        const scoreText = this.createSharpText(width/2, height/2, 'Score: 0', {
             fontFamily: 'Arial',
             fontSize: '32px',
             color: '#ffffff',
@@ -1297,7 +1309,7 @@ export class GameScene extends Scene {
         // This ensures they're properly interactive
         
         // Respawn button
-        this.respawnButton = this.add.text(width/2, height/2 + 100, 'RESPAWN', {
+        this.respawnButton = this.createSharpText(width/2, height/2 + 100, 'RESPAWN', {
             fontFamily: 'Arial',
             fontSize: '32px',
             color: '#ffffff',
@@ -1330,7 +1342,7 @@ export class GameScene extends Scene {
         });
         
         // Menu button
-        this.menuButton = this.add.text(width/2, height/2 + 180, 'BACK TO MENU', {
+        this.menuButton = this.createSharpText(width/2, height/2 + 180, 'BACK TO MENU', {
             fontFamily: 'Arial',
             fontSize: '24px',
             color: '#ffffff',
@@ -1526,7 +1538,7 @@ export class GameScene extends Scene {
                 if (nameText) {
                     nameText.destroy();
                 }
-                nameText = this.add.text(0, 0, displayName, {
+                nameText = this.createSharpText(0, 0, displayName, {
                     fontFamily: 'Arial',
                     fontSize: '18px',
                     color: nameColor,
@@ -2442,7 +2454,7 @@ export class GameScene extends Scene {
             return;
         }
 
-        const notification = this.add.text(
+        const notification = this.createSharpText(
             this.cameras.main.centerX,
             70,
             text,
@@ -2756,7 +2768,7 @@ export class GameScene extends Scene {
                 const width = this.cameras.main.width;
                 const height = this.cameras.main.height;
                 
-                const newScoreText = this.add.text(width/2, height/2, `Score: ${player.score}`, {
+                const newScoreText = this.createSharpText(width/2, height/2, `Score: ${player.score}`, {
                     fontFamily: 'Arial',
                     fontSize: '32px',
                     color: '#ffffff',
@@ -3096,7 +3108,7 @@ export class GameScene extends Scene {
         }
         
         // Add a score popup text (always show)
-        const scoreText = this.add.text(x, y - 20, `+${value}`, {
+        const scoreText = this.createSharpText(x, y - 20, `+${value}`, {
             fontFamily: 'Arial',
             fontSize: value > 1 ? '24px' : '20px',
             color: value > 1 ? '#ffff00' : '#ffffff',
@@ -3173,7 +3185,7 @@ export class GameScene extends Scene {
         container.add(skull);
         
         // Add text with killer name in bold - enable HTML formatting
-        const notificationText = this.add.text(
+        const notificationText = this.createSharpText(
             -bgWidth/2 + 60, 0,
             '', // Start with empty text, we'll set it with HTML below
             {
@@ -3195,7 +3207,7 @@ export class GameScene extends Scene {
         notificationText.setText(killText);
         
         // Create a separate text object for the killer name with different styling
-        const killerText = this.add.text(
+        const killerText = this.createSharpText(
             -bgWidth/2 + 60, 0,
             killerName,
             {
@@ -3212,7 +3224,7 @@ export class GameScene extends Scene {
         const killerWidth = killerText.width;
         
         // Create the "eliminated" text
-        const eliminatedText = this.add.text(
+        const eliminatedText = this.createSharpText(
             -bgWidth/2 + 60 + killerWidth + 5, 0,
             `eliminated ${killedName}!`,
             {
@@ -3390,7 +3402,7 @@ export class GameScene extends Scene {
         drawButton('default');
         buttonContainer.alpha = idleAlpha;
 
-        const buttonText = this.add.text(btnWidth / 2, btnHeight / 2, '⏻ Quit', {
+        const buttonText = this.createSharpText(btnWidth / 2, btnHeight / 2, '⏻ Quit', {
             fontFamily: 'Arial',
             fontSize: '20px',
             color: '#ffffff',
