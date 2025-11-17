@@ -4,6 +4,7 @@ import {
   AuthController,
   GameController,
   HealthController,
+  ReferralController,
   WalletController,
 } from '@/api/controllers';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -28,6 +29,7 @@ const controllers = [
   HealthController,
   WalletController,
   GameController,
+  ReferralController,
 ];
 
 @Module({

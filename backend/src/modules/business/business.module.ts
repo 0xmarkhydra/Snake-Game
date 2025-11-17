@@ -6,6 +6,7 @@ import {
   AuthService,
   GameService,
   OpenAIService,
+  ReferralService,
   VipGameService,
   WalletService,
 } from './services';
@@ -14,6 +15,7 @@ const services = [
   AuthService,
   GameService,
   OpenAIService,
+  ReferralService,
   WalletService,
   VipGameService,
 ];

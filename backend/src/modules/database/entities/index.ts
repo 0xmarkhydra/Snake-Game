@@ -6,3 +6,4 @@ export * from './wallet-balance.entity';
 export * from './vip-room-config.entity';
 export * from './vip-ticket.entity';
 export * from './kill-log.entity';
+export * from './referral-reward.entity';

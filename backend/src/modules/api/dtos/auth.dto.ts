@@ -43,6 +43,15 @@ export class VerifySignatureDto {
   @IsString()
   @IsNotEmpty()
   signature: string;
+
+  @ApiPropertyOptional({
+    description: 'Referral code of the user who invited this user',
+    example: 'ABC12345',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 16)
+  referralCode?: string;
 }
 
 export class RefreshTokenDto {

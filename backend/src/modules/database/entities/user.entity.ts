@@ -1,4 +1,12 @@
-import { Column, Entity, Index, OneToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  RelationId,
+} from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { UserSessionEntity } from './user-session.entity';
 
@@ -19,6 +27,21 @@ export class UserEntity extends BaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: Record<string, unknown>;
+
+  @Column({ name: 'referral_code', length: 16, unique: true, nullable: true })
+  @Index('IDX_users_referral_code')
+  referralCode?: string;
+
+  @ManyToOne(() => UserEntity, { nullable: true })
+  @JoinColumn({ name: 'referred_by_id' })
+  @Index('IDX_users_referred_by_id')
+  referredBy?: UserEntity;
+
+  @RelationId((user: UserEntity) => user.referredBy)
+  referredById?: string;
+
+  @Column({ name: 'referred_at', type: 'timestamptz', nullable: true })
+  referredAt?: Date;
 
   @OneToMany(() => UserSessionEntity, (session) => session.user)
   sessions: UserSessionEntity[];

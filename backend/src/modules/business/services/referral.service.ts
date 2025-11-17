@@ -1,0 +1,379 @@
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
+import { randomBytes } from 'crypto';
+import {
+  ReferralRewardRepository,
+  TransactionRepository,
+  UserRepository,
+  WalletBalanceRepository,
+} from '@/database/repositories';
+import {
+  ReferralRewardEntity,
+  ReferralRewardStatus,
+  ReferralRewardType,
+  TransactionEntity,
+  TransactionStatus,
+  TransactionType,
+  UserEntity,
+} from '@/database/entities';
+
+type ProcessGameCommissionParams = {
+  refereeId: string;
+  referrerId: string;
+  feeAmount: string;
+  killLogId: string;
+  actionType: 'kill' | 'death';
+  metadata?: Record<string, unknown>;
+};
+
+@Injectable()
+export class ReferralService {
+  private readonly tokenDecimals: number;
+  private readonly killCommissionRate: number;
+  private readonly deathCommissionRate: number;
+  private readonly commissionCapPerUser?: number;
+  private readonly referralCodeLength: number;
+
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly referralRewardRepository: ReferralRewardRepository,
+    private readonly transactionRepository: TransactionRepository,
+    private readonly walletBalanceRepository: WalletBalanceRepository,
+    private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
+  ) {
+    this.tokenDecimals =
+      Number(this.configService.get<number>('wallet.tokenDecimals')) || 6;
+    this.killCommissionRate =
+      Number(
+        this.configService.get<number>('referral.gameKillCommissionRate'),
+      ) || 0.02;
+    this.deathCommissionRate =
+      Number(
+        this.configService.get<number>('referral.gameDeathCommissionRate'),
+      ) || 0.01;
+    this.commissionCapPerUser = this.configService.get<number>(
+      'referral.commissionCapPerUser',
+    );
+    this.referralCodeLength =
+      Number(this.configService.get<number>('referral.codeLength')) || 8;
+  }
+
+  async generateUniqueReferralCode(): Promise<string> {
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      const code = this.generateReferralCode();
+      const existing = await this.userRepository.findOne({
+        where: { referralCode: code },
+      });
+
+      if (!existing) {
+        return code;
+      }
+
+      attempts++;
+    }
+
+    throw new InternalServerErrorException(
+      'Failed to generate unique referral code',
+    );
+  }
+
+  async validateAndGetReferrer(
+    referralCode: string,
+    walletAddress?: string,
+  ): Promise<UserEntity | null> {
+    if (!referralCode) {
+      return null;
+    }
+
+    const referrer = await this.userRepository.findOne({
+      where: { referralCode },
+    });
+
+    if (!referrer) {
+      throw new BadRequestException('Invalid referral code');
+    }
+
+    if (walletAddress && referrer.walletAddress === walletAddress) {
+      throw new BadRequestException('Cannot refer yourself');
+    }
+
+    return referrer;
+  }
+
+  async processGameCommission(
+    params: ProcessGameCommissionParams,
+  ): Promise<ReferralRewardEntity> {
+    const { refereeId, referrerId, feeAmount, killLogId, actionType, metadata } =
+      params;
+
+    // Check if already processed (idempotent)
+    // Query by checking metadata contains kill_log_id and action_type
+    const existing = await this.referralRewardRepository
+      .createQueryBuilder('reward')
+      .where('reward.referrer_id = :referrerId', { referrerId })
+      .andWhere('reward.referee_id = :refereeId', { refereeId })
+      .andWhere("reward.metadata->>'kill_log_id' = :killLogId", { killLogId })
+      .andWhere("reward.metadata->>'action_type' = :actionType", { actionType })
+      .getOne();
+
+    if (existing) {
+      return existing;
+    }
+
+    // Calculate commission
+    const feeAmountNumber = this.toNumber(feeAmount);
+    const commissionRate =
+      actionType === 'kill'
+        ? this.killCommissionRate
+        : this.deathCommissionRate;
+    const commission = feeAmountNumber * commissionRate;
+
+    // Check commission cap
+    if (this.commissionCapPerUser) {
+      const totalCommission = await this.getTotalCommissionFromReferee(
+        referrerId,
+        refereeId,
+      );
+      if (totalCommission + commission > this.commissionCapPerUser) {
+        throw new BadRequestException(
+          'Commission cap exceeded for this referee',
+        );
+      }
+    }
+
+    return await this.dataSource.transaction(async (manager) => {
+      const referralRewardRepo =
+        manager.getRepository(ReferralRewardEntity);
+      const transactionRepo = manager.getRepository(TransactionEntity);
+      const walletRepo = manager.getRepository(WalletBalanceEntity);
+
+      // Create referral reward record
+      const referralReward = referralRewardRepo.create({
+        referrer: { id: referrerId },
+        referee: { id: refereeId },
+        rewardType: ReferralRewardType.GAME_COMMISSION,
+        amount: this.formatAmount(commission),
+        status: ReferralRewardStatus.PENDING,
+        metadata: {
+          action_type: actionType,
+          fee_amount: feeAmount,
+          kill_log_id: killLogId,
+          ...metadata,
+        },
+      });
+
+      const savedReward = await referralRewardRepo.save(referralReward);
+
+      // Create transaction for referrer
+      const transaction = transactionRepo.create({
+        user: { id: referrerId },
+        type: TransactionType.REWARD,
+        status: TransactionStatus.CONFIRMED,
+        amount: this.formatAmount(commission),
+        metadata: {
+          referral_reward_id: savedReward.id,
+          reward_type: 'game_commission',
+          action_type: actionType,
+          kill_log_id: killLogId,
+          fee_amount: feeAmount,
+        },
+      });
+
+      const savedTransaction = await transactionRepo.save(transaction);
+
+      // Update wallet balance
+      const balance = await this.getOrCreateWalletBalance(
+        referrerId,
+        walletRepo,
+      );
+      const currentAmount = this.toNumber(balance.availableAmount);
+      balance.availableAmount = this.formatAmount(currentAmount + commission);
+      balance.lastTransactionId = savedTransaction.id;
+      await walletRepo.save(balance);
+
+      // Update referral reward
+      savedReward.transaction = savedTransaction;
+      savedReward.status = ReferralRewardStatus.CONFIRMED;
+      await referralRewardRepo.save(savedReward);
+
+      return savedReward;
+    });
+  }
+
+  async getReferralStats(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Get total referrals count
+    const totalReferrals = await this.userRepository.count({
+      where: { referredById: userId },
+    });
+
+    // Get referrals with pagination
+    const referrals = await this.userRepository.find({
+      where: { referredById: userId },
+      skip,
+      take: limit,
+      order: { createdAt: 'DESC' },
+    });
+
+    // Get total earned
+    const confirmedRewards = await this.referralRewardRepository.find({
+      where: {
+        referrerId: userId,
+        status: ReferralRewardStatus.CONFIRMED,
+      },
+    });
+
+    let totalEarned = 0;
+    let earnedFromKills = 0;
+    let earnedFromDeaths = 0;
+
+    for (const reward of confirmedRewards) {
+      const amount = this.toNumber(reward.amount);
+      totalEarned += amount;
+
+      const actionType = reward.metadata?.action_type as string;
+      if (actionType === 'kill') {
+        earnedFromKills += amount;
+      } else if (actionType === 'death') {
+        earnedFromDeaths += amount;
+      }
+    }
+
+    // Get stats per referee
+    const referralsWithStats = await Promise.all(
+      referrals.map(async (referee) => {
+        const refereeRewards = await this.referralRewardRepository.find({
+          where: {
+            referrerId: userId,
+            refereeId: referee.id,
+            status: ReferralRewardStatus.CONFIRMED,
+          },
+        });
+
+        let refereeEarned = 0;
+        let refereeEarnedFromKills = 0;
+        let refereeEarnedFromDeaths = 0;
+
+        for (const reward of refereeRewards) {
+          const amount = this.toNumber(reward.amount);
+          refereeEarned += amount;
+
+          const actionType = reward.metadata?.action_type as string;
+          if (actionType === 'kill') {
+            refereeEarnedFromKills += amount;
+          } else if (actionType === 'death') {
+            refereeEarnedFromDeaths += amount;
+          }
+        }
+
+        return {
+          refereeId: referee.id,
+          refereeWallet: referee.walletAddress,
+          refereeDisplayName: referee.displayName,
+          joinedAt: referee.createdAt,
+          totalEarned: this.formatAmount(refereeEarned),
+          earnedFromKills: this.formatAmount(refereeEarnedFromKills),
+          earnedFromDeaths: this.formatAmount(refereeEarnedFromDeaths),
+          lastActivityAt: referee.lastLoginAt,
+        };
+      }),
+    );
+
+    return {
+      referralCode: user.referralCode,
+      referralLink: user.referralCode
+        ? `https://game.com?ref=${user.referralCode}`
+        : null,
+      totalReferrals,
+      activeReferrals: totalReferrals, // TODO: Calculate active referrals based on last activity
+      totalEarned: this.formatAmount(totalEarned),
+      earnedFromKills: this.formatAmount(earnedFromKills),
+      earnedFromDeaths: this.formatAmount(earnedFromDeaths),
+      referrals: referralsWithStats,
+      pagination: {
+        page,
+        limit,
+        total: totalReferrals,
+        totalPages: Math.ceil(totalReferrals / limit),
+      },
+    };
+  }
+
+  private async getTotalCommissionFromReferee(
+    referrerId: string,
+    refereeId: string,
+  ): Promise<number> {
+    const rewards = await this.referralRewardRepository.find({
+      where: {
+        referrerId,
+        refereeId,
+        status: ReferralRewardStatus.CONFIRMED,
+      },
+    });
+
+    return rewards.reduce(
+      (sum, reward) => sum + this.toNumber(reward.amount),
+      0,
+    );
+  }
+
+  private async getOrCreateWalletBalance(
+    userId: string,
+    repository: any,
+  ) {
+    let balance = await repository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!balance) {
+      balance = repository.create({
+        user: { id: userId },
+        availableAmount: this.formatAmount(0),
+        lockedAmount: this.formatAmount(0),
+      });
+      balance = await repository.save(balance);
+    }
+
+    return balance;
+  }
+
+  private generateReferralCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const bytes = randomBytes(this.referralCodeLength);
+    let code = '';
+
+    for (let i = 0; i < this.referralCodeLength; i++) {
+      code += chars[bytes[i] % chars.length];
+    }
+
+    return code;
+  }
+
+  private formatAmount(value: number): string {
+    return value.toFixed(this.tokenDecimals);
+  }
+
+  private toNumber(value: string | number): number {
+    return typeof value === 'string' ? parseFloat(value) : value;
+  }
+}
+

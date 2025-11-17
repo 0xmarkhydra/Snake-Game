@@ -6,3 +6,4 @@ export * from './wallet-balance.repository';
 export * from './vip-room-config.repository';
 export * from './vip-ticket.repository';
 export * from './kill-log.repository';
+export * from './referral-reward.repository';

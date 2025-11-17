@@ -16,6 +16,7 @@ import { MoreThanOrEqual, IsNull } from 'typeorm';
 import { TJWTPayload } from '@/shared/types';
 import { UserRepository, UserSessionRepository } from '@/database/repositories';
 import { UserEntity } from '@/database/entities/user.entity';
+import { ReferralService } from './referral.service';
 
 const NONCE_KEY_PREFIX = 'auth:nonce';
 
@@ -47,6 +48,7 @@ export class AuthService {
     private readonly userSessionRepository: UserSessionRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly referralService: ReferralService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {
     this.nonceTtl = Number(
@@ -80,7 +82,7 @@ export class AuthService {
     walletAddress: string,
     nonce: string,
     signature: string,
-    metadata?: { userAgent?: string; ipAddress?: string },
+    metadata?: { userAgent?: string; ipAddress?: string; referralCode?: string },
   ): Promise<LoginResult> {
     const normalizedWallet = this.normalizeWallet(walletAddress);
     await this.ensureNonceValid(normalizedWallet, nonce);
@@ -91,9 +93,29 @@ export class AuthService {
     });
 
     if (!user) {
+      // Generate unique referral code for new user
+      const referralCode = await this.referralService.generateUniqueReferralCode();
+
+      // Validate and get referrer if referral code provided
+      let referredBy: UserEntity | null = null;
+      if (metadata?.referralCode) {
+        try {
+          referredBy = await this.referralService.validateAndGetReferrer(
+            metadata.referralCode,
+            normalizedWallet,
+          );
+        } catch (error) {
+          // If referral code is invalid, continue without referrer
+          console.warn('[AuthService] Invalid referral code:', error);
+        }
+      }
+
       user = this.userRepository.create({
         walletAddress: normalizedWallet,
         displayName: normalizedWallet.slice(0, 8),
+        referralCode,
+        referredBy: referredBy ? { id: referredBy.id } : undefined,
+        referredAt: referredBy ? new Date() : undefined,
       });
     }
 

@@ -34,6 +34,7 @@ import {
   VipTicketRepository,
   WalletBalanceRepository,
 } from '@/database/repositories';
+import { ReferralService } from './referral.service';
 
 export type VipAccessCheckResult = {
   canJoin: boolean;
@@ -103,6 +104,7 @@ export class VipGameService {
     private readonly killLogRepository: KillLogRepository,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
+    private readonly referralService: ReferralService,
     @InjectPinoLogger(VipGameService.name)
     private readonly logger: PinoLogger,
   ) {
@@ -427,6 +429,63 @@ export class VipGameService {
         await walletRepository.save(killerBalanceResult.balance);
         await walletRepository.save(victimBalanceResult.balance);
 
+        // Process referral commission after transaction is committed
+        // Load users with referredById to check for referrers
+        const killerUser = await this.userRepository.findOne({
+          where: { id: killerTicket.user.id },
+          select: ['id', 'referredById'],
+        });
+        const victimUser = await this.userRepository.findOne({
+          where: { id: victimTicket.user.id },
+          select: ['id', 'referredById'],
+        });
+
+        // Check if killer has referrer
+        if (killerUser?.referredById) {
+          try {
+            await this.referralService.processGameCommission({
+              refereeId: killerUser.id,
+              referrerId: killerUser.referredById,
+              feeAmount: this.formatAmount(feeAmount),
+              killLogId: killLog.id,
+              actionType: 'kill',
+              metadata: {
+                reward_amount: this.formatAmount(rewardAmount),
+                kill_reference: params.killReference,
+              },
+            });
+          } catch (error) {
+            // Log error but don't fail the kill reward processing
+            this.logger.warn(
+              error,
+              'Failed to process referral commission for killer',
+            );
+          }
+        }
+
+        // Check if victim has referrer
+        if (victimUser?.referredById) {
+          try {
+            await this.referralService.processGameCommission({
+              refereeId: victimUser.id,
+              referrerId: victimUser.referredById,
+              feeAmount: this.formatAmount(feeAmount),
+              killLogId: killLog.id,
+              actionType: 'death',
+              metadata: {
+                penalty_amount: this.formatAmount(totalDebit),
+                kill_reference: params.killReference,
+              },
+            });
+          } catch (error) {
+            // Log error but don't fail the kill reward processing
+            this.logger.warn(
+              error,
+              'Failed to process referral commission for victim',
+            );
+          }
+        }
+
         return {
           killerCredit: killerBalanceResult.balance.availableAmount,
           victimCredit: victimBalanceResult.balance.availableAmount,
@@ -530,6 +589,36 @@ export class VipGameService {
         balance.lastTransactionId = savedTransaction.id;
 
         await walletRepository.save(balance);
+
+        // Process referral commission after transaction is committed
+        // Check if victim has referrer
+        const user = await this.userRepository.findOne({
+          where: { id: ticket.user.id },
+          select: ['id', 'referredById'],
+        });
+
+        if (user?.referredById) {
+          try {
+            await this.referralService.processGameCommission({
+              refereeId: ticket.user.id,
+              referrerId: user.referredById,
+              feeAmount: this.formatAmount(feeAmount),
+              killLogId: killLog.id,
+              actionType: 'death',
+              metadata: {
+                penalty_amount: this.formatAmount(totalPenalty),
+                kill_reference: killReference,
+                reason: 'wall_collision',
+              },
+            });
+          } catch (error) {
+            // Log error but don't fail the penalty processing
+            this.logger.warn(
+              error,
+              'Failed to process referral commission for wall collision',
+            );
+          }
+        }
 
         return {
           credit: balance.availableAmount,
