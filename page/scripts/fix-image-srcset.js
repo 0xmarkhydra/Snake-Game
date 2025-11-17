@@ -106,13 +106,13 @@
       }
     }
     
-    // Xử lý ảnh snake (yUVgrZDk2l1IjQOlMpzc2cM7fdM.png hoặc oHQkubo9Vwyd2py5kwKiJFIYpVA.webp)
+    // Xử lý ảnh snake (yUVgrZDk2l1IjQOlMpzc2cM7fdM.png hoặc oHQkubo9Vwyd2py5kwKiJFIYpVA.png)
     const snakeImages = document.querySelectorAll('img[src*="yUVgrZDk2l1IjQOlMpzc2cM7fdM"], img[src*="oHQkubo9Vwyd2py5kwKiJFIYpVA"]');
     snakeImages.forEach(img => {
       if (img.src.includes('yUVgrZDk2l1IjQOlMpzc2cM7fdM')) {
         img.src = './assets/yUVgrZDk2l1IjQOlMpzc2cM7fdM.png';
       } else if (img.src.includes('oHQkubo9Vwyd2py5kwKiJFIYpVA')) {
-        img.src = './assets/oHQkubo9Vwyd2py5kwKiJFIYpVA.webp';
+        img.src = './assets/oHQkubo9Vwyd2py5kwKiJFIYpVA.png';
       }
       img.style.display = 'block';
       img.style.opacity = '1';
