@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   AdminConfigRepository,
   KillLogRepository,
+  ReferralRewardRepository,
   TransactionRepository,
   UserRepository,
   UserSessionRepository,
@@ -15,6 +16,7 @@ import {
 import {
   AdminConfigEntity,
   KillLogEntity,
+  ReferralRewardEntity,
   TransactionEntity,
   UserEntity,
   UserSessionEntity,
@@ -28,6 +30,7 @@ const repositories = [
   AdminConfigRepository,
   TransactionRepository,
   KillLogRepository,
+  ReferralRewardRepository,
   UserRepository,
   UserSessionRepository,
   VipRoomConfigRepository,
@@ -41,6 +44,7 @@ const entities = [
   AdminConfigEntity,
   TransactionEntity,
   KillLogEntity,
+  ReferralRewardEntity,
   UserEntity,
   UserSessionEntity,
   VipRoomConfigEntity,

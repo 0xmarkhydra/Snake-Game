@@ -4,6 +4,7 @@ import {
   AuthController,
   GameController,
   HealthController,
+  ReferralController,
   WalletController,
 } from '@/api/controllers';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -17,6 +18,7 @@ import { configAuth } from './configs/auth';
 import { configCache } from './configs/cache';
 import { configWallet } from './configs/wallet';
 import { configGame } from './configs/game';
+import { configReferral } from './configs/referral';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
 import { WebSocketModule } from '../websocket/websocket.module';
@@ -28,6 +30,7 @@ const controllers = [
   HealthController,
   WalletController,
   GameController,
+  ReferralController,
 ];
 
 @Module({
@@ -60,7 +63,7 @@ const controllers = [
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
-      load: [configAuth, configCache, configWallet, configGame],
+      load: [configAuth, configCache, configWallet, configGame, configReferral],
     }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

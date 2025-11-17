@@ -68,6 +68,7 @@ export class AuthController {
       {
         userAgent: request.headers['user-agent'] ?? undefined,
         ipAddress: request.ip,
+        referralCode: payload.referralCode,
       },
     );
     return this.mapLoginResult(result);

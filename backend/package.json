@@ -20,7 +20,9 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migration:run": "ts-node -r tsconfig-paths/register src/modules/database/run-migration.ts",
+    "migration:revert": "ts-node -r tsconfig-paths/register -e \"import { AppDataSource } from './src/modules/database/data-source'; AppDataSource.initialize().then(async () => { await AppDataSource.undoLastMigration(); await AppDataSource.destroy(); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });\""
   },
   "dependencies": {
     "@colyseus/core": "^0.16.22",
