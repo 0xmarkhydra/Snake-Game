@@ -100,7 +100,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     this.onMessage('boost', (client, active: boolean) => {
       const player = this.state.players.get(client.sessionId);
       if (player && player.alive) {
-        if (active && player.score >= 1) {
+        if (active && player.score >= 10) {
           player.boosting = true;
         } else {
           player.boosting = false;
@@ -279,7 +279,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
             this.state.players,
             currentTime,
           );
-          if (shouldBoost && !player.boosting && player.score >= 1) {
+          if (shouldBoost && !player.boosting && player.score >= 10) {
             player.boosting = true;
           } else if (!shouldBoost) {
             player.boosting = false;
@@ -405,8 +405,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         player.boostTime = 0;
 
         if (player.segments.length > this.INITIAL_SEGMENTS) {
-          // 🔥 Boost penalty: -10 points every 500ms (increased from -1)
-          player.score = Math.max(0, player.score - 10);
+          // 🔥 Boost penalty: -20 points every 500ms (~40 points/second)
+          player.score = Math.max(0, player.score - 20);
 
           // 🔄 Sync segments to score after boost penalty
           this.syncSegmentsToScore(player);

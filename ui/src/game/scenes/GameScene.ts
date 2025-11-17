@@ -1440,6 +1440,14 @@ export class GameScene extends Scene {
         const room = this.room;
         if (!room || this.isQuitting) return;
         
+        // Check if player has enough score to boost (minimum 10 points)
+        if (this.gameState && this.playerId) {
+            const player = this.gameState.players.get(this.playerId);
+            if (!player || player.score < 10) {
+                return; // Not enough score to boost
+            }
+        }
+        
         this.isBoosting = true;
         room.send('boost', true);
         
@@ -2697,7 +2705,7 @@ export class GameScene extends Scene {
         
         // Collect food positions (limit to visible foods for performance)
         let foodCount = 0;
-        const maxFoodsOnMinimap = 200; // Limit foods on minimap
+        const maxFoodsOnMinimap = 250; // Limit foods on minimap
         this.foods.forEach((food) => {
             if (foodCount >= maxFoodsOnMinimap) return;
             const minimapX = food.x * scaleX;
