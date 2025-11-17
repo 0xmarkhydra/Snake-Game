@@ -6,12 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  DataSource,
-  EntityManager,
-  FindOneOptions,
-  Repository,
-} from 'typeorm';
+import { DataSource, EntityManager, FindOneOptions, Repository } from 'typeorm';
 import { v4 as uuid } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import {
@@ -283,8 +278,7 @@ export class VipGameService {
         const killLogRepository = manager.getRepository(KillLogEntity);
         const ticketRepository = manager.getRepository(VipTicketEntity);
         const walletRepository = manager.getRepository(WalletBalanceEntity);
-        const transactionRepository =
-          manager.getRepository(TransactionEntity);
+        const transactionRepository = manager.getRepository(TransactionEntity);
 
         const existingLog = await killLogRepository.findOne({
           where: { killReference: params.killReference },
@@ -457,8 +451,7 @@ export class VipGameService {
         const killLogRepository = manager.getRepository(KillLogEntity);
         const ticketRepository = manager.getRepository(VipTicketEntity);
         const walletRepository = manager.getRepository(WalletBalanceEntity);
-        const transactionRepository =
-          manager.getRepository(TransactionEntity);
+        const transactionRepository = manager.getRepository(TransactionEntity);
 
         const ticket = await this.findTicketWithLock(ticketId, manager);
 
@@ -570,15 +563,11 @@ export class VipGameService {
         const entryRequirement = this.toNumber(config.entryFee);
 
         if (currentCredit < entryRequirement) {
-          throw new UnauthorizedException(
-            'Insufficient credit for respawn',
-          );
+          throw new UnauthorizedException('Insufficient credit for respawn');
         }
 
         if (currentCredit < cost) {
-          throw new UnauthorizedException(
-            'Insufficient credit for respawn',
-          );
+          throw new UnauthorizedException('Insufficient credit for respawn');
         }
 
         if (cost > 0) {

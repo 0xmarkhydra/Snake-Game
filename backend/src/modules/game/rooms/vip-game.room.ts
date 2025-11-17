@@ -188,7 +188,11 @@ export class VipGameRoom extends FreeGameRoom {
         return;
       }
 
-      void this.processKillReward(killerSession, victimSession, context?.reason);
+      void this.processKillReward(
+        killerSession,
+        victimSession,
+        context?.reason,
+      );
     }
   }
 
@@ -196,10 +200,11 @@ export class VipGameRoom extends FreeGameRoom {
     victimSession: SessionInfo,
   ): Promise<void> {
     try {
-      const result = await VipGameRoom.vipGameService!.processWallCollisionPenalty(
-        victimSession.ticketId,
-        this.roomId,
-      );
+      const result =
+        await VipGameRoom.vipGameService!.processWallCollisionPenalty(
+          victimSession.ticketId,
+          this.roomId,
+        );
 
       victimSession.credit = VipGameServiceUtils.parseCredit(result.credit);
 
@@ -219,7 +224,8 @@ export class VipGameRoom extends FreeGameRoom {
     } catch (error) {
       console.error('❌ Failed to process VIP wall collision penalty', error);
       this.broadcast('vip:error', {
-        message: 'Wall collision penalty processing failed. Please continue playing.',
+        message:
+          'Wall collision penalty processing failed. Please continue playing.',
       });
     }
   }

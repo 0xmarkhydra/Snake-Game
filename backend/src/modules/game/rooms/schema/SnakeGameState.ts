@@ -96,6 +96,9 @@ export class Player extends Schema {
   @type('number')
   boostTime: number = 0;
 
+  @type('number')
+  lastBoostFoodSpawnTime: number = 0;
+
   @type(Vector2)
   headPosition: Vector2;
 
@@ -149,7 +152,7 @@ export class SnakeGameState extends Schema {
   worldHeight: number = 4000;
 
   @type('number')
-  maxFoods: number = 450; // Balanced amount for good gameplay experience
+  maxFoods: number = 500; // Increased for better food availability
 
   @type('number')
   tickRate: number = 16;

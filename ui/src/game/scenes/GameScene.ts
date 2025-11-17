@@ -128,13 +128,13 @@ export class GameScene extends Scene {
     
     // Add this property to the class
     private lastAngle: number = 0;
-    private maxAngleChange: number = 7; // Increased from 10 to 20 degrees per frame
+    private maxAngleChange: number = 16; // Increased for better turn responsiveness
     
     // 🚀 PERFORMANCE: Throttle network messages
     private lastSentAngle: number = 0;
     private lastMoveSentTime: number = 0;
     private moveSendInterval: number = 50; // Send max 20 times/second instead of 60
-    private minAngleDiffToSend: number = 2; // Only send if angle changed > 2 degrees
+    private minAngleDiffToSend: number = 1; // Only send if angle changed > 1 degree (more responsive)
     
     // 🔥 PERFORMANCE: Throttle food attraction calculation
     private lastAttractionUpdate: number = 0;
@@ -417,7 +417,7 @@ export class GameScene extends Scene {
                 
                 // Limit the angle change to maxAngleChange
                 // Reduce the limiting effect when the player is boosting for more responsive turns
-                const effectiveMaxAngleChange = player.boosting ? this.maxAngleChange * 1.5 : this.maxAngleChange;
+                const effectiveMaxAngleChange = player.boosting ? this.maxAngleChange * 2.0 : this.maxAngleChange;
                 
                 if (Math.abs(angleDiff) > effectiveMaxAngleChange) {
                     const sign = Math.sign(angleDiff);

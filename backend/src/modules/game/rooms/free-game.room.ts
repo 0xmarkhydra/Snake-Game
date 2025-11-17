@@ -6,7 +6,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   maxClients = 20;
   tickRate = 8; // Increased from 16ms to 8ms (120fps) to match client target FPS
   gameLoopInterval: Delayed;
-  
+  foodRespawnInterval: Delayed; // Auto-respawn food periodically
+
   // Bot management
   private bots: Map<string, BotAI> = new Map();
   private readonly minPlayersForBots = 1; // Minimum real players before adding bots
@@ -78,8 +79,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   ];
 
   protected readonly degreeToRadian = Math.PI / 180;
-  protected readonly MAX_TURN_RATE = 4; // Maximum degrees per frame (reduced for harder control)
-  protected readonly TURN_SPEED_PENALTY = 0.7; // Speed multiplier when turning (0.7 = 30% slower)
+  protected readonly MAX_TURN_RATE = 6; // Maximum degrees per frame (increased for easier control)
+  protected readonly TURN_SPEED_PENALTY = 0.85; // Speed multiplier when turning (0.85 = 15% slower)
   protected readonly SCORE_PER_SEGMENT = 5; // Score needed per segment growth
   protected readonly INITIAL_SEGMENTS = 5; // Initial segment count
   protected readonly MAX_SEGMENTS = 100; // Maximum segments per snake
@@ -171,6 +172,25 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     this.gameLoopInterval = this.clock.setInterval(() => {
       this.gameLoop();
     }, this.tickRate);
+
+    // 🍎 Auto-respawn food every 2 seconds to keep food plentiful
+    this.foodRespawnInterval = this.clock.setInterval(() => {
+      const currentFoodCount = this.state.foods.size;
+      const maxFoods = this.state.maxFoods;
+
+      // Only spawn if below max
+      if (currentFoodCount < maxFoods) {
+        // Spawn 5-10 food per interval
+        const foodsToSpawn = Math.min(
+          Math.floor(Math.random() * 6) + 5,
+          maxFoods - currentFoodCount,
+        );
+
+        for (let i = 0; i < foodsToSpawn; i++) {
+          this.spawnFood();
+        }
+      }
+    }, 2000); // Every 2 seconds
   }
 
   onJoin(client: Client, options: { name: string; skinId?: number }): void {
@@ -223,6 +243,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   onDispose(): void {
     this.gameLoopInterval.clear();
+    this.foodRespawnInterval.clear();
   }
 
   private lastBotManagementTime: number = 0;
@@ -231,7 +252,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
 
   protected gameLoop(): void {
     const currentTime = Date.now();
-    
+
     this.state.players.forEach((player, playerId) => {
       if (!player.alive) {
         return;
@@ -253,7 +274,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           player.angle = newAngle;
 
           // Handle bot boost (with current time for throttling)
-          const shouldBoost = botAI.shouldBoost(player, this.state.players, currentTime);
+          const shouldBoost = botAI.shouldBoost(
+            player,
+            this.state.players,
+            currentTime,
+          );
           if (shouldBoost && !player.boosting && player.score >= 1) {
             player.boosting = true;
           } else if (!shouldBoost) {
@@ -275,30 +300,33 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     });
 
     // Manage bots periodically
-    if (currentTime - this.lastBotManagementTime >= this.botManagementInterval) {
+    if (
+      currentTime - this.lastBotManagementTime >=
+      this.botManagementInterval
+    ) {
       this.manageBots();
       this.lastBotManagementTime = currentTime;
     }
 
     // ✅ FIX: Đảm bảo luôn có đủ food để chơi
-    // Nếu food quá ít (< 50), spawn thêm để đảm bảo game vẫn chơi được
+    // Nếu food quá ít (< 200), spawn thêm để đảm bảo game vẫn chơi được
     const currentFoodCount = this.state.foods.size;
-    const minFoodThreshold = 50; // Tối thiểu 50 food để game vẫn chơi được
-    
+    const minFoodThreshold = 200; // Tối thiểu 200 food để game vẫn chơi được (increased from 50)
+
     if (currentFoodCount < minFoodThreshold) {
       // Spawn thêm food để đạt minFoodThreshold
       const foodsToSpawn = minFoodThreshold - currentFoodCount;
       for (let i = 0; i < foodsToSpawn; i++) {
-      this.spawnFood();
+        this.spawnFood();
       }
     }
   }
 
   protected resolveBaseSpeed(player: Player): number {
     // Speed increases as player score increases
-    const initialBaseSpeed = player.speed * 0.75; // 3.75 with default speed = 5
+    const initialBaseSpeed = player.speed * 1.0; // 5.0 with default speed = 5 (increased from 0.75)
     const speedIncreasePerPoint = 0.01;
-    const maxSpeed = 6.0;
+    const maxSpeed = 8.0; // Increased from 6.0
     return Math.min(
       initialBaseSpeed + player.score * speedIncreasePerPoint,
       maxSpeed,
@@ -308,7 +336,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   protected resolveNormalMultiplier(player: Player): number {
     // Normal speed multiplier is fixed to prevent exponential speed growth
     void player; // Unused parameter
-    return 2.5;
+    return 3.0; // Increased from 2.5
   }
 
   protected resolveBoostTargetMultiplier(
@@ -370,11 +398,15 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (player.boosting) {
       player.boostTime += this.tickRate;
 
+      // 🍎 Spawn food trail while boosting
+      this.spawnBoostFood(player, Date.now());
+
       if (player.boostTime >= 500) {
         player.boostTime = 0;
 
         if (player.segments.length > this.INITIAL_SEGMENTS) {
-          player.score = Math.max(0, player.score - 1);
+          // 🔥 Boost penalty: -10 points every 500ms (increased from -1)
+          player.score = Math.max(0, player.score - 10);
 
           // 🔄 Sync segments to score after boost penalty
           this.syncSegmentsToScore(player);
@@ -534,13 +566,13 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected spawnFoodFromDeadPlayer(player: Player, score: number): void {
-    // 🍎 Đơn giản: Trả lại số food đã ăn (1 point = 1 food)
-    // Không giới hạn bởi maxFoods - đơn giản là trả lại số food đã ăn
-    
+    // 🍎 Only return 10% of score as food (reduced from 100%)
+    // This makes deaths less rewarding and encourages survival
+
     if (score <= 0) {
-      return; // Không có score thì không spawn
+      return; // No score = no food spawn
     }
-    
+
     // ✅ FIX: Save segments positions immediately before they might be cleared
     const segmentPositions: Array<{ x: number; y: number }> = [];
     const segmentCount = player.segments.length;
@@ -557,7 +589,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         }
       }
     }
-    
+
     // If no segments saved, use headPosition as fallback
     if (segmentPositions.length === 0 && player.headPosition) {
       segmentPositions.push({
@@ -565,15 +597,17 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         y: player.headPosition.y,
       });
     }
-    
+
     // If still no positions, can't spawn food
     if (segmentPositions.length === 0) {
       return;
     }
 
-    // 🔥 PERFORMANCE: Limit max food drops to prevent lag (nhưng vẫn spawn đủ)
-    const MAX_FOOD_DROP = 200; // Maximum 200 foods per death để tránh lag
-    const foodToSpawn = Math.min(score, MAX_FOOD_DROP);
+    // 🔥 BALANCE: Only spawn 10% of score as food (90% reduction)
+    // Max 20 foods per death to prevent lag and reduce rewards
+    const MAX_FOOD_DROP = 20; // Reduced from 200
+    const foodFromScore = Math.max(1, Math.floor(score * 0.1)); // 10% of score, min 1
+    const foodToSpawn = Math.min(foodFromScore, MAX_FOOD_DROP);
 
     // 🚀 PERFORMANCE: Progressive spawn in batches to reduce instant load
     const BATCH_SIZE = 20; // Spawn 20 foods at a time
@@ -591,8 +625,11 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       this.clock.setTimeout(() => {
         for (let index = batchStart; index < batchEnd; index += 1) {
           // Use evenly distributed segments to sample from the snake
-          const segmentIndex = Math.floor((index / foodToSpawn) * segmentPositions.length);
-          const segmentPos = segmentPositions[segmentIndex] || segmentPositions[0];
+          const segmentIndex = Math.floor(
+            (index / foodToSpawn) * segmentPositions.length,
+          );
+          const segmentPos =
+            segmentPositions[segmentIndex] || segmentPositions[0];
 
           if (!segmentPos) continue;
 
@@ -602,11 +639,9 @@ export class FreeGameRoom extends Room<SnakeGameState> {
           // Spawn food at segment position with slight random offset for visual variety
           const offsetRange = 20; // Slightly larger offset for better spread
           const foodX =
-            segmentPos.x +
-            (Math.random() * offsetRange * 2 - offsetRange);
+            segmentPos.x + (Math.random() * offsetRange * 2 - offsetRange);
           const foodY =
-            segmentPos.y +
-            (Math.random() * offsetRange * 2 - offsetRange);
+            segmentPos.y + (Math.random() * offsetRange * 2 - offsetRange);
 
           // Create food with value 1 (normal food)
           const food = new Food(foodId, foodX, foodY, 1);
@@ -635,7 +670,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     const position = this.getRandomPosition();
     const foodId = `food_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    const value = Math.random() < 0.05 ? 5 : 1;
+    const value = Math.random() < 0.1 ? 5 : 1; // 10% special food (increased from 5%)
 
     const food = new Food(foodId, position.x, position.y, value);
     this.state.foods.set(foodId, food);
@@ -645,6 +680,45 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       position: { x: position.x, y: position.y },
       value,
     });
+  }
+
+  /**
+   * 🍎 Spawn food when player is boosting
+   * Creates a food trail behind the snake
+   */
+  protected spawnBoostFood(player: Player, currentTime: number): void {
+    const BOOST_FOOD_INTERVAL = 150; // Spawn food every 150ms while boosting
+
+    // Check if enough time has passed since last spawn
+    if (currentTime - player.lastBoostFoodSpawnTime < BOOST_FOOD_INTERVAL) {
+      return;
+    }
+
+    // Get tail segment position (last segment)
+    const tailSegment = player.segments[player.segments.length - 1];
+    if (!tailSegment) {
+      return;
+    }
+
+    // Generate food at tail position with small random offset
+    const offsetRange = 10;
+    const foodX =
+      tailSegment.position.x + (Math.random() * offsetRange * 2 - offsetRange);
+    const foodY =
+      tailSegment.position.y + (Math.random() * offsetRange * 2 - offsetRange);
+    const foodId = `boost_food_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const food = new Food(foodId, foodX, foodY, 1); // Always value 1 for boost food
+    this.state.foods.set(foodId, food);
+
+    this.broadcast('foodSpawned', {
+      id: foodId,
+      position: { x: foodX, y: foodY },
+      value: 1,
+    });
+
+    // Update last spawn time
+    player.lastBoostFoodSpawnTime = currentTime;
   }
 
   protected getRandomPosition(): { x: number; y: number } {
@@ -736,8 +810,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   ): void {
     // ✅ FIX: Save score before killing player (score might be reset)
     const victimScore = victim.score;
-    const victimSegmentsCount = victim.segments.length;
-    
+
     this.killPlayer(victim);
 
     if (killer) {
@@ -755,7 +828,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (victimScore > 0) {
       this.spawnFoodFromDeadPlayer(victim, victimScore);
     }
-    
+
     this.afterKillProcessed(victim, killer, context);
   }
 
@@ -767,7 +840,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     void victim;
     void killer;
     void context;
-    
+
     // Respawn bot if it was killed
     if (this.bots.has(victim.id)) {
       this.clock.setTimeout(() => {
@@ -781,7 +854,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
    */
   protected manageBots(): void {
     const realPlayerCount = this.clients.length;
-    
+
     // Count only alive bots
     let aliveBotCount = 0;
     this.bots.forEach((_, botId) => {
@@ -790,7 +863,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         aliveBotCount++;
       }
     });
-    
+
     const currentBotCount = this.bots.size;
 
     // Only add bots if we have minimum real players
@@ -816,10 +889,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       const excessBots = aliveBotCount - this.targetBots;
       const botIds = Array.from(this.bots.keys());
       let removedCount = 0;
-      
+
       for (const botId of botIds) {
         if (removedCount >= excessBots) break;
-        
+
         const bot = this.state.players.get(botId);
         if (bot && bot.alive) {
           this.removeBot(botId);
@@ -837,8 +910,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
         botIdsToRemove.push(botId);
       }
     });
-    
-    botIdsToRemove.forEach(botId => {
+
+    botIdsToRemove.forEach((botId) => {
       // Get bot name before removing from bots map
       const bot = this.state.players.get(botId);
       if (bot) {
@@ -854,14 +927,18 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   protected spawnBot(): void {
     // Generate unique bot ID
     const botId = `bot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Get unused bot name
-    const availableNames = this.botNames.filter(name => !this.usedBotNames.has(name));
+    const availableNames = this.botNames.filter(
+      (name) => !this.usedBotNames.has(name),
+    );
     if (availableNames.length === 0) {
       // Reset if all names used
       this.usedBotNames.clear();
     }
-    const botName = availableNames[Math.floor(Math.random() * availableNames.length)] || this.botNames[0];
+    const botName =
+      availableNames[Math.floor(Math.random() * availableNames.length)] ||
+      this.botNames[0];
     this.usedBotNames.add(botName);
 
     // Spawn position
@@ -912,10 +989,10 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     if (bot) {
       // Free up bot name
       this.usedBotNames.delete(bot.name);
-      
+
       // Remove from game state
       this.state.players.delete(botId);
-      
+
       // Remove AI
       this.bots.delete(botId);
     }
@@ -926,7 +1003,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
    */
   protected removeAllBots(): void {
     const botIds = Array.from(this.bots.keys());
-    botIds.forEach(botId => {
+    botIds.forEach((botId) => {
       this.removeBot(botId);
     });
   }
