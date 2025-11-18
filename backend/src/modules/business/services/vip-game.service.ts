@@ -424,22 +424,24 @@ export class VipGameService {
         await walletRepository.save(victimBalanceResult.balance);
 
         // Process referral commission after transaction is committed
-        // Load users with referredById to check for referrers
-        const killerUser = await this.userRepository.findOne({
-          where: { id: killerTicket.user.id },
-          select: ['id', 'referredById'],
-        });
-        const victimUser = await this.userRepository.findOne({
-          where: { id: victimTicket.user.id },
-          select: ['id', 'referredById'],
-        });
+        // Load users with referred_by_id to check for referrers
+        const killerUser = await this.userRepository
+          .createQueryBuilder('user')
+          .select(['user.id', 'user.referred_by_id'])
+          .where('user.id = :userId', { userId: killerTicket.user.id })
+          .getRawOne();
+        const victimUser = await this.userRepository
+          .createQueryBuilder('user')
+          .select(['user.id', 'user.referred_by_id'])
+          .where('user.id = :userId', { userId: victimTicket.user.id })
+          .getRawOne();
 
         // Check if killer has referrer
-        if (killerUser?.referredById) {
+        if (killerUser?.user_referred_by_id) {
           try {
             await this.referralService.processGameCommission({
-              refereeId: killerUser.id,
-              referrerId: killerUser.referredById,
+              refereeId: killerUser.user_id,
+              referrerId: killerUser.user_referred_by_id,
               feeAmount: this.formatAmount(feeAmount),
               killLogId: killLog.id,
               actionType: 'kill',
@@ -458,11 +460,11 @@ export class VipGameService {
         }
 
         // Check if victim has referrer
-        if (victimUser?.referredById) {
+        if (victimUser?.user_referred_by_id) {
           try {
             await this.referralService.processGameCommission({
-              refereeId: victimUser.id,
-              referrerId: victimUser.referredById,
+              refereeId: victimUser.user_id,
+              referrerId: victimUser.user_referred_by_id,
               feeAmount: this.formatAmount(feeAmount),
               killLogId: killLog.id,
               actionType: 'death',
@@ -585,16 +587,17 @@ export class VipGameService {
 
         // Process referral commission after transaction is committed
         // Check if victim has referrer
-        const user = await this.userRepository.findOne({
-          where: { id: ticket.user.id },
-          select: ['id', 'referredById'],
-        });
+        const user = await this.userRepository
+          .createQueryBuilder('user')
+          .select(['user.id', 'user.referred_by_id'])
+          .where('user.id = :userId', { userId: ticket.user.id })
+          .getRawOne();
 
-        if (user?.referredById) {
+        if (user?.user_referred_by_id) {
           try {
             await this.referralService.processGameCommission({
-              refereeId: ticket.user.id,
-              referrerId: user.referredById,
+              refereeId: user.user_id,
+              referrerId: user.user_referred_by_id,
               feeAmount: this.formatAmount(feeAmount),
               killLogId: killLog.id,
               actionType: 'death',
