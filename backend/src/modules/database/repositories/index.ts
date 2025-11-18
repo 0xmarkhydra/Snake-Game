@@ -7,3 +7,4 @@ export * from './vip-room-config.repository';
 export * from './vip-ticket.repository';
 export * from './kill-log.repository';
 export * from './referral-reward.repository';
+export * from './question-webhook-log.repository';
