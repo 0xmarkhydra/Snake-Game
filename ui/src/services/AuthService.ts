@@ -151,10 +151,11 @@ class AuthService {
                 console.log('📝 Sending referral code to backend:', referralCode);
             }
             
-            const response = await apiService.post<any>('/auth/verify', payload);
+            const response = await apiService.post<LoginResult>('/auth/verify', payload);
             
-            // Backend returns BaseResponse format: { data: T, msg, status_code, timestamp }
-            const loginResult = response?.data || response;
+            // apiService.post already returns response.data (BaseResponse.data)
+            // So response is already the LoginResult: { user, tokens }
+            const loginResult = response;
             
             console.log('✅ Login successful. User referred by:', loginResult?.user?.referredById || 'None');
             
@@ -236,8 +237,10 @@ class AuthService {
      */
     async getProfile(): Promise<UserProfile | null> {
         try {
-            const response = await apiService.get<{ data: UserProfile }>('/auth/me');
-            return response.data;
+            // apiService.get already returns response.data (BaseResponse.data)
+            // So response is already the UserProfile
+            const response = await apiService.get<UserProfile>('/auth/me');
+            return response;
         } catch (error) {
             console.error('❌ Error fetching profile:', error);
             return null;
