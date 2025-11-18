@@ -62,13 +62,13 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
   return (
     <div className="w-full">
       {/* Label */}
-      <div className="text-center mb-3 sm:mb-4">
-        <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] mb-2">CHOOSE YOUR SKIN</h3>
-        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-game-blue"></div>
+      <div className="text-center mb-2 sm:mb-3 md:mb-4">
+        <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-[#39FF14] mb-1 sm:mb-2">CHOOSE YOUR SKIN</h3>
+        <div className="h-0.5 w-32 sm:w-40 md:w-48 lg:w-60 mx-auto bg-game-blue"></div>
       </div>
 
       {/* Skin Grid */}
-      <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-sm mx-auto mt-4 sm:mt-6 md:mt-8">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 max-w-sm mx-auto mt-2 sm:mt-3 md:mt-4 lg:mt-6">
         {SKINS.map((skinId, index) => {
           const isSelected = skinId === selectedSkin;
           const isHovered = skinId === hoveredSkin;
@@ -87,7 +87,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               {/* Selection Glow */}
               {isSelected && (
                 <motion.div
-                  className="absolute inset-0 -m-1 sm:-m-2 bg-yellow-400/30 rounded-lg sm:rounded-xl"
+                  className="absolute inset-0 -m-0.5 sm:-m-1 md:-m-2 bg-yellow-400/30 rounded-lg sm:rounded-xl"
                   animate={{ opacity: [0.3, 0.7, 0.3] }}
                   transition={{ duration: 0.8, repeat: Infinity }}
                 />
@@ -97,7 +97,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               <button
                 onClick={() => onSelectSkin(skinId)}
                 className={`
-                  relative w-[50px] h-[50px] sm:w-[55px] sm:h-[55px] rounded-lg sm:rounded-xl
+                  relative w-[40px] h-[40px] sm:w-[45px] sm:h-[45px] md:w-[50px] md:h-[50px] lg:w-[55px] lg:h-[55px] rounded-lg sm:rounded-xl
                   bg-gradient-to-b from-game-dark to-[#0a3473]
                   border-2 transition-all duration-200
                   ${isSelected 
