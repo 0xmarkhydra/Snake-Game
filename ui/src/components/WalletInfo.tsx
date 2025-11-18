@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/AuthService';
 import { walletService } from '../services/WalletService';
+import { referralService } from '../services/ReferralService';
 import { WithdrawModal } from './WithdrawModal';
 import { DepositModal } from './DepositModal';
+import { ReferralStatsModal } from './ReferralStatsModal';
 
 interface WalletInfoProps {
   onLogout: () => void;
@@ -16,6 +18,10 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
+  const [referralCode, setReferralCode] = useState<string>('');
+  const [referralCopied, setReferralCopied] = useState(false);
+  const [isLoadingReferral, setIsLoadingReferral] = useState(false);
 
   useEffect(() => {
     // Get wallet address
@@ -26,6 +32,26 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
 
     // Initial credit fetch
     setCredit(walletService.formatCredit());
+
+    // Load referral code
+    const loadReferralCode = async () => {
+      if (!authService.isAuthenticated()) return;
+      
+      setIsLoadingReferral(true);
+      try {
+        const data = await referralService.getMyReferralCode();
+        if (data && data.referralCode) {
+          setReferralCode(data.referralCode);
+        }
+      } catch (error) {
+        console.error('Failed to load referral code:', error);
+        // Keep referral code empty - section will show button to open modal instead
+      } finally {
+        setIsLoadingReferral(false);
+      }
+    };
+    
+    loadReferralCode();
 
     // Update credit periodically (increased from 1s to 3s for better performance)
     const interval = setInterval(() => {
@@ -45,6 +71,14 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
       await navigator.clipboard.writeText(fullAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCopyReferralCode = async () => {
+    if (referralCode) {
+      await navigator.clipboard.writeText(referralCode);
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
     }
   };
 
@@ -166,6 +200,51 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
                 </div>
               </div>
 
+              {/* Referral Code Section */}
+              <div className="mb-2 pb-2 border-b border-cyan-400/30">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1.5 mb-1">
+                    <span className="text-sm">🎁</span>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Referral Code</span>
+                  </div>
+                  {isLoadingReferral ? (
+                    <div className="flex items-center justify-center py-2">
+                      <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : referralCode ? (
+                    <>
+                      <motion.button
+                        onClick={handleCopyReferralCode}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex items-center justify-center gap-2 w-full p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 transition-all group"
+                      >
+                        <span className="text-lg font-bold text-cyan-300">{referralCode}</span>
+                        {referralCopied ? (
+                          <span className="text-[10px] text-green-400">✓</span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 group-hover:text-cyan-300">📋</span>
+                        )}
+                      </motion.button>
+                      <motion.button
+                        onClick={() => setIsReferralModalOpen(true)}
+                        whileTap={{ scale: 0.98 }}
+                        className="mt-1 text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors"
+                      >
+                        View Stats →
+                      </motion.button>
+                    </>
+                  ) : (
+                    <motion.button
+                      onClick={() => setIsReferralModalOpen(true)}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full py-2 px-3 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 hover:text-cyan-200 font-semibold text-xs transition-all"
+                    >
+                      View Referral Program
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+
               {/* Action Buttons (Compact) */}
               <div className="space-y-1.5">
                 {/* Deposit Button */}
@@ -218,6 +297,12 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         onWithdrawSuccess={handleWithdrawSuccess}
+      />
+
+      {/* Referral Stats Modal */}
+      <ReferralStatsModal
+        isOpen={isReferralModalOpen}
+        onClose={() => setIsReferralModalOpen(false)}
       />
     </>
   );

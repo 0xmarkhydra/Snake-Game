@@ -155,4 +155,14 @@ html, body {
 .log-viewer {
     max-height: 280px;
     overflow-y: auto;
+}
+
+/* Hide scrollbar but keep scrolling functionality */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
 } 

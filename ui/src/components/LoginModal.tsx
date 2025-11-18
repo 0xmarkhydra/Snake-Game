@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService } from '../services/AuthService';
 import { walletService } from '../services/WalletService';
+import { referralService } from '../services/ReferralService';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -14,16 +15,60 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
   const [statusText, setStatusText] = useState('');
   const [statusColor, setStatusColor] = useState('text-yellow-300');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralCodeValid, setReferralCodeValid] = useState<boolean | null>(null);
+  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
+
+  // Load referral code from URL on mount
+  useEffect(() => {
+    if (isOpen) {
+      const refCode = referralService.getReferralCodeFromUrl();
+      if (refCode) {
+        setReferralCode(refCode.toUpperCase());
+        setReferralCodeValid(true);
+      }
+    }
+  }, [isOpen]);
+
+  // Validate referral code when it changes
+  useEffect(() => {
+    if (referralCode && referralCode.length >= 1) {
+      const timeoutId = setTimeout(async () => {
+        setIsValidatingReferral(true);
+        try {
+          const result = await referralService.validateReferralCode(referralCode.toUpperCase());
+          setReferralCodeValid(result.valid);
+        } catch (error) {
+          setReferralCodeValid(false);
+        } finally {
+          setIsValidatingReferral(false);
+        }
+      }, 500); // Debounce 500ms
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      setReferralCodeValid(null);
+    }
+  }, [referralCode]);
 
   const handleConnect = async () => {
     if (isProcessing) return;
+
+    // Validate referral code if provided
+    if (referralCode && referralCodeValid === false) {
+      setStatusColor('text-red-400');
+      setStatusText('Invalid referral code. Please check and try again.');
+      return;
+    }
 
     try {
       setIsProcessing(true);
       setStatusColor('text-yellow-300');
       setStatusText('Connecting Wallet...');
 
-      await authService.login();
+      // Use referral code if valid
+      const refCode = referralCode && referralCodeValid ? referralCode.toUpperCase() : undefined;
+      await authService.login(refCode);
       setStatusText('Login successful! Checking credit...');
 
       walletService.startPolling(3000);
@@ -92,6 +137,50 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
               <p className="text-sm text-[#9ad6ff] text-center mb-4 leading-relaxed">
                 Connect wallet to join VIP rooms and receive rewards.
               </p>
+
+              {/* Referral Code Input */}
+              <div className="mb-4">
+                <label className="block text-sm text-[#9ad6ff] mb-2">
+                  Referral Code (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="Enter referral code"
+                    maxLength={16}
+                    disabled={isProcessing}
+                    className={`w-full bg-game-dark/50 border-2 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${
+                      referralCodeValid === false
+                        ? 'border-red-500 focus:ring-red-500'
+                        : referralCodeValid === true
+                        ? 'border-green-500 focus:ring-green-500'
+                        : 'border-game-blue/50 focus:ring-game-blue'
+                    }`}
+                  />
+                  {isValidatingReferral && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-[#9ad6ff] border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  {referralCode && !isValidatingReferral && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {referralCodeValid === true ? (
+                        <span className="text-green-500 text-lg">✓</span>
+                      ) : referralCodeValid === false ? (
+                        <span className="text-red-500 text-lg">✗</span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                {referralCode && referralCodeValid === false && (
+                  <p className="text-xs text-red-400 mt-1">Invalid referral code</p>
+                )}
+                {referralCode && referralCodeValid === true && (
+                  <p className="text-xs text-green-400 mt-1">Valid referral code</p>
+                )}
+              </div>
 
               {/* Status Text */}
               {statusText && (

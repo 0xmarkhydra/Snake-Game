@@ -132,20 +132,35 @@ class AuthService {
     /**
      * Verify signature and login
      */
-    async verifyAndLogin(walletAddress: string, nonce: string, signature: string): Promise<LoginResult> {
+    async verifyAndLogin(
+        walletAddress: string, 
+        nonce: string, 
+        signature: string,
+        referralCode?: string
+    ): Promise<LoginResult> {
         try {
-            const response = await apiService.post<LoginResult>('/auth/verify', {
+            const payload: any = {
                 walletAddress,
                 nonce,
                 signature
-            });
+            };
             
-            const loginResult = response
+            // Add referral code if provided
+            if (referralCode) {
+                payload.referralCode = referralCode;
+                console.log('📝 Sending referral code to backend:', referralCode);
+            }
+            
+            const response = await apiService.post<any>('/auth/verify', payload);
+            
+            // Backend returns BaseResponse format: { data: T, msg, status_code, timestamp }
+            const loginResult = response?.data || response;
+            
+            console.log('✅ Login successful. User referred by:', loginResult?.user?.referredById || 'None');
             
             // Save tokens and user info
             this.saveAuth(loginResult);
             
-            console.log('✅ Login successful:', loginResult.user);
             return loginResult;
         } catch (error) {
             console.error('❌ Error verifying signature:', error);
@@ -156,7 +171,7 @@ class AuthService {
     /**
      * Complete login flow
      */
-    async login(): Promise<LoginResult> {
+    async login(referralCode?: string): Promise<LoginResult> {
         try {
             // Step 1: Connect to Phantom
             const walletAddress = await this.connectPhantom();
@@ -167,8 +182,8 @@ class AuthService {
             // Step 3: Sign nonce
             const signature = await this.signMessage(nonce);
             
-            // Step 4: Verify and get JWT
-            const loginResult = await this.verifyAndLogin(walletAddress, nonce, signature);
+            // Step 4: Verify and get JWT (with referral code if provided)
+            const loginResult = await this.verifyAndLogin(walletAddress, nonce, signature, referralCode);
             
             return loginResult;
         } catch (error) {

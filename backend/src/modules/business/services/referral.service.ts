@@ -95,11 +95,21 @@ export class ReferralService {
       return null;
     }
 
-    const referrer = await this.userRepository.findOne({
-      where: { referralCode },
-    });
+    // Normalize referral code to uppercase for case-insensitive matching
+    const normalizedCode = referralCode.toUpperCase().trim();
+
+    console.log('[ReferralService] Validating referral code:', normalizedCode);
+
+    // Use case-insensitive query (PostgreSQL UPPER)
+    const referrer = await this.userRepository
+      .createQueryBuilder('user')
+      .where('UPPER(user.referralCode) = UPPER(:code)', { code: normalizedCode })
+      .getOne();
+
+    console.log('[ReferralService] Referrer found:', referrer ? `Yes (ID: ${referrer.id})` : 'No');
 
     if (!referrer) {
+      console.warn('[ReferralService] Referral code not found in database:', normalizedCode);
       throw new BadRequestException('Invalid referral code');
     }
 

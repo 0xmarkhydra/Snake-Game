@@ -99,11 +99,13 @@ export class AuthService {
       // Validate and get referrer if referral code provided
       let referredBy: UserEntity | null = null;
       if (metadata?.referralCode) {
+        console.log('[AuthService] Processing referral code for new user:', metadata.referralCode);
         try {
           referredBy = await this.referralService.validateAndGetReferrer(
             metadata.referralCode,
             normalizedWallet,
           );
+          console.log('[AuthService] Referral code validated successfully. Referrer ID:', referredBy?.id);
         } catch (error) {
           // If referral code is invalid, continue without referrer
           console.warn('[AuthService] Invalid referral code:', error);
@@ -116,6 +118,13 @@ export class AuthService {
         referralCode,
         referredBy: referredBy ? { id: referredBy.id } : undefined,
         referredAt: referredBy ? new Date() : undefined,
+      });
+      
+      console.log('[AuthService] Creating new user with:', {
+        walletAddress: normalizedWallet,
+        referralCode,
+        referredById: referredBy?.id || null,
+        referredAt: referredBy ? new Date() : null,
       });
     } else {
       // User exists but may not have referral code (created before migration)

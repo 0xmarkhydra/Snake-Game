@@ -7,6 +7,7 @@ import { WalletInfo } from '../components/WalletInfo';
 import { SkinSelector } from '../components/SkinSelector';
 import { LoginModal } from '../components/LoginModal';
 import { DepositModal } from '../components/DepositModal';
+import { ReferralStatsModal } from '../components/ReferralStatsModal';
 import { GAME_INFO } from '../configs/game';
 import type { RoomType, VipAccessCheckResult, VipRoomConfig } from '../types/Game.types';
 
@@ -30,6 +31,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
   const [depositMessage, setDepositMessage] = useState<string | undefined>();
   const [vipProcessing, setVipProcessing] = useState(false);
   const [vipInfoText, setVipInfoText] = useState('');
@@ -317,6 +319,11 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         }}
         onDepositSuccess={handleDepositSuccess}
         initialMessage={depositMessage}
+      />
+
+      <ReferralStatsModal
+        isOpen={showReferralModal}
+        onClose={() => setShowReferralModal(false)}
       />
     </div>
   );
