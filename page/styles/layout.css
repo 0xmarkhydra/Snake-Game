@@ -1,0 +1,75 @@
+.page--Slither {
+  background-color: #0f0d06;
+  color: var(--framer-text-color, #f0e9cf);
+  min-height: 100vh;
+}
+
+.framer-section,
+.section {
+  position: relative;
+  width: 100%;
+}
+
+.section-hero, .section-landing, .section-hero-section {
+  max-width: 1920px;
+  margin: 0 auto;
+}
+
+.section-partners, .section-integrated {
+  padding: 4rem 0;
+}
+
+.section-footer {
+  padding: 6rem 0 3rem;
+}
+
+.component-richtextcontainer {
+  text-wrap: balance;
+}
+
+@media (max-width: 1024px) {
+  .section-partners, .section-integrated {
+    padding: 3rem 1.5rem;
+  }
+}
+
+/* Ẩn 4 khung character cuối cùng */
+[data-framer-name="charSelect"] > div:nth-last-child(-n+4) {
+  display: none !important;
+}
+
+/* Ẩn phần tử media gallery */
+[data-framer-name="media"],
+.framer-ywuw5s {
+  display: none !important;
+}
+
+/* Ẩn phần tử in-light */
+[data-framer-name="in-light"],
+.framer-10cffrt {
+  display: none !important;
+}
+
+/* Ẩn ảnh 44TwklfcbffNfvfqxTq7Ow6dQ.png */
+img[src*="44TwklfcbffNfvfqxTq7Ow6dQ.png"],
+img[srcset*="44TwklfcbffNfvfqxTq7Ow6dQ.png"] {
+  display: none !important;
+}
+
+/* Style cho ảnh mout2 thêm ở bên trái */
+[data-framer-name="Mount-l-b-extra"] {
+  position: absolute !important;
+  left: -10% !important;
+  bottom: -84px !important;
+  opacity: 0.3 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  transform: translateX(-50%) !important;
+  transform-origin: left center !important;
+  overflow: visible !important;
+  aspect-ratio: 2.3230309072781656 / 1 !important;
+  height: 64% !important;
+  width: var(--framer-aspect-ratio-supported, 2330px) !important;
+  display: block !important;
+  visibility: visible !important;
+}

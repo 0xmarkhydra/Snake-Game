@@ -1,0 +1,99 @@
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
+import { DatabaseModule } from '@/database';
+import {
+  AuthController,
+  GameController,
+  HealthController,
+  QuestionsController,
+  ReferralController,
+  WalletController,
+} from '@/api/controllers';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { QueueModule } from '@/queue/queue.module';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { redisStore } from 'cache-manager-redis-store';
+import { CacheModule, CacheStore } from '@nestjs/cache-manager';
+import { configAuth } from './configs/auth';
+import { configCache } from './configs/cache';
+import { configWallet } from './configs/wallet';
+import { configGame } from './configs/game';
+import { configReferral } from './configs/referral';
+import { configQuestion } from './configs/question';
+import { HttpCacheInterceptor } from './interceptors';
+import { BusinessModule } from '@/business/business.module';
+import { WebSocketModule } from '../websocket/websocket.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
+
+const controllers = [
+  AuthController,
+  HealthController,
+  WalletController,
+  GameController,
+  ReferralController,
+  QuestionsController,
+];
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot({
+      ttl: 60,
+      limit: process.env.APP_ENV === 'production' ? 60 : 600,
+    }),
+    DatabaseModule,
+    QueueModule,
+    BusinessModule,
+    CacheModule.registerAsync({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        let urlRedis = `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DATABASE}?family=${process.env.REDIS_FAMILY}`;
+        if (process.env.REDIS_PASSWORD) {
+          urlRedis = `redis://${process.env.REDIS_USERNAME}:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}/${process.env.REDIS_DATABASE}?family=${process.env.REDIS_FAMILY}`;
+        }
+        return {
+          ttl: configService.get('cache.api.cache_ttl'),
+          store: (await redisStore({
+            url: urlRedis,
+            ttl: Number(configService.get('cache.api.cache_ttl')) / 1000,
+          })) as unknown as CacheStore,
+        };
+      },
+    }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      expandVariables: true,
+      load: [configAuth, configCache, configWallet, configGame, configReferral, configQuestion],
+    }),
+    JwtModule.registerAsync({
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('auth.jwt.jwt_secret_key'),
+        global: true,
+      }),
+      inject: [ConfigService],
+    }),
+    WebSocketModule,
+  ],
+  controllers: [...controllers],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpCacheInterceptor,
+    },
+    JwtAuthGuard,
+    InternalApiKeyGuard,
+  ],
+  exports: [],
+})
+export class ApiModule implements OnApplicationBootstrap {
+  constructor() {}
+
+  async onApplicationBootstrap() {}
+}

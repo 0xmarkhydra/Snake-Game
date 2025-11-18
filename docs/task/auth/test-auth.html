@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Auth Test Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        color-scheme: dark light;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      h1,
+      h2,
+      h3 {
+        margin-top: 24px;
+      }
+      section {
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        background: #1e293b;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        margin-top: 6px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      button {
+        cursor: pointer;
+        background: #2563eb;
+        border: none;
+        transition: background 0.2s ease;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0f172a;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #334155;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .status-ok {
+        color: #22c55e;
+      }
+      .status-error {
+        color: #f87171;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Snake Auth Playground</h1>
+    <p>
+      Trang này dùng để test nhanh các API auth (nonce → verify → refresh →
+      logout → me) với Phantom Wallet.
+    </p>
+
+    <section>
+      <h2>Cấu hình</h2>
+      <label for="backendUrl">Backend Base URL</label>
+      <input
+        id="backendUrl"
+        type="text"
+        value="https://snake-game-server.up.railway.app"
+        placeholder="https://snake-game-server.up.railway.app"
+      />
+    </section>
+
+    <section>
+      <h2>Kết nối Phantom</h2>
+      <p id="phantomStatus">Status: <span class="badge">Chưa kiểm tra</span></p>
+      <button id="btnCheckPhantom">Kiểm tra Phantom</button>
+      <button id="btnConnect" disabled>Kết nối Phantom</button>
+      <div id="walletInfo" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>Luồng Đăng nhập</h2>
+      <div class="row">
+        <div>
+          <button id="btnRequestNonce" disabled>Lấy nonce</button>
+        </div>
+        <div>
+          <button id="btnSignNonce" disabled>Ký nonce bằng Phantom</button>
+        </div>
+        <div>
+          <button id="btnVerify" disabled>Gọi /auth/verify</button>
+        </div>
+      </div>
+      <label for="nonceInput">Nonce hiện tại</label>
+      <input id="nonceInput" type="text" readonly />
+      <label for="signatureInput">Signature (base58)</label>
+      <textarea id="signatureInput" rows="2" readonly></textarea>
+    </section>
+
+    <section>
+      <h2>Session Tokens</h2>
+      <label>Access Token</label>
+      <textarea id="accessToken" rows="3" readonly></textarea>
+      <label>Refresh Token</label>
+      <textarea id="refreshToken" rows="2" readonly></textarea>
+      <label>Refresh Token Expired At</label>
+      <input id="refreshExpired" type="text" readonly />
+      <div class="row" style="margin-top: 12px">
+        <button id="btnRefresh" disabled>Lấy access token mới</button>
+        <button id="btnMe" disabled>Gọi /auth/me</button>
+        <button id="btnLogout" disabled>Logout</button>
+      </div>
+      <label for="logoutAll">
+        <input type="checkbox" id="logoutAll" /> Logout toàn bộ session
+      </label>
+    </section>
+
+    <section>
+      <h2>Kết quả</h2>
+      <button id="btnClearLog">Xóa log</button>
+      <pre id="logConsole"></pre>
+    </section>
+
+    <script>
+      const state = {
+        walletAddress: null,
+        nonce: null,
+        signedMessage: null,
+        accessToken: null,
+        refreshToken: null,
+        refreshExpiresAt: null,
+      };
+
+      const el = (id) => document.getElementById(id);
+      const logConsole = el('logConsole');
+
+      const log = (message, data, isError = false) => {
+        const timestamp = new Date().toISOString();
+        const entry = {
+          timestamp,
+          message,
+          data,
+        };
+        const current = logConsole.textContent.trim();
+        const next = `${isError ? '[ERROR]' : '[INFO]'} ${JSON.stringify(
+          entry,
+          null,
+          2,
+        )}\n\n${current}`;
+        logConsole.textContent = next;
+      };
+
+      const notifySuccess = (message) => {
+        try {
+          alert(message);
+        } catch (error) {
+          console.info('Notification:', message);
+        }
+      };
+
+      const getBackendUrl = () => el('backendUrl').value.trim().replace(/\/$/, '');
+
+      const setWalletInfo = () => {
+        el('walletInfo').textContent = state.walletAddress
+          ? `Wallet: ${state.walletAddress}`
+          : 'Chưa kết nối ví';
+      };
+
+      const updateTokensUI = () => {
+        el('accessToken').value = state.accessToken || '';
+        el('refreshToken').value = state.refreshToken || '';
+        el('refreshExpired').value = state.refreshExpiresAt || '';
+        const hasTokens = Boolean(state.accessToken && state.refreshToken);
+        el('btnRefresh').disabled = !hasTokens;
+        el('btnMe').disabled = !hasTokens;
+        el('btnLogout').disabled = !hasTokens;
+      };
+
+      const checkPhantom = () => {
+        const provider = window.solana;
+        if (provider && provider.isPhantom) {
+          el('phantomStatus').innerHTML =
+            'Status: <span class="badge status-ok">Đã sẵn sàng</span>';
+          el('btnConnect').disabled = false;
+          log('Phantom detected', {});
+          return true;
+        }
+        el('phantomStatus').innerHTML =
+          'Status: <span class="badge status-error">Không tìm thấy Phantom</span>';
+        el('btnConnect').disabled = true;
+        log('Phantom not found', {}, true);
+        return false;
+      };
+
+      const fetchJSON = async (path, options = {}) => {
+        const url = `${getBackendUrl()}${path}`;
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        };
+        const response = await fetch(url, {
+          ...options,
+          headers,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw { status: response.status, data };
+        }
+        return data;
+      };
+
+      let bs58Module = null;
+      const loadBs58 = async () => {
+        if (bs58Module) return bs58Module;
+        try {
+          const mod = await import('https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm');
+          bs58Module = mod.default || mod;
+          log('bs58 library loaded', {});
+          return bs58Module;
+        } catch (error) {
+          log('Không tải được bs58 từ CDN', error, true);
+          throw error;
+        }
+      };
+
+      el('btnCheckPhantom').addEventListener('click', checkPhantom);
+
+      el('btnConnect').addEventListener('click', async () => {
+        try {
+          const provider = window.solana;
+          if (!provider) throw new Error('Phantom provider not found');
+          const resp = await provider.connect();
+          state.walletAddress = resp.publicKey.toString();
+          setWalletInfo();
+          el('btnRequestNonce').disabled = false;
+          log('Connected Phantom', { walletAddress: state.walletAddress });
+        } catch (error) {
+          log('Connect Phantom failed', error, true);
+        }
+      });
+
+      el('btnRequestNonce').addEventListener('click', async () => {
+        if (!state.walletAddress) {
+          log('Need walletAddress before requesting nonce', {}, true);
+          return;
+        }
+        try {
+          state.nonce = null;
+          state.signedMessage = null;
+          el('nonceInput').value = '';
+          el('signatureInput').value = '';
+          el('btnSignNonce').disabled = true;
+          el('btnVerify').disabled = true;
+
+          const data = await fetchJSON('/auth/nonce', {
+            method: 'POST',
+            body: JSON.stringify({ walletAddress: state.walletAddress }),
+          });
+          state.nonce = data?.data?.nonce || data?.nonce || null;
+          el('nonceInput').value = state.nonce || '';
+          el('btnSignNonce').disabled = !state.nonce;
+          log('Nonce received', data);
+          notifySuccess('Đã lấy nonce thành công.');
+        } catch (error) {
+          log('Request nonce failed', error, true);
+        }
+      });
+
+      el('btnSignNonce').addEventListener('click', async () => {
+        try {
+          if (!state.nonce) throw new Error('Chưa có nonce để ký');
+          const provider = window.solana;
+          if (!provider?.signMessage) {
+            log(
+              'Phantom chưa bật quyền ký message. Mở Phantom → Settings → Developer → bật “Allow Message Signing”.',
+              {},
+              true,
+            );
+            return;
+          }
+          const bs58 = await loadBs58();
+          const encoded = new TextEncoder().encode(state.nonce);
+          const { signature } = await provider.signMessage(encoded, 'utf8');
+          const base58Signature = bs58.encode(signature);
+          state.signedMessage = base58Signature;
+          el('signatureInput').value = base58Signature;
+          el('btnVerify').disabled = false;
+          log('Nonce signed', { signature: base58Signature });
+          notifySuccess('Ký nonce thành công.');
+        } catch (error) {
+          log('Sign nonce failed', error, true);
+        }
+      });
+
+      el('btnVerify').addEventListener('click', async () => {
+        try {
+          const payload = {
+            walletAddress: state.walletAddress,
+            nonce: state.nonce,
+            signature: state.signedMessage,
+          };
+          const data = await fetchJSON('/auth/verify', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          const tokens =
+            data?.data?.tokens || data?.tokens || {
+              accessToken: null,
+              refreshToken: null,
+              refreshTokenExpiresAt: null,
+            };
+          state.accessToken = tokens.accessToken ?? null;
+          state.refreshToken = tokens.refreshToken ?? null;
+          state.refreshExpiresAt = tokens.refreshTokenExpiresAt ?? null;
+          updateTokensUI();
+          el('btnRefresh').disabled = !state.refreshToken;
+          el('btnMe').disabled = !state.accessToken;
+          el('btnLogout').disabled = !state.accessToken;
+          log('Verify success', data);
+          notifySuccess('Đăng nhập thành công!');
+        } catch (error) {
+          log('Verify signature failed', error, true);
+        }
+      });
+
+      el('btnRefresh').addEventListener('click', async () => {
+        try {
+          const data = await fetchJSON('/auth/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ refreshToken: state.refreshToken }),
+          });
+          const tokens =
+            data?.data?.tokens || data?.tokens || {
+              accessToken: null,
+              refreshToken: null,
+              refreshTokenExpiresAt: null,
+            };
+          state.accessToken = tokens.accessToken ?? state.accessToken;
+          state.refreshToken = tokens.refreshToken ?? state.refreshToken;
+          state.refreshExpiresAt =
+            tokens.refreshTokenExpiresAt ?? state.refreshExpiresAt;
+          updateTokensUI();
+          el('btnRefresh').disabled = !state.refreshToken;
+          el('btnMe').disabled = !state.accessToken;
+          el('btnLogout').disabled = !state.accessToken;
+          log('Refresh success', data);
+          notifySuccess('Refresh token thành công.');
+        } catch (error) {
+          log('Refresh failed', error, true);
+        }
+      });
+
+      el('btnMe').addEventListener('click', async () => {
+        try {
+          const data = await fetchJSON('/auth/me', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${state.accessToken}`,
+            },
+          });
+          log('Profile success', data);
+          notifySuccess('Lấy thông tin người dùng thành công.');
+        } catch (error) {
+          log('Profile failed', error, true);
+        }
+      });
+
+      el('btnLogout').addEventListener('click', async () => {
+        try {
+          const data = await fetchJSON('/auth/logout', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${state.accessToken}`,
+            },
+            body: JSON.stringify({ logoutAll: el('logoutAll').checked }),
+          });
+          log('Logout success', data);
+          state.accessToken = null;
+          state.refreshToken = null;
+          state.refreshExpiresAt = null;
+          updateTokensUI();
+          notifySuccess('Đăng xuất thành công.');
+        } catch (error) {
+          log('Logout failed', error, true);
+        }
+      });
+
+      el('btnClearLog').addEventListener('click', () => {
+        logConsole.textContent = '';
+      });
+
+      (function bootstrap() {
+        checkPhantom();
+        setWalletInfo();
+        updateTokensUI();
+        loadBs58().catch(() => {
+          /* error already logged */
+        });
+      })();
+    </script>
+  </body>
+</html>

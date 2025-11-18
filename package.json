@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "snake-game project with server and UI",
   "scripts": {
-    "dev:server": "cd server && npm run dev",
-    "dev:ui": "cd ui && npm run dev",
-    "install:all": "npm install && cd server && npm install && cd ../ui && npm install",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:ui\""
+    "dev:backend": "cd backend && pnpm start:dev",
+    "dev:ui": "cd ui && pnpm dev",
+    "install:all": "pnpm install && cd backend && pnpm install && cd ../ui && pnpm install",
+    "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:ui\""
   },
   "dependencies": {
     "concurrently": "^9.1.2"

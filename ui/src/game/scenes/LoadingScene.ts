@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
+import { authService } from '../../services/AuthService';
 
 export class LoadingScene extends Scene {
     constructor() {
@@ -7,6 +8,9 @@ export class LoadingScene extends Scene {
     }
 
     preload() {
+        // 🚀 MOBILE OPTIMIZATION: Detect mobile device
+        const isMobile = this.isMobileDevice();
+        
         // Create loading bar
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
@@ -39,18 +43,32 @@ export class LoadingScene extends Scene {
             // Generate textures instead of loading images
             this.generateTextures();
             
-            // Create dummy sound objects
-            // this.createDummySounds();
-            
-            // Move to the menu scene
-            this.scene.start('MenuScene');
+            // Move to the menu scene directly
+            this.scene.start('MenuScene', { isAuthenticated: authService.isAuthenticated() });
         });
 
-        // Load audio files
+        // 🚀 MOBILE OPTIMIZATION: Load critical assets first
+        // Load hexagon background texture (small, critical)
+        this.load.image('hexagon-bg', 'images/Polygon.png');
+        
+        // 🚀 MOBILE OPTIMIZATION: Lazy load audio files - only load essential sounds
+        // Load only critical sounds immediately (small files)
         this.load.audio('eat', 'sounds/eat.mp3');
         this.load.audio('death', 'sounds/death.wav');
-        this.load.audio('boost', 'sounds/eat.mp3'); // Reusing eat sound for boost
-        this.load.audio('background', 'sounds/background.mp3'); // Add background music
+        
+        // 🚀 MOBILE OPTIMIZATION: Skip background music on mobile (load later if needed)
+        // Skip boost sound (reuse eat sound) and background music for faster loading
+        if (!isMobile) {
+            // Only load background music on desktop
+            this.load.audio('background', 'sounds/background.mp3');
+        }
+        // Boost sound will be created lazily by reusing eat sound
+    }
+    
+    // 🚀 MOBILE OPTIMIZATION: Detect mobile device
+    private isMobileDevice(): boolean {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768);
     }
 
     // private createDummySounds() {
@@ -128,7 +146,7 @@ export class LoadingScene extends Scene {
         headGraphics.fillCircle(22, 22, 4);
         
         // Generate texture
-        headGraphics.generateTexture('snake-head', 32, 32);
+        headGraphics.generateTexture('snake-head', 28, 28);
         headGraphics.destroy();
     }
     

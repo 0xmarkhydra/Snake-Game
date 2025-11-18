@@ -1,0 +1,179 @@
+import { apiService } from './ApiService';
+import type { WalletBalance, WithdrawResult } from '../types/Auth.types';
+
+const STORAGE_KEYS = {
+    CREDIT: 'wallet_credit',
+};
+
+class WalletService {
+    private credit: number = 0;
+    private pollingInterval: number | null = null;
+
+    constructor() {
+        // Load saved credit
+        this.loadSavedCredit();
+    }
+
+    /**
+     * Get current credit balance from server
+     */
+    async getCredit(): Promise<number> {
+        try {
+            const response = await apiService.get<{ data?: WalletBalance } | WalletBalance>('/wallet/credit');
+            const payload = (response as { data?: WalletBalance }).data ?? (response as WalletBalance);
+
+            const rawCredit = payload?.credit ?? this.credit;
+            const parsedCredit = typeof rawCredit === 'string' ? parseFloat(rawCredit) : rawCredit;
+
+            this.credit = Number.isFinite(parsedCredit) ? parsedCredit : this.credit;
+            
+            // Save to storage
+            this.saveCredit(this.credit);
+            
+            return this.credit;
+        } catch (error) {
+            console.error('❌ Error fetching credit:', error);
+            // Return cached credit if API fails
+            return this.credit;
+        }
+    }
+
+    /**
+     * Get cached credit (from memory)
+     */
+    getCachedCredit(): number {
+        return this.credit;
+    }
+
+    /**
+     * Start polling credit balance
+     */
+    startPolling(intervalMs: number = 2000): void {
+        // Clear existing interval if any
+        this.stopPolling();
+        
+        // Poll immediately
+        this.getCredit();
+        
+        // Then poll at interval
+        this.pollingInterval = window.setInterval(() => {
+            this.getCredit();
+        }, intervalMs);
+        
+        console.log(`🔄 Started polling credit every ${intervalMs}ms`);
+    }
+
+    /**
+     * Stop polling credit balance
+     */
+    stopPolling(): void {
+        if (this.pollingInterval !== null) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+            console.log('⏹️ Stopped polling credit');
+        }
+    }
+
+    /**
+     * Request withdrawal
+     */
+    async withdraw(recipientAddress: string, amount: number): Promise<WithdrawResult> {
+        try {
+            const response = await apiService.post('/wallet/withdraw', { 
+                recipientAddress,
+                amount 
+            });
+            
+            // Update credit after successful withdrawal
+            await this.getCredit();
+            
+            console.log(`✅ Withdrawal successful: ${amount} USDC to ${recipientAddress}`);
+            return {
+                success: true,
+                data: response
+            };
+        } catch (error: any) {
+            console.error('❌ Error withdrawing:', error);
+            
+            // Handle specific error cases
+            const errorResponse = error?.response?.data;
+            const status = error?.response?.status;
+            
+            // Handle 429 Too Many Requests
+            if (status === 429) {
+                const retryAfter = errorResponse?.retryAfter || 60;
+                return {
+                    success: false,
+                    message: errorResponse?.message || 'Too many withdrawal requests. Please wait and try again.',
+                    retryAfter
+                };
+            }
+            
+            // Handle insufficient balance
+            if (status === 400 && errorResponse?.message?.includes('Insufficient balance')) {
+                return {
+                    success: false,
+                    message: 'Insufficient balance for withdrawal.'
+                };
+            }
+            
+            // Handle other errors
+            return {
+                success: false,
+                message: errorResponse?.message || 'Withdrawal failed. Please try again.'
+            };
+        }
+    }
+
+    /**
+     * Check if user has enough credit
+     */
+    hasEnoughCredit(requiredAmount: number = 1): boolean {
+        return this.credit >= requiredAmount;
+    }
+
+    /**
+     * Save credit to storage
+     */
+    private saveCredit(credit: number): void {
+        localStorage.setItem(STORAGE_KEYS.CREDIT, credit.toString());
+    }
+
+    /**
+     * Load saved credit from storage
+     */
+    private loadSavedCredit(): void {
+        const savedCredit = localStorage.getItem(STORAGE_KEYS.CREDIT);
+        if (savedCredit) {
+            this.credit = parseFloat(savedCredit) || 0;
+        }
+    }
+
+    /**
+     * Clear credit data
+     */
+    clearCredit(): void {
+        this.credit = 0;
+        localStorage.removeItem(STORAGE_KEYS.CREDIT);
+    }
+
+    /**
+     * Format credit for display
+     */
+    formatCredit(credit?: number): string {
+        const value = credit !== undefined ? credit : this.credit;
+        const normalized = Number.isFinite(value) ? Number(value) : 0;
+
+        if (Number.isInteger(normalized)) {
+            return normalized.toFixed(1);
+        }
+
+        // Keep up to 6 decimals from backend but strip unnecessary zeros
+        const trimmed = parseFloat(normalized.toFixed(6));
+        return trimmed.toString();
+    }
+}
+
+// Export singleton instance
+export const walletService = new WalletService();
+

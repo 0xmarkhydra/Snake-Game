@@ -2,7 +2,7 @@ body {
     margin: 0;
     padding: 0;
     color: rgba(255, 255, 255, 0.87);
-    background-color: #000000; 
+    background-color: #000000;
     font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -27,16 +27,19 @@ body {
     background-color: #000000;
     color: rgba(255, 255, 255, 0.87);
     border: 1px solid rgba(255, 255, 255, 0.87);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
     cursor: pointer;
     transition: all 0.3s;
 
     &:hover {
         border: 1px solid #0ec3c9;
         color: #0ec3c9;
+        box-shadow: 0 8px 20px rgba(14, 195, 201, 0.35);
     }
 
     &:active {
         background-color: #0ec3c9;
+        box-shadow: 0 4px 12px rgba(14, 195, 201, 0.3);
     }
 
     /* Disabled styles */

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Referral System Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        color-scheme: dark light;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      h1,
+      h2 {
+        margin-top: 24px;
+      }
+      section {
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        background: #1e293b;
+      }
+      label {
+        display: block;
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        margin-top: 6px;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0f172a;
+        color: #f8fafc;
+        box-sizing: border-box;
+      }
+      button {
+        cursor: pointer;
+        background: #2563eb;
+        border: none;
+        transition: background 0.2s ease;
+      }
+      button:hover:not(:disabled) {
+        background: #1d4ed8;
+      }
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0f172a;
+        border-radius: 8px;
+        padding: 12px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #334155;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .status-ok {
+        color: #22c55e;
+      }
+      .status-error {
+        color: #f87171;
+      }
+      .info-box {
+        background: #1e40af;
+        border: 1px solid #3b82f6;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      .success-box {
+        background: #166534;
+        border: 1px solid #22c55e;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      small {
+        display: block;
+        margin-top: 6px;
+        color: #9ca3af;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🎯 Referral System Test</h1>
+
+    <section>
+      <h2>⚙️ Cấu hình</h2>
+      <label for="backendUrl">Backend URL</label>
+      <input
+        id="backendUrl"
+        type="text"
+        value="http://localhost:2567"
+        placeholder="http://localhost:2567"
+      />
+    </section>
+
+    <section>
+      <h2>👛 Phantom Wallet</h2>
+      <p id="phantomStatus">Status: <span class="badge">Chưa kiểm tra</span></p>
+      <div class="row">
+        <button id="btnCheckPhantom">Kiểm tra Phantom</button>
+        <button id="btnConnect" disabled>Kết nối</button>
+      </div>
+      <div id="walletInfo" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>🔐 Luồng 1: Login</h2>
+      <div class="row">
+        <button id="btnRequestNonce" disabled>1. Lấy nonce</button>
+        <button id="btnSignNonce" disabled>2. Ký nonce</button>
+        <button id="btnVerify" disabled>3. Đăng nhập</button>
+      </div>
+      <label for="nonceInput">Nonce</label>
+      <input id="nonceInput" type="text" readonly />
+      <label for="signatureInput">Signature</label>
+      <textarea id="signatureInput" rows="2" readonly></textarea>
+      <div id="loginResult" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>🎫 Luồng 2: Get My Referral Code</h2>
+      <div class="row">
+        <button id="btnGetMyCode" disabled>Get My Code</button>
+      </div>
+      <div id="myCodeResult" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>🔍 Luồng 3: Validate Referral Code</h2>
+      <label for="referralCodeInput">Referral Code</label>
+      <input
+        id="referralCodeInput"
+        type="text"
+        placeholder="Nhập referral code"
+        maxlength="16"
+      />
+      <div class="row">
+        <button id="btnValidateReferral">Validate</button>
+      </div>
+      <div id="validateResult" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>👥 Luồng 4: Đăng ký với Referral Code</h2>
+      <label for="loginReferralCode">Referral Code (khi đăng ký)</label>
+      <input
+        id="loginReferralCode"
+        type="text"
+        placeholder="Nhập referral code của người giới thiệu"
+        maxlength="16"
+      />
+      <small>Nhập referral code khi đăng ký user mới</small>
+      <div class="row">
+        <button id="btnRequestNonceWithRef" disabled>1. Lấy nonce</button>
+        <button id="btnSignNonceWithRef" disabled>2. Ký nonce</button>
+        <button id="btnVerifyWithRef" disabled>3. Đăng ký với Ref</button>
+      </div>
+      <div id="registerResult" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>📊 Luồng 5: Thống kê Referral</h2>
+      <div class="row">
+        <button id="btnGetStats" disabled>Get Stats</button>
+      </div>
+      <label for="statsPage">Page</label>
+      <input id="statsPage" type="number" value="1" min="1" />
+      <label for="statsLimit">Limit</label>
+      <input id="statsLimit" type="number" value="10" min="1" max="100" />
+      <div id="statsResult" style="margin-top: 12px"></div>
+    </section>
+
+    <section>
+      <h2>📝 Log</h2>
+      <button id="btnClearLog">Xóa log</button>
+      <pre id="logConsole"></pre>
+    </section>
+
+    <script>
+      const state = {
+        walletAddress: null,
+        nonce: null,
+        signedMessage: null,
+        accessToken: null,
+        refreshToken: null,
+      };
+
+      const el = (id) => document.getElementById(id);
+      const logConsole = el('logConsole');
+
+      const log = (message, data, isError = false) => {
+        const timestamp = new Date().toISOString();
+        const entry = { timestamp, message, data };
+        const current = logConsole.textContent.trim();
+        const next = `${isError ? '[ERROR]' : '[INFO]'} ${JSON.stringify(
+          entry,
+          null,
+          2,
+        )}\n\n${current}`;
+        logConsole.textContent = next;
+      };
+
+      const notifySuccess = (message) => {
+        try {
+          alert(message);
+        } catch (error) {
+          console.info('Notification:', message);
+        }
+      };
+
+      const getBackendUrl = () => el('backendUrl').value.trim().replace(/\/$/, '');
+
+      const setWalletInfo = () => {
+        el('walletInfo').textContent = state.walletAddress
+          ? `Wallet: ${state.walletAddress}`
+          : 'Chưa kết nối ví';
+      };
+
+      const updateButtons = () => {
+        const hasWallet = Boolean(state.walletAddress);
+        const hasNonce = Boolean(state.nonce);
+        const hasSignature = Boolean(state.signedMessage);
+        const hasToken = Boolean(state.accessToken);
+
+        el('btnRequestNonce').disabled = !hasWallet;
+        el('btnSignNonce').disabled = !hasNonce;
+        el('btnVerify').disabled = !hasSignature;
+        el('btnRequestNonceWithRef').disabled = !hasWallet;
+        el('btnSignNonceWithRef').disabled = !hasNonce;
+        el('btnSignNonceWithRef').disabled = !hasNonce;
+        el('btnVerifyWithRef').disabled = !hasSignature;
+        el('btnGetMyCode').disabled = !hasToken;
+        el('btnGetStats').disabled = !hasToken;
+      };
+
+      const checkPhantom = () => {
+        const provider = window.solana;
+        if (provider && provider.isPhantom) {
+          el('phantomStatus').innerHTML =
+            'Status: <span class="badge status-ok">Sẵn sàng</span>';
+          el('btnConnect').disabled = false;
+          log('Phantom detected', {});
+          return true;
+        }
+        el('phantomStatus').innerHTML =
+          'Status: <span class="badge status-error">Không tìm thấy</span>';
+        el('btnConnect').disabled = true;
+        log('Phantom not found', {}, true);
+        return false;
+      };
+
+      const fetchJSON = async (path, options = {}) => {
+        const url = `${getBackendUrl()}${path}`;
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        };
+        const response = await fetch(url, {
+          ...options,
+          headers,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw { status: response.status, data };
+        }
+        return data;
+      };
+
+      let bs58Module = null;
+      const loadBs58 = async () => {
+        if (bs58Module) return bs58Module;
+        try {
+          const mod = await import('https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm');
+          bs58Module = mod.default || mod;
+          return bs58Module;
+        } catch (error) {
+          log('Không tải được bs58', error, true);
+          throw error;
+        }
+      };
+
+      // Phantom
+      el('btnCheckPhantom').addEventListener('click', checkPhantom);
+      el('btnConnect').addEventListener('click', async () => {
+        try {
+          const provider = window.solana;
+          if (!provider) throw new Error('Phantom not found');
+          const resp = await provider.connect();
+          state.walletAddress = resp.publicKey.toString();
+          setWalletInfo();
+          updateButtons();
+          log('Connected Phantom', { walletAddress: state.walletAddress });
+          notifySuccess('Đã kết nối Phantom');
+        } catch (error) {
+          log('Connect failed', error, true);
+        }
+      });
+
+      // Login flow
+      const requestNonce = async () => {
+        if (!state.walletAddress) {
+          log('Need wallet address', {}, true);
+          return;
+        }
+        try {
+          state.nonce = null;
+          state.signedMessage = null;
+          el('nonceInput').value = '';
+          el('signatureInput').value = '';
+          updateButtons();
+
+          const data = await fetchJSON('/auth/nonce', {
+            method: 'POST',
+            body: JSON.stringify({ walletAddress: state.walletAddress }),
+          });
+          state.nonce = data?.data?.nonce || data?.nonce || null;
+          el('nonceInput').value = state.nonce || '';
+          updateButtons();
+          log('Nonce received', data);
+          notifySuccess('Đã lấy nonce');
+        } catch (error) {
+          log('Request nonce failed', error, true);
+        }
+      };
+
+      const signNonce = async () => {
+        try {
+          if (!state.nonce) throw new Error('Chưa có nonce');
+          const provider = window.solana;
+          if (!provider?.signMessage) {
+            log('Phantom chưa bật quyền ký message', {}, true);
+            return;
+          }
+          const bs58 = await loadBs58();
+          const encoded = new TextEncoder().encode(state.nonce);
+          const { signature } = await provider.signMessage(encoded, 'utf8');
+          const base58Signature = bs58.encode(signature);
+          state.signedMessage = base58Signature;
+          el('signatureInput').value = base58Signature;
+          updateButtons();
+          log('Nonce signed', { signature: base58Signature });
+          notifySuccess('Ký nonce thành công');
+        } catch (error) {
+          log('Sign failed', error, true);
+        }
+      };
+
+      const verify = async (referralCode = null) => {
+        try {
+          const payload = {
+            walletAddress: state.walletAddress,
+            nonce: state.nonce,
+            signature: state.signedMessage,
+          };
+          if (referralCode) {
+            payload.referralCode = referralCode;
+          }
+
+          const data = await fetchJSON('/auth/verify', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+
+          const tokens = data?.data?.tokens || data?.tokens || {};
+          const user = data?.data?.user || data?.user || null;
+
+          state.accessToken = tokens.accessToken ?? null;
+          state.refreshToken = tokens.refreshToken ?? null;
+          updateButtons();
+
+          const resultDiv = referralCode ? el('registerResult') : el('loginResult');
+          if (user) {
+            resultDiv.innerHTML = `
+              <div class="success-box">
+                <strong>✅ Thành công!</strong><br/>
+                User ID: ${user.id}<br/>
+                Wallet: ${user.walletAddress}<br/>
+                Referral Code: <strong>${user.referralCode || 'Chưa có'}</strong><br/>
+                ${user.referredById ? `Referred By: ${user.referredById}` : 'Không có referrer'}
+              </div>
+            `;
+          }
+
+          log('Verify success', data);
+          notifySuccess('Đăng nhập thành công');
+        } catch (error) {
+          const resultDiv = referralCode ? el('registerResult') : el('loginResult');
+          resultDiv.innerHTML = `
+            <div class="info-box" style="background: #991b1b; border-color: #f87171;">
+              <strong>❌ Lỗi:</strong> ${error.data?.message || error.message || 'Unknown error'}
+            </div>
+          `;
+          log('Verify failed', error, true);
+        }
+      };
+
+      el('btnRequestNonce').addEventListener('click', requestNonce);
+      el('btnSignNonce').addEventListener('click', signNonce);
+      el('btnVerify').addEventListener('click', () => verify());
+
+      // Register with referral code
+      el('btnRequestNonceWithRef').addEventListener('click', requestNonce);
+      el('btnSignNonceWithRef').addEventListener('click', signNonce);
+      el('btnVerifyWithRef').addEventListener('click', () => {
+        const refCode = el('loginReferralCode').value.trim();
+        verify(refCode || null);
+      });
+
+      // Get my code
+      el('btnGetMyCode').addEventListener('click', async () => {
+        try {
+          const data = await fetchJSON('/referral/my-code', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${state.accessToken}`,
+            },
+          });
+
+          const result = data?.data || data;
+          el('myCodeResult').innerHTML = `
+            <div class="success-box">
+              <h3>📋 My Referral Code</h3>
+              <p><strong>Code:</strong> <code style="font-size: 18px; background: #0f172a; padding: 4px 8px; border-radius: 4px;">${result.referralCode || 'N/A'}</code></p>
+              <p><strong>Link:</strong> <a href="${result.referralLink || '#'}" target="_blank" style="color: #60a5fa;">${result.referralLink || 'N/A'}</a></p>
+              <p><strong>Total Referrals:</strong> ${result.totalReferrals || 0}</p>
+              <p><strong>Total Earned:</strong> ${result.totalEarned || '0'} tokens</p>
+              <p><strong>From Kills:</strong> ${result.earnedFromKills || '0'} tokens</p>
+              <p><strong>From Deaths:</strong> ${result.earnedFromDeaths || '0'} tokens</p>
+            </div>
+          `;
+          log('Get my code success', data);
+          notifySuccess('Đã lấy referral code');
+        } catch (error) {
+          el('myCodeResult').innerHTML = `
+            <div class="info-box" style="background: #991b1b; border-color: #f87171;">
+              <strong>❌ Lỗi:</strong> ${error.data?.message || error.message || 'Unknown error'}
+            </div>
+          `;
+          log('Get my code failed', error, true);
+        }
+      });
+
+      // Validate referral code
+      el('btnValidateReferral').addEventListener('click', async () => {
+        const referralCode = el('referralCodeInput').value.trim();
+        if (!referralCode) {
+          log('Referral code is required', {}, true);
+          return;
+        }
+
+        try {
+          const data = await fetchJSON('/referral/validate', {
+            method: 'POST',
+            body: JSON.stringify({ referralCode }),
+          });
+
+          const result = data?.data || data;
+          if (result.valid) {
+            el('validateResult').innerHTML = `
+              <div class="success-box">
+                <strong>✅ Hợp lệ!</strong><br/>
+                Wallet: ${result.referrerWallet || 'N/A'}<br/>
+                Name: ${result.referrerDisplayName || 'N/A'}
+              </div>
+            `;
+            log('Validate success', data);
+            notifySuccess('Referral code hợp lệ');
+          } else {
+            el('validateResult').innerHTML = `
+              <div class="info-box">
+                <strong>❌ Không hợp lệ</strong>
+              </div>
+            `;
+            log('Validate failed', data);
+          }
+        } catch (error) {
+          el('validateResult').innerHTML = `
+            <div class="info-box" style="background: #991b1b; border-color: #f87171;">
+              <strong>❌ Lỗi:</strong> ${error.data?.message || error.message || 'Unknown error'}
+            </div>
+          `;
+          log('Validate error', error, true);
+        }
+      });
+
+      // Get stats
+      el('btnGetStats').addEventListener('click', async () => {
+        try {
+          const page = parseInt(el('statsPage').value) || 1;
+          const limit = parseInt(el('statsLimit').value) || 10;
+
+          const queryParams = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+          });
+
+          const data = await fetchJSON(`/referral/stats?${queryParams}`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${state.accessToken}`,
+            },
+          });
+
+          const result = data?.data || data;
+          let referralsHtml = '';
+          if (result.referrals && result.referrals.length > 0) {
+            referralsHtml = '<h4>Danh sách Referrals:</h4><ul style="list-style: none; padding: 0;">';
+            result.referrals.forEach((ref) => {
+              referralsHtml += `
+                <li style="background: #0f172a; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #334155;">
+                  <strong>Wallet:</strong> ${ref.refereeWallet}<br/>
+                  <strong>Total Earned:</strong> ${ref.totalEarned} tokens<br/>
+                  <strong>From Kills:</strong> ${ref.earnedFromKills} tokens<br/>
+                  <strong>From Deaths:</strong> ${ref.earnedFromDeaths} tokens
+                </li>
+              `;
+            });
+            referralsHtml += '</ul>';
+          } else {
+            referralsHtml = '<p>Chưa có referrals nào.</p>';
+          }
+
+          el('statsResult').innerHTML = `
+            <div class="success-box">
+              <h3>📊 Referral Statistics</h3>
+              <p><strong>Total Referrals:</strong> ${result.totalReferrals || 0}</p>
+              <p><strong>Active Referrals:</strong> ${result.activeReferrals || 0}</p>
+              <p><strong>Total Earned:</strong> ${result.totalEarned || '0'} tokens</p>
+              <p><strong>From Kills:</strong> ${result.earnedFromKills || '0'} tokens</p>
+              <p><strong>From Deaths:</strong> ${result.earnedFromDeaths || '0'} tokens</p>
+              ${referralsHtml}
+            </div>
+          `;
+          log('Get stats success', data);
+          notifySuccess('Đã lấy stats');
+        } catch (error) {
+          el('statsResult').innerHTML = `
+            <div class="info-box" style="background: #991b1b; border-color: #f87171;">
+              <strong>❌ Lỗi:</strong> ${error.data?.message || error.message || 'Unknown error'}
+            </div>
+          `;
+          log('Get stats failed', error, true);
+        }
+      });
+
+      el('btnClearLog').addEventListener('click', () => {
+        logConsole.textContent = '';
+      });
+
+      // Bootstrap
+      (function bootstrap() {
+        checkPhantom();
+        setWalletInfo();
+        updateButtons();
+        loadBs58().catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

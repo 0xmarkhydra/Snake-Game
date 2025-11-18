@@ -10,6 +10,7 @@ export interface Player {
     speed: number;
     boosting: boolean;
     kills: number;
+    credit?: number;
     headPosition: {
         x: number;
         y: number;

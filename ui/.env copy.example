@@ -1,0 +1,5 @@
+# API Configuration
+VITE_API_URL=https://snake-game-server.up.railway.app/api
+
+# Colyseus Server Configuration
+VITE_COLYSEUS_SERVER_URL=wss://snake-game-server.up.railway.app

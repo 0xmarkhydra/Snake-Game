@@ -1,8 +1,9 @@
 import { AUTO, Game, Scale } from 'phaser';
 import { GAME_INFO } from '../configs/game';
 import { LoadingScene } from './scenes/LoadingScene';
-import { MenuScene } from './scenes/MenuScene';
+// import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
+import { getOptimalDevicePixelRatio, getOptimalTargetFPS } from '../utils/device';
 
 //  Find out more information about the Game Config at:
 //  https://newdocs.phaser.io/docs/3.70.0/Phaser.Types.Core.GameConfig
@@ -15,20 +16,22 @@ const config: Phaser.Types.Core.GameConfig = {
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH,
-        width: window.innerWidth*window.devicePixelRatio,
-        height: window.innerHeight*window.devicePixelRatio
+        // 🚀 PERFORMANCE: Use optimal devicePixelRatio based on OS (Mac handles high DPI better than Windows)
+        width: window.innerWidth * getOptimalDevicePixelRatio(),
+        height: window.innerHeight * getOptimalDevicePixelRatio()
     },
     title: GAME_INFO.name,
     scene: [
         LoadingScene,
-        MenuScene,
+        // MenuScene,
         GameScene
     ],
     // Enhanced graphics settings
     pixelArt: false, // Set to true for pixel art games
     roundPixels: false, // Prevents pixel interpolation for pixel art
-    antialias: true, // Enables anti-aliasing for smoother graphics
-    antialiasGL: true, // WebGL specific anti-aliasing
+    // Enable antialiasing for crisp text rendering
+    antialias: true, // Enabled for sharp text
+    antialiasGL: true, // Enabled for sharp text
     desynchronized: true, // Reduces input lag
     physics: {
         default: 'arcade',
@@ -46,8 +49,10 @@ const config: Phaser.Types.Core.GameConfig = {
         powerPreference: 'high-performance'
     },
     fps: {
-        target: 60,  // Target 120 FPS
-        forceSetTimeOut: false
+        // 🚀 PERFORMANCE: Use optimal FPS based on OS (Mac: 120fps, Windows: 60fps for stability)
+        target: getOptimalTargetFPS(),
+        forceSetTimeOut: false,
+        smoothStep: true // Enable frame smoothing
     }
 };
 
