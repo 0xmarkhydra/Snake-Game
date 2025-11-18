@@ -325,7 +325,7 @@ export class ReferralService {
       const frontendUrl =
         this.configService.get<string>('app.frontendUrl') ||
         this.configService.get<string>('FRONTEND_URL') ||
-        'https://game.com';
+        'https://slither.fit';
 
       return {
         referralCode: user.referralCode || '',

@@ -42,7 +42,7 @@ export class ReferralCodeResponseDto {
 
   @ApiProperty({
     description: 'Full referral link',
-    example: 'https://game.com?ref=ABC12345',
+    example: 'https://slither.fit?ref=ABC12345',
   })
   referralLink: string;
 
