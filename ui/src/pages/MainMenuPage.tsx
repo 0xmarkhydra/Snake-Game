@@ -60,7 +60,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         if (hasCredit) {
           setVipInfoText('Ready to play VIP!');
         } else {
-          setVipInfoText('Cần ≥1 credit – nhấn để nạp');
+          setVipInfoText('Need ≥1 credit – click to deposit');
         }
       } else {
         setVipInfoText('🔒 Login to play VIP');

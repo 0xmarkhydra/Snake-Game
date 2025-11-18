@@ -640,7 +640,7 @@ export class MenuScene extends Scene {
         panelBg.strokeRoundedRect(-panelWidth, 0, panelWidth, panelHeight, 10);
         container.add(panelBg);
 
-        const promptText = this.add.text(-panelWidth + 15, 15, 'Chưa kết nối Phantom', {
+        const promptText = this.add.text(-panelWidth + 15, 15, 'Phantom Not Connected', {
             fontFamily: 'Arial',
             fontSize: '14px',
             color: '#ffffff',
@@ -648,7 +648,7 @@ export class MenuScene extends Scene {
         });
         container.add(promptText);
 
-        const subText = this.add.text(-panelWidth + 15, 40, 'Đăng nhập để mở khóa phòng VIP và nạp credit ngay trong game.', {
+        const subText = this.add.text(-panelWidth + 15, 40, 'Login to unlock VIP rooms and deposit credit in-game.', {
             fontFamily: 'Arial',
             fontSize: '12px',
             color: '#9ad6ff',
@@ -672,7 +672,7 @@ export class MenuScene extends Scene {
         const buttonLabel = this.add.text(
             buttonX + buttonWidth / 2,
             buttonY + buttonHeight / 2,
-            'Kết nối Phantom',
+            'Connect Phantom',
             {
                 fontFamily: 'Arial',
                 fontSize: '15px',
@@ -858,7 +858,7 @@ export class MenuScene extends Scene {
                     vipInfo.setText('Ready to play VIP!');
                     vipInfo.setColor('#9ad6ff');
                 } else {
-                    vipInfo.setText('Cần ≥1 credit – nhấn để nạp');
+                    vipInfo.setText('Need ≥1 credit – click to deposit');
                     vipInfo.setColor('#ffaa00');
                 }
             } else {
@@ -908,8 +908,8 @@ export class MenuScene extends Scene {
                 this.showVipDepositModal('Credit is still below the requirement. Please deposit to join VIP rooms.');
             }
         } catch (error) {
-            console.error('Không thể lấy credit hiện tại', error);
-            this.showVipDepositModal('Không thể kiểm tra credit. Vui lòng thử nạp lại.');
+            console.error('Unable to get current credit', error);
+            this.showVipDepositModal('Unable to check credit. Please try depositing again.');
         } finally {
             this.vipProcessing = false;
             if (shouldStartVip) {
@@ -936,14 +936,14 @@ export class MenuScene extends Scene {
             .setStrokeStyle(3, 0x3e92cc, 0.8);
         this.vipModalContainer.add(panel);
 
-        const title = this.add.text(0, -90, 'Chơi VIP cần Phantom', {
+        const title = this.add.text(0, -90, 'VIP Requires Phantom', {
             fontFamily: 'Arial',
             fontSize: '22px',
             fontStyle: 'bold',
             color: '#ffffff'
         }).setOrigin(0.5);
 
-        const description = this.add.text(0, -40, 'Kết nối Phantom wallet để tham gia phòng VIP và nhận thưởng.', {
+        const description = this.add.text(0, -40, 'Connect Phantom wallet to join VIP rooms and receive rewards.', {
             fontFamily: 'Arial',
             fontSize: '14px',
             color: '#9ad6ff',
@@ -959,12 +959,12 @@ export class MenuScene extends Scene {
             wordWrap: { width: 360 }
         }).setOrigin(0.5);
 
-        const connectButton = this.createModalButton(0, 70, 'Kết nối Phantom', async () => {
+        const connectButton = this.createModalButton(0, 70, 'Connect Phantom', async () => {
             if (this.vipProcessing) return;
             await this.handleVipLoginFlow(statusText);
         });
 
-        const cancelButton = this.createModalButton(0, 120, 'Để sau', () => this.hideVipModal(), 0x4A5568, 0x718096);
+        const cancelButton = this.createModalButton(0, 120, 'Later', () => this.hideVipModal(), 0x4A5568, 0x718096);
 
         this.vipModalContainer.add([title, description, statusText, connectButton, cancelButton]);
     }
@@ -973,11 +973,11 @@ export class MenuScene extends Scene {
         try {
             this.vipProcessing = true;
             statusText.setColor('#ffcb05');
-            statusText.setText('Đang mở Phantom...');
+            statusText.setText('Opening Phantom...');
 
             await authService.login();
             this.isAuthenticated = true;
-            statusText.setText('Đăng nhập thành công! Đang kiểm tra credit...');
+            statusText.setText('Login successful! Checking credit...');
 
             walletService.startPolling(3000);
             if (!this.walletInfoContainer) {
@@ -1000,9 +1000,9 @@ export class MenuScene extends Scene {
                 this.time.delayedCall(400, () => this.showVipDepositModal());
             }
         } catch (error: any) {
-            console.error('Kết nối Phantom thất bại', error);
+            console.error('Phantom connection failed', error);
             statusText.setColor('#ff6666');
-            const message = error?.message || 'Kết nối thất bại. Vui lòng thử lại.';
+            const message = error?.message || 'Connection failed. Please try again.';
             statusText.setText(message);
         } finally {
             this.vipProcessing = false;
