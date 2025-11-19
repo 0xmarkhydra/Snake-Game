@@ -195,7 +195,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-[32px] border-2 border-white/30 bg-[#d9dee8] text-game-dark placeholder:text-game-dark/60 text-base sm:text-lg outline-none focus:border-white focus:ring-2 focus:ring-white/50 transition-all"
+                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-[32px] border-2 border-white/40 bg-[#eaf0f9] text-game-dark/60 placeholder:text-game-dark/45 text-base sm:text-lg outline-none focus:border-white focus:ring-2 focus:ring-white/50 transition-all"
               />
             </div>
 

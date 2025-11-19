@@ -27,7 +27,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
         <h3 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-[linear-gradient(180deg,#bfe6ff_0%,#4a9be4_55%,#0d5c9d_90%)] mb-2">
           CHOOSE YOUR SKIN
         </h3>
-        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-gradient-to-r from-[#39FF14] via-[#38bdf8] to-[#39FF14]"></div>
+        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-gradient-to-r from-[#bfe6ff] via-[#4a9be4] to-[#0d5c9d]"></div>
       </div>
 
       {/* Skin Grid */}

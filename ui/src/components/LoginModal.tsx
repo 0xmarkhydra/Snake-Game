@@ -106,15 +106,21 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
               >
                 <div className="w-full space-y-5 flex flex-col items-center" style={{ marginTop: '250px' }}>
                   {/* Status Text */}
-                  {statusText && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`text-sm ${statusColor} text-center leading-relaxed whitespace-pre-line min-h-[60px]`}
-                    >
-                      {statusText}
-                    </motion.p>
-                  )}
+                  <div className="h-14 flex items-center justify-center">
+                    <AnimatePresence mode="wait">
+                      {statusText && (
+                        <motion.p
+                          key={statusText}
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 6 }}
+                          className={`text-sm ${statusColor} text-center leading-relaxed whitespace-pre-line`}
+                        >
+                          {statusText}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
                   {/* Buttons */}
                   <div className="space-y-3 pt-2 flex flex-col items-center">
