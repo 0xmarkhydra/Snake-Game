@@ -24,17 +24,15 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
     <div className="w-full">
       {/* Label */}
       <div className="text-center mb-3 sm:mb-4">
-        <h3 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-[linear-gradient(180deg,#bfe6ff_0%,#4a9be4_55%,#0d5c9d_90%)] mb-2">
-          CHOOSE YOUR SKIN
-        </h3>
-        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-gradient-to-r from-[#39FF14] via-[#38bdf8] to-[#39FF14]"></div>
+        <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] mb-2">CHOOSE YOUR SKIN</h3>
+        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-game-blue"></div>
       </div>
 
       {/* Skin Grid */}
-      <div className="grid grid-cols-4 gap-x-2 gap-y-1 sm:gap-x-3 sm:gap-y-2 md:gap-x-4 md:gap-y-3 max-w-md mx-auto mt-4 sm:mt-6 md:mt-8">
-        {SKINS.map((skin) => {
-          const isSelected = skin.id === selectedSkin;
-          const isHovered = skin.id === hoveredSkin;
+      <div className="grid grid-cols-4 gap-3 sm:gap-4 md:gap-6 max-w-sm mx-auto mt-4 sm:mt-6 md:mt-8">
+        {SKINS.map((skinId, index) => {
+          const isSelected = skinId === selectedSkin;
+          const isHovered = skinId === hoveredSkin;
 
           return (
             <motion.div
@@ -47,21 +45,34 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               onHoverStart={() => setHoveredSkin(skin.id)}
               onHoverEnd={() => setHoveredSkin(null)}
             >
+              {/* Selection Glow */}
+              {isSelected && (
+                <motion.div
+                  className="absolute inset-0 -m-1 sm:-m-2 bg-yellow-400/30 rounded-lg sm:rounded-xl"
+                  animate={{ opacity: [0.3, 0.7, 0.3] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+              )}
+
+              {/* Skin Container */}
               <button
-                onClick={() => onSelectSkin(skin.id)}
-                className="relative w-[92px] h-[92px] sm:w-[105px] sm:h-[105px] rounded-full flex items-center justify-center transition-all duration-200"
+                onClick={() => onSelectSkin(skinId)}
+                className={`
+                  relative w-[50px] h-[50px] sm:w-[55px] sm:h-[55px] rounded-lg sm:rounded-xl
+                  bg-gradient-to-b from-game-dark to-[#0a3473]
+                  border-2 transition-all duration-200
+                  ${isSelected 
+                    ? 'border-yellow-400 ring-2 ring-yellow-400' 
+                    : 'border-game-blue/80 hover:border-game-light'
+                  }
+                `}
               >
-                <div
-                  className={`w-[74px] h-[74px] sm:w-[82px] sm:h-[82px] rounded-full shadow-[inset_0_6px_12px_rgba(0,0,0,0.1)] flex items-center justify-center transition-colors duration-200 border ${isSelected ? 'border-[#f4f6fb]' : 'border-white/60'}`}
-                  style={{ background: isHovered || isSelected ? skin.hover : '#f7f7f7' }}
-                >
-                  <img
-                    src={`/images/${skin.image}`}
-                    alt={`Snake skin ${skin.id}`}
-                    className="w-[64px] h-[64px] object-contain pointer-events-none select-none"
-                    draggable={false}
-                  />
-                </div>
+                <canvas
+                  ref={(el) => (canvasRefs.current[index] = el)}
+                  width={55}
+                  height={55}
+                  className="w-full h-full"
+                />
               </button>
             </motion.div>
           );

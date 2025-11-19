@@ -12,6 +12,7 @@ import {
   VipRoomConfigRepository,
   VipTicketRepository,
   WalletBalanceRepository,
+  QuestionWebhookLogRepository,
 } from './repositories';
 import {
   AdminConfigEntity,
@@ -23,6 +24,7 @@ import {
   VipRoomConfigEntity,
   VipTicketEntity,
   WalletBalanceEntity,
+  QuestionWebhookLogEntity,
 } from './entities';
 import { SeedDatabase } from './seeders/seed.database';
 
@@ -36,6 +38,7 @@ const repositories = [
   VipRoomConfigRepository,
   VipTicketRepository,
   WalletBalanceRepository,
+  QuestionWebhookLogRepository,
 ];
 
 const services = [];
@@ -50,6 +53,7 @@ const entities = [
   VipRoomConfigEntity,
   VipTicketEntity,
   WalletBalanceEntity,
+  QuestionWebhookLogEntity,
 ];
 
 @Module({

@@ -61,7 +61,7 @@ export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: L
     } catch (error: any) {
       console.error('Connect Wallet failed', error);
       setStatusColor('text-red-400');
-      const message = error?.message || 'Kết nối thất bại. Vui lòng thử lại.';
+      const message = error?.message || 'Connection failed. Please try again.';
       setStatusText(message);
     } finally {
       setIsProcessing(false);

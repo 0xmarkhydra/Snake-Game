@@ -329,6 +329,19 @@ export class VipGameService {
         const feeAmount = this.toNumber(config.rewardRateTreasury);
         const totalDebit = rewardAmount + feeAmount;
 
+        this.logger.info(
+          {
+            killerUserId: killerTicket.user.id,
+            victimUserId: victimTicket.user.id,
+            rewardAmount,
+            feeAmount,
+            totalDebit,
+            configRewardRatePlayer: config.rewardRatePlayer,
+            configRewardRateTreasury: config.rewardRateTreasury,
+          },
+          'Processing kill reward - calculation',
+        );
+
         const killerBalanceResult = await this.getOrCreateWalletBalance(
           killerTicket.user.id,
           walletRepository,
@@ -340,22 +353,54 @@ export class VipGameService {
           true,
         );
 
-        if (
-          this.toNumber(victimBalanceResult.balance.availableAmount) <
-          totalDebit
-        ) {
+        const killerCurrentCredit = this.toNumber(
+          killerBalanceResult.balance.availableAmount,
+        );
+        const victimCurrentCredit = this.toNumber(
+          victimBalanceResult.balance.availableAmount,
+        );
+
+        this.logger.info(
+          {
+            killerUserId: killerTicket.user.id,
+            killerCurrentCredit,
+            victimUserId: victimTicket.user.id,
+            victimCurrentCredit,
+            totalDebit,
+          },
+          'Processing kill reward - before balance update',
+        );
+
+        if (victimCurrentCredit < totalDebit) {
           throw new UnauthorizedException(
             'Victim does not have sufficient credit to cover reward',
           );
         }
 
-        killerBalanceResult.balance.availableAmount = this.formatAmount(
-          this.toNumber(killerBalanceResult.balance.availableAmount) +
+        const killerNewCredit = killerCurrentCredit + rewardAmount;
+        const victimNewCredit = victimCurrentCredit - totalDebit;
+
+        killerBalanceResult.balance.availableAmount =
+          this.formatAmount(killerNewCredit);
+        victimBalanceResult.balance.availableAmount =
+          this.formatAmount(victimNewCredit);
+
+        this.logger.info(
+          {
+            killerUserId: killerTicket.user.id,
+            killerCurrentCredit,
             rewardAmount,
-        );
-        victimBalanceResult.balance.availableAmount = this.formatAmount(
-          this.toNumber(victimBalanceResult.balance.availableAmount) -
+            killerNewCredit,
+            formattedKillerNewCredit:
+              killerBalanceResult.balance.availableAmount,
+            victimUserId: victimTicket.user.id,
+            victimCurrentCredit,
             totalDebit,
+            victimNewCredit,
+            formattedVictimNewCredit:
+              victimBalanceResult.balance.availableAmount,
+          },
+          'Processing kill reward - balance updated',
         );
 
         const killLog = await killLogRepository.save(
@@ -420,67 +465,29 @@ export class VipGameService {
         victimBalanceResult.balance.lastTransactionId =
           savedVictimTransaction.id;
 
-        await walletRepository.save(killerBalanceResult.balance);
-        await walletRepository.save(victimBalanceResult.balance);
+        const savedKillerBalance = await walletRepository.save(
+          killerBalanceResult.balance,
+        );
+        const savedVictimBalance = await walletRepository.save(
+          victimBalanceResult.balance,
+        );
 
-        // Process referral commission after transaction is committed
-        // Load users with referredById to check for referrers
-        const killerUser = await this.userRepository.findOne({
-          where: { id: killerTicket.user.id },
-          select: ['id', 'referredById'],
-        });
-        const victimUser = await this.userRepository.findOne({
-          where: { id: victimTicket.user.id },
-          select: ['id', 'referredById'],
-        });
+        this.logger.info(
+          {
+            killerUserId: killerTicket.user.id,
+            killerBalanceId: savedKillerBalance.id,
+            killerCredit: savedKillerBalance.availableAmount,
+            killerTransactionId: savedKillerTransaction.id,
+            victimUserId: victimTicket.user.id,
+            victimBalanceId: savedVictimBalance.id,
+            victimCredit: savedVictimBalance.availableAmount,
+            victimTransactionId: savedVictimTransaction.id,
+          },
+          'Processing kill reward - balances and transactions saved',
+        );
 
-        // Check if killer has referrer
-        if (killerUser?.referredById) {
-          try {
-            await this.referralService.processGameCommission({
-              refereeId: killerUser.id,
-              referrerId: killerUser.referredById,
-              feeAmount: this.formatAmount(feeAmount),
-              killLogId: killLog.id,
-              actionType: 'kill',
-              metadata: {
-                reward_amount: this.formatAmount(rewardAmount),
-                kill_reference: params.killReference,
-              },
-            });
-          } catch (error) {
-            // Log error but don't fail the kill reward processing
-            this.logger.warn(
-              error,
-              'Failed to process referral commission for killer',
-            );
-          }
-        }
-
-        // Check if victim has referrer
-        if (victimUser?.referredById) {
-          try {
-            await this.referralService.processGameCommission({
-              refereeId: victimUser.id,
-              referrerId: victimUser.referredById,
-              feeAmount: this.formatAmount(feeAmount),
-              killLogId: killLog.id,
-              actionType: 'death',
-              metadata: {
-                penalty_amount: this.formatAmount(totalDebit),
-                kill_reference: params.killReference,
-              },
-            });
-          } catch (error) {
-            // Log error but don't fail the kill reward processing
-            this.logger.warn(
-              error,
-              'Failed to process referral commission for victim',
-            );
-          }
-        }
-
-        return {
+        // Return result first to ensure transaction is committed
+        const result = {
           killerCredit: killerBalanceResult.balance.availableAmount,
           victimCredit: victimBalanceResult.balance.availableAmount,
           rewardAmount: this.formatAmount(rewardAmount),
@@ -488,6 +495,139 @@ export class VipGameService {
           killLog,
           alreadyProcessed: false,
         };
+
+        // Process referral commission AFTER transaction is committed (outside transaction)
+        // This ensures kill reward is processed even if referral commission fails
+        // Use process.nextTick to ensure transaction is fully committed
+        process.nextTick(async () => {
+          try {
+            // Load users with referred_by_id to check for referrers
+            const killerUserResult = await this.dataSource.query(
+              'SELECT id, referred_by_id FROM users WHERE id = $1',
+              [killerTicket.user.id],
+            );
+            const victimUserResult = await this.dataSource.query(
+              'SELECT id, referred_by_id FROM users WHERE id = $1',
+              [victimTicket.user.id],
+            );
+            
+            const killerUser = killerUserResult?.[0] ? {
+              user_id: killerUserResult[0].id,
+              user_referred_by_id: killerUserResult[0].referred_by_id,
+            } : null;
+            const victimUser = victimUserResult?.[0] ? {
+              user_id: victimUserResult[0].id,
+              user_referred_by_id: victimUserResult[0].referred_by_id,
+            } : null;
+
+            this.logger.info(
+              {
+                killerUserId: killerUser?.user_id,
+                killerReferredById: killerUser?.user_referred_by_id,
+                victimUserId: victimUser?.user_id,
+                victimReferredById: victimUser?.user_referred_by_id,
+                killLogId: killLog.id,
+                feeAmount: this.formatAmount(feeAmount),
+              },
+              'Checking referral commission eligibility (after commit)',
+            );
+
+            // Check if killer has referrer
+            if (killerUser?.user_referred_by_id) {
+              try {
+                this.logger.info(
+                  {
+                    refereeId: killerUser.user_id,
+                    referrerId: killerUser.user_referred_by_id,
+                    actionType: 'kill',
+                    feeAmount: this.formatAmount(feeAmount),
+                  },
+                  'Processing referral commission for killer (after commit)',
+                );
+                const commissionResult = await this.referralService.processGameCommission({
+                  refereeId: killerUser.user_id,
+                  referrerId: killerUser.user_referred_by_id,
+                  feeAmount: this.formatAmount(feeAmount),
+                  killLogId: typeof killLog.id === 'string' ? killLog.id : String(killLog.id),
+                  actionType: 'kill',
+                  metadata: {
+                    reward_amount: this.formatAmount(rewardAmount),
+                    kill_reference: params.killReference,
+                  },
+                });
+                this.logger.info(
+                  {
+                    referralRewardId: commissionResult.id,
+                    amount: commissionResult.amount,
+                  },
+                  'Referral commission processed successfully for killer',
+                );
+              } catch (error) {
+                // Log error but don't fail the kill reward processing
+                this.logger.error(
+                  error,
+                  'Failed to process referral commission for killer',
+                );
+              }
+            } else {
+              this.logger.debug(
+                { killerUserId: killerUser?.user_id },
+                'Killer has no referrer, skipping referral commission',
+              );
+            }
+
+            // Check if victim has referrer
+            if (victimUser?.user_referred_by_id) {
+              try {
+                this.logger.info(
+                  {
+                    refereeId: victimUser.user_id,
+                    referrerId: victimUser.user_referred_by_id,
+                    actionType: 'death',
+                    feeAmount: this.formatAmount(feeAmount),
+                  },
+                  'Processing referral commission for victim (after commit)',
+                );
+                const commissionResult = await this.referralService.processGameCommission({
+                  refereeId: victimUser.user_id,
+                  referrerId: victimUser.user_referred_by_id,
+                  feeAmount: this.formatAmount(feeAmount),
+                  killLogId: typeof killLog.id === 'string' ? killLog.id : String(killLog.id),
+                  actionType: 'death',
+                  metadata: {
+                    penalty_amount: this.formatAmount(totalDebit),
+                    kill_reference: params.killReference,
+                  },
+                });
+                this.logger.info(
+                  {
+                    referralRewardId: commissionResult.id,
+                    amount: commissionResult.amount,
+                  },
+                  'Referral commission processed successfully for victim',
+                );
+              } catch (error) {
+                // Log error but don't fail the kill reward processing
+                this.logger.error(
+                  error,
+                  'Failed to process referral commission for victim',
+                );
+              }
+            } else {
+              this.logger.debug(
+                { victimUserId: victimUser?.user_id },
+                'Victim has no referrer, skipping referral commission',
+              );
+            }
+          } catch (error) {
+            this.logger.error(
+              error,
+              'Error checking referral commission for kill reward',
+            );
+          }
+        });
+
+        return result;
       });
     } catch (error) {
       this.logger.error(error, 'Failed to process VIP kill reward');
@@ -529,14 +669,36 @@ export class VipGameService {
 
         const currentCredit = this.toNumber(balance.availableAmount);
 
+        this.logger.info(
+          {
+            userId: ticket.user.id,
+            ticketId: ticket.id,
+            currentCredit,
+            penaltyAmount,
+            feeAmount,
+            totalPenalty,
+          },
+          'Processing wall collision penalty - before deduction',
+        );
+
         if (currentCredit < totalPenalty) {
           throw new UnauthorizedException(
             'Insufficient credit to cover wall collision penalty',
           );
         }
 
-        balance.availableAmount = this.formatAmount(
-          currentCredit - totalPenalty,
+        const newCredit = currentCredit - totalPenalty;
+        balance.availableAmount = this.formatAmount(newCredit);
+
+        this.logger.info(
+          {
+            userId: ticket.user.id,
+            currentCredit,
+            totalPenalty,
+            newCredit,
+            formattedNewCredit: balance.availableAmount,
+          },
+          'Wall collision penalty - credit deducted',
         );
 
         // Create kill log for wall collision (no killer)
@@ -578,47 +740,116 @@ export class VipGameService {
         });
 
         const savedTransaction = await transactionRepository.save(transaction);
+        this.logger.info(
+          {
+            transactionId: savedTransaction.id,
+            amount: savedTransaction.amount,
+            userId: ticket.user.id,
+          },
+          'Wall collision transaction saved',
+        );
 
         balance.lastTransactionId = savedTransaction.id;
 
-        await walletRepository.save(balance);
+        const savedBalance = await walletRepository.save(balance);
+        this.logger.info(
+          {
+            userId: ticket.user.id,
+            balanceId: savedBalance.id,
+            currentCredit: currentCredit,
+            totalPenalty: totalPenalty,
+            newCredit: savedBalance.availableAmount,
+            transactionId: savedTransaction.id,
+          },
+          'Wall collision - wallet balance saved (before commit)',
+        );
 
-        // Process referral commission after transaction is committed
-        // Check if victim has referrer
-        const user = await this.userRepository.findOne({
-          where: { id: ticket.user.id },
-          select: ['id', 'referredById'],
-        });
-
-        if (user?.referredById) {
-          try {
-            await this.referralService.processGameCommission({
-              refereeId: ticket.user.id,
-              referrerId: user.referredById,
-              feeAmount: this.formatAmount(feeAmount),
-              killLogId: killLog.id,
-              actionType: 'death',
-              metadata: {
-                penalty_amount: this.formatAmount(totalPenalty),
-                kill_reference: killReference,
-                reason: 'wall_collision',
-              },
-            });
-          } catch (error) {
-            // Log error but don't fail the penalty processing
-            this.logger.warn(
-              error,
-              'Failed to process referral commission for wall collision',
-            );
-          }
-        }
-
-        return {
-          credit: balance.availableAmount,
+        // Return result - transaction will commit here
+        const result = {
+          credit: savedBalance.availableAmount,
           penaltyAmount: this.formatAmount(totalPenalty),
           killLog,
           transaction: savedTransaction,
         };
+
+        // Process referral commission AFTER transaction is committed (outside transaction)
+        // This ensures penalty is processed even if referral commission fails
+        // Use process.nextTick to ensure transaction is fully committed
+        process.nextTick(async () => {
+          try {
+            // Check if victim has referrer
+            const userResult = await this.dataSource.query(
+              'SELECT id, referred_by_id FROM users WHERE id = $1',
+              [ticket.user.id],
+            );
+            
+            const user = userResult?.[0] ? {
+              user_id: userResult[0].id,
+              user_referred_by_id: userResult[0].referred_by_id,
+            } : null;
+
+            this.logger.info(
+              {
+                userId: user?.user_id,
+                referredById: user?.user_referred_by_id,
+                killLogId: killLog.id,
+                feeAmount: this.formatAmount(feeAmount),
+              },
+              'Checking referral commission eligibility for wall collision (after commit)',
+            );
+
+            if (user?.user_referred_by_id) {
+              try {
+                this.logger.info(
+                  {
+                    refereeId: user.user_id,
+                    referrerId: user.user_referred_by_id,
+                    actionType: 'death',
+                    feeAmount: this.formatAmount(feeAmount),
+                  },
+                  'Processing referral commission for wall collision (after commit)',
+                );
+                const commissionResult = await this.referralService.processGameCommission({
+                  refereeId: user.user_id,
+                  referrerId: user.user_referred_by_id,
+                  feeAmount: this.formatAmount(feeAmount),
+                  killLogId: typeof killLog.id === 'string' ? killLog.id : String(killLog.id),
+                  actionType: 'death',
+                  metadata: {
+                    penalty_amount: this.formatAmount(totalPenalty),
+                    kill_reference: killReference,
+                    reason: 'wall_collision',
+                  },
+                });
+                this.logger.info(
+                  {
+                    referralRewardId: commissionResult.id,
+                    amount: commissionResult.amount,
+                  },
+                  'Referral commission processed successfully for wall collision',
+                );
+              } catch (error) {
+                // Log error but don't fail the penalty processing
+                this.logger.error(
+                  error,
+                  'Failed to process referral commission for wall collision',
+                );
+              }
+            } else {
+              this.logger.debug(
+                { userId: user?.user_id },
+                'User has no referrer, skipping referral commission for wall collision',
+              );
+            }
+          } catch (error) {
+            this.logger.error(
+              error,
+              'Error checking referral commission for wall collision',
+            );
+          }
+        });
+
+        return result;
       });
     } catch (error) {
       this.logger.error(error, 'Failed to process VIP wall collision penalty');

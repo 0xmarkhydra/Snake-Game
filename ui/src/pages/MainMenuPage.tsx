@@ -9,6 +9,7 @@ import { LoginModal } from '../components/LoginModal';
 import { DepositModal } from '../components/DepositModal';
 import { ReferralStatsModal } from '../components/ReferralStatsModal';
 import { GAME_INFO } from '../configs/game';
+import { ENV } from '../configs/env';
 import type { RoomType, VipAccessCheckResult, VipRoomConfig } from '../types/Game.types';
 
 interface MainMenuPageProps {
@@ -59,7 +60,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         if (hasCredit) {
           setVipInfoText('Ready to play VIP!');
         } else {
-          setVipInfoText('Cần ≥1 credit – nhấn để nạp');
+          setVipInfoText('Need ≥1 credit – click to deposit');
         }
       } else {
         setVipInfoText('🔒 Login to play VIP');
@@ -171,34 +172,64 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, delay: 0.3, ease: 'backOut' }}
-        className="absolute inset-0 flex items-center justify-center overflow-y-auto py-4 sm:py-0"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden p-2 sm:p-4"
       >
-        <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4" style={{ marginTop: '80px' }}>
+        <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4">
+          {/* Title */}
+          <motion.div
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className="text-center mb-6 sm:mb-12 mt-14 sm:mt-0"
+          >
+            <h1
+              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-2 sm:mb-4 drop-shadow-lg"
+              style={{
+                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
+              {GAME_INFO.name}
+            </h1>
+            <p
+              className="text-xl sm:text-2xl md:text-3xl font-bold stroke-black"
+              style={{
+                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
+              Multiplayer Snake Game
+            </p>
+          </motion.div>
+
           {/* Menu Panel */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="bg-white/95 backdrop-blur-xl rounded-[48px] sm:rounded-[96px] border-2 border-white/70 shadow-[0_25px_60px_rgba(13,27,62,0.25)] p-5 sm:p-7 md:p-9 w-full max-w-[511px] min-h-[643px] mx-auto flex flex-col"
+            className="bg-game-dark/70 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 sm:border-4 border-game-blue/80 p-4 sm:p-6 md:p-8 shadow-2xl"
           >
             {/* Player Name Input */}
-            <div className="mb-4 sm:mb-6 md:mb-8 text-center">
-              <h3 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-[linear-gradient(180deg,#bfe6ff_0%,#4a9be4_55%,#0d5c9d_90%)] mb-2">
-                YOUR NAME
-              </h3>
-              <div className="h-0.5 w-32 sm:w-40 mx-auto bg-gradient-to-r from-[#39FF14] via-[#38bdf8] to-[#39FF14] mb-3 sm:mb-4"></div>
+            <div className="mb-4 sm:mb-6 md:mb-8">
+              <h3 className="text-xl sm:text-2xl font-bold text-[#39FF14] text-center mb-2">YOUR NAME</h3>
+              <div className="h-0.5 w-32 sm:w-40 mx-auto bg-game-blue mb-3 sm:mb-4"></div>
               <input
                 type="text"
                 maxLength={15}
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full max-w-[280px] mx-auto block px-4 py-2.5 sm:py-3 text-center rounded-[36px] border border-[#cfd9ef] bg-[#f4f6fb]/90 text-[#0f1f4b] text-base sm:text-lg font-semibold placeholder:text-[#8da0d1] shadow-[0_8px_22px_rgba(13,27,62,0.1)] focus:border-[#39FF14]/70 focus:ring-4 focus:ring-[#39FF14]/20 transition-all backdrop-blur-sm"
+                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-base sm:text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
               />
             </div>
 
             {/* Skin Selector */}
-            <div className="mb-4 sm:mb-6 md:mb-8">
+            <div className="mb-2 sm:mb-3 md:mb-4 flex-shrink-0">
               <SkinSelector
                 selectedSkin={selectedSkin}
                 onSelectSkin={setSelectedSkin}
@@ -206,7 +237,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             </div>
 
             {/* Play Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-6 justify-center mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 justify-center mb-2 sm:mb-3 md:mb-4 flex-shrink-0">
               {/* Free Button */}
               <motion.button
                 onClick={handlePlayFree}
@@ -214,8 +245,8 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 whileTap={{ scale: 0.95 }}
                 className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-green-300/15 rounded-[36px] sm:rounded-[72px] blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-t from-[#bdfec6] via-[#65ff81] to-[#26d13f] text-[#11631f] font-bold text-lg sm:text-xl md:text-2xl w-[200px] h-[50px] sm:h-[54px] md:h-[58px] flex items-center justify-center rounded-[36px] sm:rounded-[72px] border border-white/60 shadow-[0_10px_24px_rgba(17,99,31,0.25)]">
+                <div className="absolute inset-0 bg-green-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
                   PLAY FREE
                 </div>
               </motion.button>
@@ -228,8 +259,8 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 whileTap={{ scale: vipProcessing ? 1 : 0.95 }}
                 className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-orange-400/20 rounded-[36px] sm:rounded-[72px] blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-t from-[#ffc79d] via-[#ff945f] to-[#f34f13] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl w-[200px] h-[50px] sm:h-[54px] md:h-[58px] flex items-center justify-center rounded-[36px] sm:rounded-[72px] border border-white/60 shadow-[0_12px_26px_rgba(204,92,37,0.35)]">
+                <div className="absolute inset-0 bg-orange-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
                   {vipProcessing ? 'LOADING...' : 'PLAY VIP'}
                 </div>
               </motion.button>
@@ -237,7 +268,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
 
             {/* VIP Info Text */}
             <p 
-              className={`text-center text-xs sm:text-sm ${
+              className={`text-center text-[10px] sm:text-xs md:text-sm flex-shrink-0 mb-2 ${
                 vipInfoText.includes('Ready') 
                   ? 'text-[#9ad6ff]' 
                   : vipInfoText.includes('🔒') 
@@ -247,6 +278,22 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             >
               {vipInfoText}
             </p>
+
+            {/* Question Task Link */}
+            <div className="mt-2 sm:mt-3 md:mt-4 pt-2 sm:pt-3 md:pt-4 border-t border-game-blue/30 flex-shrink-0">
+              <motion.a
+                href={ENV.QUESTION_TASK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center justify-center gap-1.5 sm:gap-2 w-full py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/50 hover:border-purple-400 text-purple-300 hover:text-purple-200 font-semibold text-xs sm:text-sm transition-all group"
+              >
+                <span className="text-sm sm:text-lg">📋</span>
+                <span>View Tasks & Questions</span>
+                <span className="text-[10px] sm:text-xs opacity-70 group-hover:opacity-100">↗</span>
+              </motion.a>
+            </div>
           </motion.div>
 
           {/* Instructions */}
@@ -254,14 +301,14 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="text-center text-white mt-4 sm:mt-6 text-sm sm:text-base max-w-lg mx-auto px-2"
+            className="text-center text-white mt-2 sm:mt-3 md:mt-4 text-[10px] sm:text-xs md:text-sm lg:text-base max-w-lg mx-auto px-2 flex-shrink-0"
             style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
           >
             Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!
           </motion.p>
 
           {/* Version */}
-          <p className="text-center text-gray-400 text-xs mt-2 mb-4 sm:mb-0">
+          <p className="text-center text-gray-400 text-[10px] sm:text-xs mt-1 sm:mt-2 flex-shrink-0">
             v{GAME_INFO.version}
           </p>
         </div>

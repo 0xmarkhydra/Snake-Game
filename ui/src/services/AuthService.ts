@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
 class AuthService {
     private provider: PhantomProvider | null = null;
     private walletAddress: string | null = null;
+    private phantomInstalledCache: boolean | null = null;
 
     constructor() {
         // Load saved auth data on init
@@ -25,12 +26,20 @@ class AuthService {
     }
 
     /**
-     * Check if Phantom wallet is installed
+     * Check if Phantom wallet is installed (cached to avoid repeated window.solana access)
      */
     isPhantomInstalled(): boolean {
-        return typeof window !== 'undefined' && 
+        // Cache the result to avoid repeated access to window.solana
+        // which can trigger Phantom popup
+        if (this.phantomInstalledCache !== null) {
+            return this.phantomInstalledCache;
+        }
+        
+        this.phantomInstalledCache = typeof window !== 'undefined' && 
                window.solana !== undefined && 
                window.solana.isPhantom === true;
+        
+        return this.phantomInstalledCache;
     }
 
     /**
@@ -50,12 +59,30 @@ class AuthService {
 
     /**
      * Connect to Phantom wallet
+     * Only calls provider.connect() if not already connected
      */
     async connectPhantom(): Promise<string> {
         try {
             const provider = this.getProvider();
             
-            // Request connection
+            // Check if already connected by checking publicKey
+            // This avoids unnecessary connect() calls that trigger popup
+            if (provider.publicKey) {
+                const existingAddress = provider.publicKey.toString();
+                // If we have a saved wallet address and it matches, use it
+                if (this.walletAddress === existingAddress) {
+                    console.log('✅ Already connected to Phantom:', this.walletAddress);
+                    return this.walletAddress;
+                }
+                // If publicKey exists but doesn't match saved address, update it
+                this.walletAddress = existingAddress;
+                localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, this.walletAddress);
+                console.log('✅ Using existing Phantom connection:', this.walletAddress);
+                return this.walletAddress;
+            }
+            
+            // Only call connect() if not already connected
+            // This is the only place that should trigger the popup
             const response = await provider.connect();
             this.walletAddress = response.publicKey.toString();
             
@@ -82,6 +109,8 @@ class AuthService {
             // Clear all stored data
             this.clearAuth();
             this.walletAddress = null;
+            // Reset cache so it will be re-checked next time
+            this.phantomInstalledCache = null;
             
             console.log('✅ Disconnected from Phantom');
         } catch (error) {

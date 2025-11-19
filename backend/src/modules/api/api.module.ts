@@ -4,6 +4,7 @@ import {
   AuthController,
   GameController,
   HealthController,
+  QuestionsController,
   ReferralController,
   WalletController,
 } from '@/api/controllers';
@@ -19,6 +20,7 @@ import { configCache } from './configs/cache';
 import { configWallet } from './configs/wallet';
 import { configGame } from './configs/game';
 import { configReferral } from './configs/referral';
+import { configQuestion } from './configs/question';
 import { HttpCacheInterceptor } from './interceptors';
 import { BusinessModule } from '@/business/business.module';
 import { WebSocketModule } from '../websocket/websocket.module';
@@ -31,6 +33,7 @@ const controllers = [
   WalletController,
   GameController,
   ReferralController,
+  QuestionsController,
 ];
 
 @Module({
@@ -63,7 +66,7 @@ const controllers = [
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
-      load: [configAuth, configCache, configWallet, configGame, configReferral],
+      load: [configAuth, configCache, configWallet, configGame, configReferral, configQuestion],
     }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
