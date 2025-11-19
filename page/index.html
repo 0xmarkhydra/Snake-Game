@@ -417,6 +417,30 @@
         const bossElements = document.querySelectorAll('[data-framer-name="boss"]');
         bossElements.forEach(el => el.remove());
         
+        // Remove partner + integrated section
+        const partnerElements = document.querySelectorAll('[data-framer-name="partner + integrated"]');
+        partnerElements.forEach(el => el.remove());
+        
+        // Remove partners section
+        const partnersElements = document.querySelectorAll('[data-framer-name="partners"]');
+        partnersElements.forEach(el => el.remove());
+        
+        // Remove integrated section
+        const integratedElements = document.querySelectorAll('[data-framer-name="integrated"]');
+        integratedElements.forEach(el => el.remove());
+        
+        // Remove listed-token-container section
+        const listedTokenContainerElements = document.querySelectorAll('[data-framer-name="listed-token-container"]');
+        listedTokenContainerElements.forEach(el => el.remove());
+        
+        // Remove 1440-listed-token section
+        const listedTokenElements = document.querySelectorAll('[data-framer-name="1440-listed-token"]');
+        listedTokenElements.forEach(el => el.remove());
+        
+        // Remove all 1440-listed-* elements
+        const listedElements = document.querySelectorAll('[data-framer-name^="1440-listed-"]');
+        listedElements.forEach(el => el.remove());
+        
         // Remove by class name (player)
         const framerElements = document.querySelectorAll('.framer-19eijt6');
         framerElements.forEach(el => el.remove());
@@ -424,6 +448,18 @@
         // Remove by class name (boss)
         const bossContainerElements = document.querySelectorAll('.framer-1gjvjwv-container');
         bossContainerElements.forEach(el => el.remove());
+        
+        // Remove by class name (partner + integrated)
+        const partnerContainerElements = document.querySelectorAll('.framer-17nfnjt');
+        partnerContainerElements.forEach(el => el.remove());
+        
+        // Remove by class name (listed-token-container)
+        const listedTokenContainerClassElements = document.querySelectorAll('.framer-sm3yun');
+        listedTokenContainerClassElements.forEach(el => el.remove());
+        
+        // Remove by class name (1440-listed-token)
+        const listedTokenClassElements = document.querySelectorAll('.framer-8rswlr');
+        listedTokenClassElements.forEach(el => el.remove());
         
         // Remove child elements with specific data-framer-name
         const childElements = document.querySelectorAll('[data-framer-name="white"], [data-framer-name="black"], [data-framer-name="monke"], [data-framer-name="bonk"], [data-framer-name="blue"], [data-framer-name="purple"]');
