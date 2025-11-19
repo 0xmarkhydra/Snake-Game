@@ -28,3 +28,4 @@
 - Landing page hiện không có build tool, mọi asset nằm trong thư mục `page/`.
 - Nếu cần tích hợp vào ứng dụng chính, nên tách riêng phần asset tĩnh và tối ưu lại kích thước hình ảnh.
 - Kiểm tra hiển thị trên mobile sau mỗi lần chỉnh sửa vì Framer sử dụng nhiều breakpoint động.
+...  
