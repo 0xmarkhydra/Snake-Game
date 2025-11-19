@@ -175,44 +175,13 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
         className="absolute inset-0 flex items-center justify-center overflow-hidden p-2 sm:p-4"
       >
         <div className="relative w-full max-w-2xl mx-auto px-3 sm:px-4">
-          {/* Title */}
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-center mb-6 sm:mb-12 mt-14 sm:mt-0"
-          >
-            <h1
-              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-2 sm:mb-4 drop-shadow-lg"
-              style={{
-                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              {GAME_INFO.name}
-            </h1>
-            <p
-              className="text-xl sm:text-2xl md:text-3xl font-bold stroke-black"
-              style={{
-                background: 'linear-gradient(to top, #c28a0a 0%, #ffe7b3 40%, #fff8e1 60%, #ffffff 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                WebkitTextFillColor: 'transparent'
-              }}
-            >
-              Multiplayer Snake Game
-            </p>
-          </motion.div>
-
           {/* Menu Panel */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="bg-game-dark/70 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 sm:border-4 border-game-blue/80 p-4 sm:p-6 md:p-8 shadow-2xl"
+            className="bg-white rounded-[140px] border-2 sm:border-4 border-game-blue/40 p-4 sm:p-6 md:p-8 shadow-2xl mt-[120px]"
+            style={{ width: 'min(550px, 100%)', height: '706px' }}
           >
             {/* Player Name Input */}
             <div className="mb-4 sm:mb-6 md:mb-8">
@@ -224,7 +193,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-lg border-2 border-game-blue bg-game-dark/70 text-white text-base sm:text-lg outline-none focus:border-game-light focus:ring-2 focus:ring-game-blue transition-all"
+                className="w-full max-w-[260px] mx-auto block px-3 sm:px-4 py-2 sm:py-3 text-center rounded-[32px] border-2 border-white/30 bg-[#d9dee8] text-game-dark placeholder:text-game-dark/60 text-base sm:text-lg outline-none focus:border-white focus:ring-2 focus:ring-white/50 transition-all"
               />
             </div>
 
@@ -245,8 +214,13 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 whileTap={{ scale: 0.95 }}
                 className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-green-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="absolute inset-0 bg-green-400/50 rounded-[48px] sm:rounded-[64px] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div
+                  className="relative text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-[48px] sm:rounded-[64px] border-3 border-white/80 shadow-lg transition-all duration-200 group-hover:brightness-110"
+                  style={{
+                    background: 'linear-gradient(0deg, #c7ffd6 0%, #57e66f 55%, #1c9f3e 100%)',
+                  }}
+                >
                   PLAY FREE
                 </div>
               </motion.button>
@@ -259,8 +233,13 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 whileTap={{ scale: vipProcessing ? 1 : 0.95 }}
                 className="relative group w-full sm:w-auto"
               >
-                <div className="absolute inset-0 bg-orange-400/50 rounded-xl sm:rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-xl sm:rounded-2xl border-3 border-white/80 shadow-lg">
+                <div className="absolute inset-0 bg-orange-400/50 rounded-[48px] sm:rounded-[64px] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div
+                  className="relative disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg sm:text-xl md:text-2xl py-3 px-8 sm:py-4 sm:px-10 md:px-12 rounded-[48px] sm:rounded-[64px] border-3 border-white/80 shadow-lg transition-all duration-200 group-hover:brightness-110"
+                  style={{
+                    background: 'linear-gradient(0deg, #ffe0c7 0%, #ff9a55 55%, #e34d1d 100%)',
+                  }}
+                >
                   {vipProcessing ? 'LOADING...' : 'PLAY VIP'}
                 </div>
               </motion.button>
@@ -287,7 +266,15 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center justify-center gap-1.5 sm:gap-2 w-full py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/50 hover:border-purple-400 text-purple-300 hover:text-purple-200 font-semibold text-xs sm:text-sm transition-all group"
+                className="flex items-center justify-center gap-1.5 sm:gap-2 rounded-[32px] border font-semibold text-xs sm:text-sm transition-all"
+                style={{
+                  width: '400px',
+                  height: '46px',
+                  margin: '0 auto',
+                  backgroundColor: '#f3f1ef',
+                  borderColor: '#d9d4cf',
+                  color: '#858180',
+                }}
               >
                 <span className="text-sm sm:text-lg">📋</span>
                 <span>View Tasks & Questions</span>
