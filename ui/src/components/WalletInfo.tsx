@@ -253,7 +253,7 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
                     onClick={() => setIsDepositModalOpen(true)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 border border-green-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
+                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 border border-orange-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
                   >
                     <span className="font-SFPro">Deposit</span>
                   </motion.button>
@@ -263,7 +263,7 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
                     onClick={() => setIsWithdrawModalOpen(true)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 border border-orange-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
+                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 border border-green-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
                   >
                     <span className="font-SFPro">Withdraw</span>
                   </motion.button>

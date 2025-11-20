@@ -276,7 +276,7 @@ export const ReferralStatsModal = ({ isOpen, onClose }: ReferralStatsModalProps)
                         {referralStats.referrals.length === 0 ? (
                           <div className="p-8 text-center bg-white">
                             <div className="text-5xl mb-3">🎯</div>
-                            <p className="text-gray-500 text-base">No referrals yet</p>
+                            <p className="text-red-700 text-base">No referrals yet</p>
                             <p className="text-gray-400 text-xs mt-1.5">Share your referral link to invite friends!</p>
                           </div>
                         ) : (

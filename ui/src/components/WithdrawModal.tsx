@@ -12,8 +12,8 @@ interface WithdrawModalProps {
 export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawModalProps) => {
   const [walletAddress, setWalletAddress] = useState('');
   const [amount, setAmount] = useState('');
-  const [statusText, setStatusText] = useState('');
-  const [statusColor, setStatusColor] = useState('text-yellow-300');
+  const [statusText, setStatusText] = useState('Enter the amount to withdraw to your connected Phantom wallet.');
+  const [statusColor, setStatusColor] = useState('text-[#989898]');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentCredit, setCurrentCredit] = useState('0.00');
   const [retryCountdown, setRetryCountdown] = useState(0);
@@ -26,7 +26,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
       setWalletAddress(connectedWallet);
 
       if (connectedWallet) {
-        setStatusColor('text-yellow-300');
+        setStatusColor('text-[#989898]');
         setStatusText('Enter the amount to withdraw to your connected Phantom wallet.');
       } else {
         setStatusColor('text-red-400');
@@ -136,11 +136,9 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           transition={{ type: 'spring', duration: 0.5 }}
-          className="bg-gradient-to-br from-[#0a1f2e] via-[#0d2838] to-[#081d28] rounded-2xl border-2 border-game-blue/60 shadow-2xl shadow-game-blue/30 p-6 sm:p-8 max-w-md w-full relative overflow-hidden"
+          className="bg-[#FFFFFF] rounded-[30px] border-2 border-[#FFFFFF] shadow-2xl shadow-game-blue/30 p-6 sm:p-8 max-w-md w-full relative overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Animated Background Glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-orange-500/5 animate-pulse pointer-events-none" />
 
           {/* Close Button */}
           <button
@@ -153,12 +151,10 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
 
           {/* Header */}
           <div className="text-center mb-6 relative z-10">
-            <div className="text-5xl mb-3 animate-pulse">💸</div>
-            <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 mb-2">
-              Withdraw USDC
-            </h2>
-            <p className="text-sm text-gray-400">
-              Available: <span className="text-game-gold font-bold">{currentCredit} USDC</span>
+            <img src="/images/USDC2.jpg" alt="USDC" className="w-20 h-20 mx-auto mb-3 object-contain" />
+            <h2 className="text-3xl font-black text-[#12B900] mb-2">Withdraw USDC</h2>
+            <p className="text-sm text-[#5F5F5F]">
+              Available: <span className="font-bold text-[#5F5F5F]">{currentCredit} USDC</span>
             </p>
           </div>
 
@@ -166,22 +162,18 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
           <div className="space-y-4 relative z-10">
             {/* Destination Wallet */}
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Destination Wallet
-              </label>
-              <div className="w-full px-4 py-3 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white font-mono text-sm">
+              <label className="block text-xs font-semibold text-[#5F5F5F] mb-2 text-center">Destination Wallet</label>
+              <div className="w-full px-4 py-3 bg-[#0B2332]/10 border-2 border-[#0B2332]/30 rounded-[30px] text-[#5F5F5F] font-mono text-sm">
                 {formattedWallet}
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-[#5F5F5F] mt-2 text-center">
                 Funds will be withdrawn to your connected Phantom wallet.
               </p>
             </div>
 
             {/* Amount Input */}
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Amount (USDC)
-              </label>
+              <label className="block text-xs font-semibold text-[#5F5F5F] mb-2 text-center">Amount (USDC)</label>
               <div className="relative">
                 <input
                   type="number"
@@ -191,12 +183,12 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
                   step="0.000001"
                   min="0"
                   disabled={isProcessing || retryCountdown > 0}
-                  className="w-full px-4 py-3 pr-20 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white placeholder-gray-500 focus:border-game-blue focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-bold"
+                  className="w-full px-4 py-3 pr-20 bg-[#0B2332]/10 border-2 border-[#0B2332]/30 rounded-[30px] text-[#0B2332] placeholder-[#0B2332]/60 focus:border-[#0B2332] focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-bold"
                 />
                 <button
                   onClick={handleMaxAmount}
                   disabled={isProcessing || retryCountdown > 0}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-game-gold/20 hover:bg-game-gold/30 border border-game-gold/50 rounded text-game-gold text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-[#12B900]/15 hover:bg-[#12B900]/25 border border-[#12B900]/40 rounded text-[#12B900] text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   MAX
                 </button>
@@ -219,7 +211,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
               disabled={isWithdrawDisabled}
               whileHover={{ scale: isWithdrawDisabled ? 1 : 1.02 }}
               whileTap={{ scale: isWithdrawDisabled ? 1 : 0.98 }}
-              className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-red-500/30 relative overflow-hidden group"
+              className="w-full py-4 px-6 rounded-[30px] bg-gradient-to-r from-[#0CBF4B] to-[#12B900] hover:from-[#0AAA40] hover:to-[#0FA800] text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-[#0CBF4B]/30 relative overflow-hidden group"
             >
               {/* Button Glow Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-red-400/0 via-white/20 to-orange-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
@@ -233,14 +225,14 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
                 ) : retryCountdown > 0 ? (
                   `Wait ${retryCountdown}s...`
                 ) : (
-                  '💸 Withdraw Now'
+                  'Withdraw Now'
                 )}
               </span>
             </motion.button>
 
             {/* Warning Note */}
-            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 text-xs text-orange-300">
-              <span className="font-bold">⚠️ Note:</span> Withdrawal is irreversible. Ensure your Phantom wallet remains connected and secure before confirming.
+            <div className="bg-white/5 border border-[#E1E1E1] rounded-[30px] p-3 text-xs text-[#5F5F5F] font-SFPro">
+              <span className="font-bold text-[#5F5F5F]">⚠️ Note:</span> Withdrawal is irreversible. Ensure your Phantom wallet remains connected and secure before confirming.
             </div>
           </div>
 
