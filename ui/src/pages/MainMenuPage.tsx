@@ -71,7 +71,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
           setVipInfoText('Need ≥1 credit – click to deposit');
         }
       } else {
-        setVipInfoText('🔒 Login to play VIP');
+        setVipInfoText('Login to play VIP');
       }
     };
 
@@ -188,11 +188,11 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="bg-white rounded-[140px] border-2 sm:border-4 border-game-blue/40 p-4 sm:p-6 md:p-8 shadow-2xl mt-[120px]"
+            className="bg-white rounded-[140px] border-2 sm:border-4 border-game-blue/40 pt-[13px] pb-4 px-4 sm:pt-[21px] sm:pb-6 sm:px-6 md:pt-[29px] md:pb-8 md:px-8 shadow-2xl mt-[120px]"
             style={{ 
-              width: 'min(450px, 100%)', 
+              width: 'min(420px, 100%)', 
               height: isAuthenticated ? '480px' : '556px', 
-              marginLeft: '90px', 
+              marginLeft: '110px', 
               marginTop: '100px' 
             }}
           >
@@ -253,7 +253,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
               >
                 <div className="absolute inset-0 bg-green-400/50 rounded-[24px] sm:rounded-[32px] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div
-                  className="relative text-white font-bold text-sm sm:text-base rounded-[24px] sm:rounded-[32px] border-2 border-white/80 shadow-lg transition-all duration-200 group-hover:brightness-110 flex items-center justify-center"
+                  className="relative text-white font-bold text-sm sm:text-base rounded-[24px] sm:rounded-[32px] border-2 border-white/80 group-hover:border-green-400 shadow-lg transition-all duration-200 group-hover:brightness-110 flex items-center justify-center"
                   style={{
                     background: 'linear-gradient(0deg, #c7ffd6 0%, #57e66f 55%, #1c9f3e 100%)',
                     width: '150px',
@@ -274,7 +274,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
               >
                 <div className="absolute inset-0 bg-orange-400/50 rounded-[24px] sm:rounded-[32px] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
                 <div
-                  className="relative disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm sm:text-base rounded-[24px] sm:rounded-[32px] border-2 border-white/80 shadow-lg transition-all duration-200 group-hover:brightness-110 flex items-center justify-center"
+                  className="relative disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm sm:text-base rounded-[24px] sm:rounded-[32px] border-2 border-white/80 group-hover:border-orange-400 shadow-lg transition-all duration-200 group-hover:brightness-110 flex items-center justify-center"
                   style={{
                     background: 'linear-gradient(0deg, #ffe0c7 0%, #ff9a55 55%, #e34d1d 100%)',
                     width: '150px',
@@ -317,7 +317,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
                   color: '#858180',
                 }}
               >
-                <span className="text-xs sm:text-sm">📋</span>
+                <span className="text-xs sm:text-sm"></span>
                 <span>View Tasks & Questions</span>
                 <span className="text-[8px] sm:text-[10px] opacity-70 group-hover:opacity-100">↗</span>
               </motion.a>
@@ -325,7 +325,7 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
           </motion.div>
 
           {/* Version */}
-          <p className="text-center text-gray-400 text-[10px] sm:text-xs mt-1 sm:mt-2 flex-shrink-0">
+          <p className="text-center text-gray-400 text-[10px] sm:text-xs mt-1 sm:mt-2 flex-shrink-0 ">
             v{GAME_INFO.version}
           </p>
         </div>
