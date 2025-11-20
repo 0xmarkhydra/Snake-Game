@@ -23,15 +23,15 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
   return (
     <div className="w-full">
       {/* Label */}
-      <div className="text-center mb-3 sm:mb-4">
-        <h3 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-[linear-gradient(180deg,#bfe6ff_0%,#4a9be4_55%,#0d5c9d_90%)] mb-2">
+      <div className="text-center mb-2 sm:mb-3">
+        <h3 className="text-base sm:text-lg font-bold text-transparent bg-clip-text bg-[linear-gradient(180deg,#bfe6ff_0%,#4a9be4_55%,#0d5c9d_90%)] mb-1">
           CHOOSE YOUR SKIN
         </h3>
-        <div className="h-0.5 w-48 sm:w-60 mx-auto bg-gradient-to-r from-[#bfe6ff] via-[#4a9be4] to-[#0d5c9d]"></div>
+        <div className="h-0.5 w-32 sm:w-40 mx-auto bg-gradient-to-r from-[#bfe6ff] via-[#4a9be4] to-[#0d5c9d]"></div>
       </div>
 
       {/* Skin Grid */}
-      <div className="grid grid-cols-4 gap-x-2 gap-y-1 sm:gap-x-3 sm:gap-y-2 md:gap-x-4 md:gap-y-3 max-w-md mx-auto mt-4 sm:mt-6 md:mt-8">
+      <div className="grid grid-cols-4 gap-x-1.5 gap-y-1 sm:gap-x-2 sm:gap-y-1.5 max-w-[310px] mx-auto mt-2 sm:mt-3">
         {SKINS.map((skin) => {
           const isSelected = skin.id === selectedSkin;
           const isHovered = skin.id === hoveredSkin;
@@ -50,10 +50,10 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
               {/* Skin Container */}
               <button
                 onClick={() => onSelectSkin(skin.id)}
-                className="relative w-[92px] h-[92px] sm:w-[105px] sm:h-[105px] rounded-full flex items-center justify-center transition-all duration-200"
+                className="relative w-[55px] h-[55px] sm:w-[60px] sm:h-[60px] rounded-full flex items-center justify-center transition-all duration-200"
               >
                 <div
-                  className={`w-[74px] h-[74px] sm:w-[82px] sm:h-[82px] rounded-full shadow-[inset_0_6px_12px_rgba(0,0,0,0.1)] flex items-center justify-center transition-colors duration-200 border ${
+                  className={`w-[45px] h-[45px] sm:w-[50px] sm:h-[50px] rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.1)] flex items-center justify-center transition-colors duration-200 border ${
                     isSelected ? 'border-[#f4f6fb]' : 'border-white/60'
                   }`}
                   style={{
@@ -63,7 +63,7 @@ export const SkinSelector = ({ selectedSkin, onSelectSkin }: SkinSelectorProps) 
                   <img
                     src={`/images/${skin.image}`}
                     alt={`Snake skin ${skin.id}`}
-                    className="w-[64px] h-[64px] object-contain pointer-events-none select-none"
+                    className="w-[38px] h-[38px] sm:w-[42px] sm:h-[42px] object-contain pointer-events-none select-none"
                     draggable="false"
                   />
                 </div>

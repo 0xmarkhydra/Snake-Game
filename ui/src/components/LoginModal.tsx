@@ -9,23 +9,30 @@ interface LoginModalProps {
   onClose: () => void;
   onLoginSuccess: () => void;
   onShowDeposit: () => void;
+  initialReferralCode?: string;
 }
 
-export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit }: LoginModalProps) => {
+export const LoginModal = ({ isOpen, onClose, onLoginSuccess, onShowDeposit, initialReferralCode }: LoginModalProps) => {
   const [statusText, setStatusText] = useState('');
   const [statusColor, setStatusColor] = useState('text-yellow-300');
   const [isProcessing, setIsProcessing] = useState(false);
   const [referralCode, setReferralCode] = useState('');
 
-  // Load referral code from URL on mount
+  // Load referral code: prioritize initialReferralCode, then URL
   useEffect(() => {
     if (isOpen) {
-      const refCode = referralService.getReferralCodeFromUrl();
-      if (refCode) {
-        setReferralCode(refCode.toUpperCase());
+      if (initialReferralCode) {
+        setReferralCode(initialReferralCode.toUpperCase());
+      } else {
+        const refCode = referralService.getReferralCodeFromUrl();
+        if (refCode) {
+          setReferralCode(refCode.toUpperCase());
+        } else {
+          setReferralCode('');
+        }
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialReferralCode]);
 
   const handleConnect = async () => {
     if (isProcessing) return;
