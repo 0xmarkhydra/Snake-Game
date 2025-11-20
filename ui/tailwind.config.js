@@ -12,6 +12,9 @@ module.exports = {
         'game-light': '#5ca4d5',
         'game-gold': '#FFD700',
       },
+      fontFamily: {
+        'borel': ['Borel', 'cursive'],
+      },
     },
   },
   plugins: [],

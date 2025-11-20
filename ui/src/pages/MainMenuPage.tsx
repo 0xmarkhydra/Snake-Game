@@ -163,12 +163,35 @@ export const MainMenuPage = ({ onStartGame }: MainMenuPageProps) => {
     <div
       className="relative w-full h-full overflow-hidden bg-[#f2f6ff]"
       style={{
-        backgroundImage: 'url(/images/background.png)',
+        backgroundImage: 'url(/images/background.webp)',
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center top',
         backgroundSize: 'cover',
       }}
-    >
+      >
+      {/* SlitherX Title */}
+      <h1
+        className="absolute left-1/2 transform -translate-x-1/2 z-10 text-4xl sm:text-5xl md:text-6xl font-borel font-bold text-center whitespace-nowrap"
+        style={{
+          top: '-30px',
+          lineHeight: '2',
+          padding: '1em 0.5em',
+          margin: '0',
+          transform: 'translate(-50%, 0)',
+        }}
+      >
+        <span style={{ color: '#0082FF' }}>Slit</span>
+        <span
+          style={{
+            background: 'linear-gradient(90deg, #0082FF 0%, #72BEFF 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          herX
+        </span>
+      </h1>
 
       {/* Wallet Controls */}
       {isAuthenticated && (
