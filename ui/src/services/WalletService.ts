@@ -87,13 +87,13 @@ class WalletService {
             // Update credit after successful withdrawal
             await this.getCredit();
             
-            console.log(`✅ Withdrawal successful: ${amount} USDC to ${recipientAddress}`);
+            console.log(`✅ Cash Out successful: ${amount} USDC to ${recipientAddress}`);
             return {
                 success: true,
                 data: response
             };
         } catch (error: any) {
-            console.error('❌ Error withdrawing:', error);
+            console.error('❌ Error cash out:', error);
             
             // Handle specific error cases
             const errorResponse = error?.response?.data;
@@ -104,7 +104,7 @@ class WalletService {
                 const retryAfter = errorResponse?.retryAfter || 60;
                 return {
                     success: false,
-                    message: errorResponse?.message || 'Too many withdrawal requests. Please wait and try again.',
+                    message: errorResponse?.message || 'Too many cash out requests. Please wait and try again.',
                     retryAfter
                 };
             }
@@ -113,14 +113,14 @@ class WalletService {
             if (status === 400 && errorResponse?.message?.includes('Insufficient balance')) {
                 return {
                     success: false,
-                    message: 'Insufficient balance for withdrawal.'
+                    message: 'Insufficient balance for cash out.'
                 };
             }
             
             // Handle other errors
             return {
                 success: false,
-                message: errorResponse?.message || 'Withdrawal failed. Please try again.'
+                message: errorResponse?.message || 'Cash Out failed. Please try again.'
             };
         }
     }
