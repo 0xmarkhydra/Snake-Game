@@ -28,7 +28,7 @@ const DEFAULT_RPC_ENDPOINT = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api
 export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage }: DepositModalProps) => {
   const [amount, setAmount] = useState('1');
   const [statusText, setStatusText] = useState('');
-  const [statusColor, setStatusColor] = useState('text-yellow-300');
+  const [statusColor, setStatusColor] = useState('text-[#5F5F5F]');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentCredit, setCurrentCredit] = useState('0.00');
 
@@ -37,7 +37,7 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
       const credit = walletService.getCachedCredit();
       setCurrentCredit(walletService.formatCredit(credit));
       setStatusText(initialMessage || 'Enter the amount and press Deposit.');
-      setStatusColor('text-yellow-300');
+      setStatusColor('text-[#5F5F5F]');
     }
   }, [isOpen, initialMessage]);
 
@@ -181,12 +181,9 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           transition={{ type: 'spring', duration: 0.5 }}
-          className="bg-gradient-to-br from-[#0a1f2e] via-[#0d2838] to-[#081d28] rounded-2xl border-2 border-game-blue/60 shadow-2xl shadow-game-blue/30 p-6 sm:p-8 max-w-md w-full relative overflow-hidden"
+          className="bg-[#FFFFFF] rounded-[30px] border-2 border-white shadow-2xl shadow-game-blue/30 p-6 sm:p-8 max-w-md w-full relative overflow-hidden font-SFPro"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Animated Background Glow */}
-          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-emerald-500/5 animate-pulse pointer-events-none" />
-
           {/* Close Button */}
           <button
             onClick={onClose}
@@ -198,12 +195,12 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
 
           {/* Header */}
           <div className="text-center mb-6 relative z-10">
-            <div className="text-5xl mb-3 animate-pulse">💰</div>
-            <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 mb-2">
+            <img src="/images/USDC.jpg" alt="USDC" className="w-16 h-16 mx-auto mb-3 animate-pulse object-contain" />
+            <h2 className="text-3xl font-black text-[#FF9D00] mb-2">
               Deposit USDC
             </h2>
-            <p className="text-sm text-gray-400">
-              Current: <span className="text-game-gold font-bold">{currentCredit} USDC</span>
+            <p className="text-sm text-[#5F5F5F]">
+              Current: <span className="font-bold text-[#5F5F5F]">{currentCredit} USDC</span>
             </p>
           </div>
 
@@ -211,7 +208,7 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
           <div className="space-y-4 relative z-10">
             {/* Amount Input */}
             <div>
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-[#5F5F5F] uppercase tracking-wider mb-2 text-center">
                 Amount (USDC)
               </label>
               <input
@@ -222,7 +219,7 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
                 step="0.000001"
                 min="0.000001"
                 disabled={isProcessing}
-                className="w-full px-4 py-3 bg-game-blue/10 border-2 border-game-blue/30 rounded-lg text-white placeholder-gray-500 focus:border-game-blue focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-bold"
+                className="w-full px-4 py-3 bg-[#FF9D00]/10 border-2 border-[#FF9D00] rounded-[30px] text-[#FF9D00] placeholder-[#FF9D00]/60 focus:border-[#FF9D00] focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg font-bold text-center"
               />
             </div>
 
@@ -231,7 +228,7 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
               key={statusText}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`text-center text-sm font-semibold ${statusColor} min-h-[60px] flex items-center justify-center whitespace-pre-line`}
+              className={`text-center text-sm font-semibold ${statusColor} min-h-[60px] flex items-center justify-center whitespace-pre-line font-SFPro`}
             >
               {statusText}
             </motion.div>
@@ -242,11 +239,8 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
               disabled={isProcessing}
               whileHover={{ scale: isProcessing ? 1 : 1.02 }}
               whileTap={{ scale: isProcessing ? 1 : 0.98 }}
-              className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-green-500/30 relative overflow-hidden group"
+              className="w-full py-4 px-6 rounded-[30px] bg-[#FF9D00] hover:bg-[#E57F00] text-white font-black text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
-              {/* Button Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-green-400/0 via-white/20 to-emerald-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-              
               <span className="relative z-10">
                 {isProcessing ? (
                   <span className="flex items-center justify-center gap-2">
@@ -254,20 +248,20 @@ export const DepositModal = ({ isOpen, onClose, onDepositSuccess, initialMessage
                     Processing...
                   </span>
                 ) : (
-                  '💰 Deposit Now'
+                  'Deposit Now'
                 )}
               </span>
             </motion.button>
 
             {/* Info Note */}
-            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-xs text-green-300">
-              <span className="font-bold">ℹ️ Info:</span> Your wallet will be charged for the deposit amount plus Solana network fees. Credit updates may take a few moments.
+            <div className="bg-white/5 border border-[#E1E1E1] rounded-[30px] p-3 text-xs text-[#5F5F5F] font-SFPro">
+              <span className="font-bold text-[#5F5F5F]">ℹ️ Info:</span> Your wallet will be charged for the deposit amount plus Solana network fees. Credit updates may take a few moments.
             </div>
           </div>
 
           {/* Corner Decorations */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-bl-full blur-xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-tr-full blur-xl pointer-events-none" />
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-[30px] blur-xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-emerald-500/10 rounded-[30px] blur-xl pointer-events-none" />
         </motion.div>
       </motion.div>
     </AnimatePresence>

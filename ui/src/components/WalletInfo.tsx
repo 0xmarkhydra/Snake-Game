@@ -128,9 +128,9 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
           whileTap={{ scale: 0.95 }}
           className={`sm:hidden ${isExpanded ? 'hidden' : 'block'}`}
         >
-          <div className="relative bg-gradient-to-br from-[#0a1f2e]/95 via-[#0d2838]/95 to-[#081d28]/95 backdrop-blur-md rounded-xl border-2 border-game-blue/60 shadow-xl shadow-game-blue/20 px-3 py-2 flex items-center gap-2">
+          <div className="relative bg-gray-100 backdrop-blur-md rounded-[40px] border border-gray-300/50 shadow-xl shadow-gray-400/30 px-3 py-2 flex items-center gap-2">
             {/* Glow */}
-            <div className="absolute inset-0 bg-gradient-to-br from-game-blue/10 via-transparent to-game-gold/5 animate-pulse pointer-events-none rounded-xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-game-blue/10 via-transparent to-game-gold/5 animate-pulse pointer-events-none rounded-[40px]" />
             
             <span className="relative text-xl animate-pulse">💎</span>
             <motion.span
@@ -138,11 +138,11 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
               initial={{ scale: 1.1, opacity: 0.8 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.3 }}
-              className="relative text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-game-gold via-yellow-300 to-game-gold"
+              className="relative text-xl font-black font-SFPro text-transparent bg-clip-text bg-gradient-to-r from-game-gold via-yellow-300 to-game-gold"
             >
               {credit}
             </motion.span>
-            <span className="relative text-xs text-gray-400">▼</span>
+            <span className="relative text-xs font-SFPro text-gray-400">▼</span>
           </div>
         </motion.button>
 
@@ -155,14 +155,14 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
           }}
           className={`${isExpanded ? 'block' : 'hidden'} sm:block max-w-[calc(100vw-1rem)] sm:max-w-none`}
         >
-          <div className="relative bg-gradient-to-br from-[#0a1f2e]/95 via-[#0d2838]/95 to-[#081d28]/95 backdrop-blur-md rounded-xl border-2 border-game-blue/60 shadow-2xl shadow-game-blue/20 p-3 min-w-[280px] overflow-hidden">
+          <div className="relative bg-gray-100 backdrop-blur-md rounded-[40px] border border-gray-300/50 shadow-2xl shadow-gray-400/30 p-3 min-w-[280px] overflow-hidden">
             {/* Animated Background Glow */}
-            <div className="absolute inset-0 bg-gradient-to-br from-game-blue/10 via-transparent to-game-gold/5 animate-pulse pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-br from-game-blue/10 via-transparent to-game-gold/5 animate-pulse pointer-events-none rounded-[40px]" />
             
             {/* Mobile Close Button */}
             <button
               onClick={() => setIsExpanded(false)}
-              className="sm:hidden absolute top-1 right-1 z-20 text-gray-400 hover:text-white transition-colors text-lg"
+              className="sm:hidden absolute top-1 right-1 z-20 text-gray-400 hover:text-white transition-colors text-lg font-SFPro"
             >
               ✕
             </button>
@@ -173,112 +173,111 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
               <motion.button
                 onClick={handleCopyAddress}
                 whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-1.5 w-full p-1.5 mb-2 rounded-lg bg-game-blue/10 hover:bg-game-blue/20 border border-game-blue/30 transition-all group"
+                className="flex items-center gap-1.5 w-full p-1.5 mb-2 rounded-[40px] bg-white/50 hover:bg-white/70 border border-gray-300 transition-all group"
               >
                 <span className="text-sm">🔗</span>
-                <span className="text-xs font-bold text-white flex-1 text-left truncate">{walletAddress}</span>
-                {copied && <span className="text-[10px] text-green-400">✓</span>}
+                <span className="text-xs font-bold font-SFPro text-gray-700 flex-1 text-left truncate">{walletAddress}</span>
+                {copied && <span className="text-[10px] font-SFPro text-green-500">✓</span>}
               </motion.button>
 
               {/* Credit Display Section (Compact) */}
-              <div className="mb-2 pb-2 border-b border-game-gold/30">
+              <div className="mb-2 pb-2 border-b border-gray-300">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1.5 mb-1">
-                    <span className="text-lg animate-pulse">💎</span>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Credit Balance</span>
+                    <img src="/images/dola.png" alt="$" className="w-4 h-4" />
+                    <span className="text-[13px] font-SFPro text-gray-600 uppercase"> Credit Balance</span>
                   </div>
                   <motion.div
                     key={credit}
                     initial={{ scale: 1.1, opacity: 0.8 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.3 }}
-                    className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-game-gold via-yellow-300 to-game-gold"
+                    className="text-3xl font-black font-SFPro text-blue-600"
                   >
                     {credit}
                   </motion.div>
-                  <div className="text-[10px] text-gray-500">USDC</div>
+                  <div className="text-[10px] font-SFPro text-gray-500">USDC</div>
                 </div>
               </div>
 
-              {/* Referral Code Section */}
-              <div className="mb-2 pb-2 border-b border-cyan-400/30">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1.5 mb-1">
-                    <span className="text-sm">🎁</span>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Referral Code</span>
-                  </div>
-                  {isLoadingReferral ? (
-                    <div className="flex items-center justify-center py-2">
-                      <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+              {/* White Container for Referral Code and Action Buttons */}
+              <div className="bg-white rounded-[20px] p-3">
+                {/* Referral Code Section */}
+                <div className="mb-2 pb-2 border-b border-cyan-400/30">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                      <span className="text-xs font-semibold font-SFPro text-gray-600 uppercase">Referral Code</span>
                     </div>
-                  ) : referralCode ? (
-                    <>
-                      <motion.button
-                        onClick={handleCopyReferralCode}
-                        whileTap={{ scale: 0.98 }}
-                        className="flex items-center justify-center gap-2 w-full p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 transition-all group"
-                      >
-                        <span className="text-lg font-bold text-cyan-300">{referralCode}</span>
-                        {referralCopied ? (
-                          <span className="text-[10px] text-green-400">✓</span>
-                        ) : (
-                          <span className="text-[10px] text-gray-400 group-hover:text-cyan-300">📋</span>
-                        )}
-                      </motion.button>
+                    {isLoadingReferral ? (
+                      <div className="flex items-center justify-center py-2">
+                        <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : referralCode ? (
+                      <>
+                        <motion.button
+                          onClick={handleCopyReferralCode}
+                          whileTap={{ scale: 0.98 }}
+                          className="flex items-center justify-center gap-2 w-full p-1.5 rounded-[40px] bg-blue-500 hover:bg-blue-600 border border-blue-400 transition-all group font-SFPro"
+                        >
+                          <span className="text-lg font-bold font-SFPro text-white">{referralCode}</span>
+                          {referralCopied ? (
+                            <span className="text-[10px] font-SFPro text-green-300">✓</span>
+                          ) : (
+                            <span className="text-[10px] font-SFPro text-white/70 group-hover:text-white">📋</span>
+                          )}
+                        </motion.button>
+                        <motion.button
+                          onClick={() => setIsReferralModalOpen(true)}
+                          whileTap={{ scale: 0.98 }}
+                          className="mt-1 text-[10px] font-SFPro text-blue-500 hover:text-blue-600 transition-colors"
+                        >
+                          View Stats →
+                        </motion.button>
+                      </>
+                    ) : (
                       <motion.button
                         onClick={() => setIsReferralModalOpen(true)}
                         whileTap={{ scale: 0.98 }}
-                        className="mt-1 text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors"
+                        className="w-full py-2 px-3 rounded-[40px] bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 hover:text-cyan-200 font-semibold font-SFPro text-xs transition-all"
                       >
-                        View Stats →
+                        View Referral Program
                       </motion.button>
-                    </>
-                  ) : (
-                    <motion.button
-                      onClick={() => setIsReferralModalOpen(true)}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full py-2 px-3 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 hover:text-cyan-200 font-semibold text-xs transition-all"
-                    >
-                      View Referral Program
-                    </motion.button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Action Buttons (Compact) */}
-              <div className="space-y-1.5">
-                {/* Deposit Button */}
-                <motion.button
-                  onClick={() => setIsDepositModalOpen(true)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 border border-green-500/50 hover:border-green-400 text-green-400 hover:text-green-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 group"
-                >
-                  <span className="text-sm">💰</span>
-                  <span>Deposit</span>
-                </motion.button>
+                {/* Action Buttons (Compact) */}
+                <div className="space-y-1.5">
+                  {/* Deposit Button */}
+                  <motion.button
+                    onClick={() => setIsDepositModalOpen(true)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 border border-orange-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
+                  >
+                    <span className="font-SFPro">Deposit</span>
+                  </motion.button>
 
-                {/* Withdraw Button */}
-                <motion.button
-                  onClick={() => setIsWithdrawModalOpen(true)}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-orange-500/20 to-yellow-500/20 hover:from-orange-500/30 hover:to-yellow-500/30 border border-orange-500/50 hover:border-orange-400 text-orange-400 hover:text-orange-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 group"
-                >
-                  <span className="text-sm">💸</span>
-                  <span>Withdraw</span>
-                </motion.button>
+                  {/* Withdraw Button */}
+                  <motion.button
+                    onClick={() => setIsWithdrawModalOpen(true)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 border border-green-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
+                  >
+                    <span className="font-SFPro">Withdraw</span>
+                  </motion.button>
 
-                {/* Logout Button */}
-                <motion.button
-                  onClick={handleLogout}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 border border-red-500/50 hover:border-red-400 text-red-400 hover:text-red-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 group"
-                >
-                  <span className="text-sm">🚪</span>
-                  <span>Disconnect Wallet</span>
-                </motion.button>
+                  {/* Logout Button */}
+                  <motion.button
+                    onClick={handleLogout}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 border border-red-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
+                  >
+                    <span className="font-SFPro">Disconnect Wallet</span>
+                  </motion.button>
+                </div>
               </div>
             </div>
           </div>

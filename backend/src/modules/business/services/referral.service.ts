@@ -126,6 +126,18 @@ export class ReferralService {
     const { refereeId, referrerId, feeAmount, killLogId, actionType, metadata } =
       params;
 
+    console.log('[ReferralService] processGameCommission called:', {
+      refereeId,
+      referrerId,
+      feeAmount,
+      killLogId,
+      actionType,
+      killCommissionRate: this.killCommissionRate,
+      deathCommissionRate: this.deathCommissionRate,
+      expectedKillCommission: this.toNumber(feeAmount) * this.killCommissionRate,
+      expectedDeathCommission: this.toNumber(feeAmount) * this.deathCommissionRate,
+    });
+
     // Check if already processed (idempotent)
     // Query by checking metadata contains kill_log_id and action_type
     const existing = await this.referralRewardRepository
@@ -137,6 +149,7 @@ export class ReferralService {
       .getOne();
 
     if (existing) {
+      console.log('[ReferralService] Commission already processed:', existing.id);
       return existing;
     }
 
@@ -147,6 +160,12 @@ export class ReferralService {
         ? this.killCommissionRate
         : this.deathCommissionRate;
     const commission = feeAmountNumber * commissionRate;
+
+    console.log('[ReferralService] Commission calculation:', {
+      feeAmountNumber,
+      commissionRate,
+      commission,
+    });
 
     // Check commission cap
     if (this.commissionCapPerUser) {
@@ -161,63 +180,140 @@ export class ReferralService {
       }
     }
 
-    return await this.dataSource.transaction(async (manager) => {
-      const referralRewardRepo =
-        manager.getRepository(ReferralRewardEntity);
-      const transactionRepo = manager.getRepository(TransactionEntity);
-      const walletRepo = manager.getRepository(WalletBalanceEntity);
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        console.log('[ReferralService] Starting transaction for commission:', {
+          referrerId,
+          refereeId,
+          commission,
+        });
 
-      // Create referral reward record
-      const referralReward = referralRewardRepo.create({
-        referrer: { id: referrerId },
-        referee: { id: refereeId },
-        rewardType: ReferralRewardType.GAME_COMMISSION,
-        amount: this.formatAmount(commission),
-        status: ReferralRewardStatus.PENDING,
-        metadata: {
-          action_type: actionType,
-          fee_amount: feeAmount,
-          kill_log_id: killLogId,
-          ...metadata,
-        },
+        const referralRewardRepo =
+          manager.getRepository(ReferralRewardEntity);
+        const transactionRepo = manager.getRepository(TransactionEntity);
+        const walletRepo = manager.getRepository(WalletBalanceEntity);
+
+        // Create referral reward record
+        const referralReward = referralRewardRepo.create({
+          referrer: { id: referrerId } as UserEntity,
+          referee: { id: refereeId } as UserEntity,
+          rewardType: ReferralRewardType.GAME_COMMISSION,
+          amount: this.formatAmount(commission),
+          status: ReferralRewardStatus.PENDING,
+          metadata: {
+            action_type: actionType,
+            fee_amount: feeAmount,
+            kill_log_id: typeof killLogId === 'string' ? killLogId : String(killLogId),
+            ...metadata,
+          },
+        });
+
+        console.log('[ReferralService] Creating referral reward:', {
+          amount: referralReward.amount,
+          referrerId,
+          refereeId,
+          rewardType: referralReward.rewardType,
+          status: referralReward.status,
+        });
+
+        let savedReward;
+        try {
+          savedReward = await referralRewardRepo.save(referralReward);
+          console.log('[ReferralService] Referral reward saved:', savedReward.id);
+        } catch (saveError) {
+          console.error('[ReferralService] Error saving referral reward:', {
+            error: saveError.message,
+            stack: saveError.stack,
+            referralReward: {
+              amount: referralReward.amount,
+              referrerId,
+              refereeId,
+            },
+          });
+          throw saveError;
+        }
+
+        // Create transaction for referrer
+        const transaction = transactionRepo.create({
+          user: { id: referrerId },
+          type: TransactionType.REWARD,
+          status: TransactionStatus.CONFIRMED,
+          amount: this.formatAmount(commission),
+          metadata: {
+            referral_reward_id: savedReward.id,
+            reward_type: 'game_commission',
+            action_type: actionType,
+            kill_log_id: killLogId,
+            fee_amount: feeAmount,
+          },
+        });
+
+        console.log('[ReferralService] Creating transaction:', {
+          amount: transaction.amount,
+          userId: transaction.user,
+        });
+
+        const savedTransaction = await transactionRepo.save(transaction);
+        console.log('[ReferralService] Transaction saved:', savedTransaction.id);
+
+        // Update wallet balance
+        console.log('[ReferralService] Getting wallet balance for:', referrerId);
+        const balance = await this.getOrCreateWalletBalance(
+          referrerId,
+          walletRepo,
+        );
+        console.log('[ReferralService] Current balance:', {
+          availableAmount: balance.availableAmount,
+          lockedAmount: balance.lockedAmount,
+        });
+
+        const currentAmount = this.toNumber(balance.availableAmount);
+        const newAmount = currentAmount + commission;
+        balance.availableAmount = this.formatAmount(newAmount);
+        balance.lastTransactionId = savedTransaction.id;
+        
+        console.log('[ReferralService] Updating balance:', {
+          currentAmount,
+          commission,
+          newAmount,
+          formattedNewAmount: balance.availableAmount,
+        });
+
+        await walletRepo.save(balance);
+        console.log('[ReferralService] Wallet balance saved');
+
+        console.log('[ReferralService] Wallet balance updated:', {
+          referrerId,
+          currentAmount,
+          commission,
+          newAmount,
+          formattedNewAmount: balance.availableAmount,
+        });
+
+        // Update referral reward
+        savedReward.transaction = savedTransaction;
+        savedReward.status = ReferralRewardStatus.CONFIRMED;
+        await referralRewardRepo.save(savedReward);
+        console.log('[ReferralService] Referral reward status updated to CONFIRMED');
+
+        console.log('[ReferralService] Commission processed successfully:', {
+          referralRewardId: savedReward.id,
+          amount: savedReward.amount,
+          transactionId: savedTransaction.id,
+        });
+
+        return savedReward;
       });
-
-      const savedReward = await referralRewardRepo.save(referralReward);
-
-      // Create transaction for referrer
-      const transaction = transactionRepo.create({
-        user: { id: referrerId },
-        type: TransactionType.REWARD,
-        status: TransactionStatus.CONFIRMED,
-        amount: this.formatAmount(commission),
-        metadata: {
-          referral_reward_id: savedReward.id,
-          reward_type: 'game_commission',
-          action_type: actionType,
-          kill_log_id: killLogId,
-          fee_amount: feeAmount,
-        },
-      });
-
-      const savedTransaction = await transactionRepo.save(transaction);
-
-      // Update wallet balance
-      const balance = await this.getOrCreateWalletBalance(
+    } catch (error) {
+      console.error('[ReferralService] Error processing commission:', {
+        error: error.message,
+        stack: error.stack,
         referrerId,
-        walletRepo,
-      );
-      const currentAmount = this.toNumber(balance.availableAmount);
-      balance.availableAmount = this.formatAmount(currentAmount + commission);
-      balance.lastTransactionId = savedTransaction.id;
-      await walletRepo.save(balance);
-
-      // Update referral reward
-      savedReward.transaction = savedTransaction;
-      savedReward.status = ReferralRewardStatus.CONFIRMED;
-      await referralRewardRepo.save(savedReward);
-
-      return savedReward;
-    });
+        refereeId,
+        commission,
+      });
+      throw error;
+    }
   }
 
   async getReferralStats(

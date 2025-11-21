@@ -114,7 +114,7 @@ export class MenuScene extends Scene {
         // Update the name label and underline colors
         const nameLabel = this.add.text(0, -120, 'YOUR NAME', {
             fontFamily: 'Arial',
-            fontSize: '24px',
+            fontSize: '20px',
             color: '#39FF14',
             fontStyle: 'bold'
         }).setOrigin(0.5);
@@ -165,16 +165,7 @@ export class MenuScene extends Scene {
         this.createPlayButtons(menuContainer);
         
         // Instructions with better styling
-        this.instructionsText = this.add.text(width / 2, height - 40, 'Use mouse to control direction. Click to boost. Eat food to grow. Avoid other snakes!', {
-            fontFamily: 'Arial',
-            fontSize: '16px',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 2,
-            align: 'center',
-            wordWrap: { width: width * 0.6 }
-        }).setOrigin(0.5);
-        
+     
         // Add version info
         this.versionText = this.add.text(width - 10, height - 10, `v${GAME_INFO.version}`, {
             fontFamily: 'Arial',
