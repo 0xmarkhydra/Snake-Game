@@ -69,81 +69,57 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess, onShowAmount
       return;
     }
 
-    // NOTE: Testing mode for confetti – always treat as successful cash out
-    // const currentBalance = walletService.getCachedCredit();
-    // if (amountNum > currentBalance) {
-    //   setStatusColor('text-red-400');
-    //   setStatusText(`Insufficient balance. Available: ${walletService.formatCredit(currentBalance)} USDC`);
-    //   return;
-    // }
+    // Real flow: check balance and call withdraw API
+    const currentBalance = walletService.getCachedCredit();
+    if (amountNum > currentBalance) {
+      setStatusColor('text-red-400');
+      setStatusText(`Insufficient balance. Available: ${walletService.formatCredit(currentBalance)} USDC`);
+      return;
+    }
 
-    // try {
-    //   setIsProcessing(true);
-    //   setStatusColor('text-yellow-300');
-    //   setStatusText('Processing cash out...');
-    //
-    //   const result = await walletService.withdraw(connectedWallet, amountNum);
-    //
-    //   if (result.success) {
-    //     setStatusColor('text-green-400');
-    //     setStatusText(`✅ Cash Out successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}.`);
-    //     
-    //     // Update current credit display
-    //     const newCredit = walletService.getCachedCredit();
-    //     setCurrentCredit(walletService.formatCredit(newCredit));
-    //
-    //     // Fire celebratory confetti from bottom of the screen
-    //     fireWithdrawConfetti();
-    //
-    //     // Close modal after 2 seconds
-    //     setTimeout(() => {
-    //       onWithdrawSuccess();
-    //       onClose();
-    //     }, 2000);
-    //   } else {
-    //     setStatusColor('text-red-400');
-    //     setStatusText(result.message || 'Cash Out failed. Please try again.');
-    //     
-    //     // Handle retry countdown
-    //     if (result.retryAfter) {
-    //       setRetryCountdown(result.retryAfter);
-    //     }
-    //   }
-    // } catch (error) {
-    //   console.error('Withdrawal error:', error);
-    //   setStatusColor('text-red-400');
-    //   setStatusText('Unexpected error occurred. Please try again.');
-    // } finally {
-    //   setIsProcessing(false);
-    // }
+    try {
+      setIsProcessing(true);
+      setStatusColor('text-yellow-300');
+      setStatusText('Processing cash out...');
 
-    // Mock success flow for testing confetti
-    setIsProcessing(true);
-    setStatusColor('text-yellow-300');
-    setStatusText('Processing cash out (test mode)...');
+      const result = await walletService.withdraw(connectedWallet, amountNum);
 
-    // Giả lập delay xử lý API
-    setTimeout(() => {
-      setStatusColor('text-green-400');
-      setStatusText(`✅ Cash Out successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}. (test)`);
+      if (result.success) {
+        setStatusColor('text-green-400');
+        setStatusText(`✅ Cash Out successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}.`);
+        
+        // Update current credit display
+        const newCredit = walletService.getCachedCredit();
+        setCurrentCredit(walletService.formatCredit(newCredit));
 
-      // Đóng popup sau 1s, sau đó 1s nữa mới bắn pháo giấy + hiệu ứng cộng tiền (ở component cha)
-      setTimeout(() => {
-        onWithdrawSuccess();
-        onClose();
-        setIsProcessing(false);
+        // Fire celebratory confetti from bottom of the screen
+        fireWithdrawConfetti();
 
         if (onShowAmountEffect) {
-          setTimeout(() => {
-            fireWithdrawConfetti();
-            onShowAmountEffect(amountNum);
-          }, 1000); // 1s sau khi popup đã ẩn
-        } else {
-          // Fallback: vẫn bắn pháo giấy nếu không có effect bên ngoài
-          fireWithdrawConfetti();
+          onShowAmountEffect(amountNum);
         }
-      }, 1000);
-    }, 1000);
+
+        // Close modal after 2 seconds
+        setTimeout(() => {
+          onWithdrawSuccess();
+          onClose();
+        }, 2000);
+      } else {
+        setStatusColor('text-red-400');
+        setStatusText(result.message || 'Cash Out failed. Please try again.');
+        
+        // Handle retry countdown
+        if (result.retryAfter) {
+          setRetryCountdown(result.retryAfter);
+        }
+      }
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      setStatusColor('text-red-400');
+      setStatusText('Unexpected error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleMaxAmount = () => {
