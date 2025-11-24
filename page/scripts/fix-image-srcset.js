@@ -170,18 +170,68 @@
     });
   };
   
+  /**
+   * Thay thế poster image của video từ 0zo8KtNXgfSvh7ygZgH5ObSV4w.png thành live.png
+   */
+  const fixVideoPoster = () => {
+    // Tìm tất cả các thẻ video
+    const videos = document.querySelectorAll('video');
+    
+    videos.forEach(video => {
+      const poster = video.getAttribute('poster');
+      
+      if (poster && poster.includes('0zo8KtNXgfSvh7ygZgH5ObSV4w.png')) {
+        // Thay thế URL poster thành live.png
+        const newPoster = poster.replace(
+          /0zo8KtNXgfSvh7ygZgH5ObSV4w\.png[^"'\s]*/g, 
+          'live.png'
+        );
+        video.setAttribute('poster', newPoster);
+        
+        // Cập nhật poster property nếu có
+        if (video.poster) {
+          video.poster = newPoster;
+        }
+      }
+      
+      // Xử lý trường hợp poster là URL đầy đủ từ framerusercontent
+      if (poster && poster.includes('framerusercontent.com') && poster.includes('0zo8KtNXgfSvh7ygZgH5ObSV4w')) {
+        // Thay thế thành đường dẫn local
+        const newPoster = './assets/live.png';
+        video.setAttribute('poster', newPoster);
+        if (video.poster) {
+          video.poster = newPoster;
+        }
+      }
+    });
+  };
+  
   // Chạy ngay khi DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       fixImageSrcset();
+      fixVideoPoster();
       // Chạy lại sau một khoảng thời gian để xử lý các phần tử được thêm động
-      setTimeout(fixImageSrcset, 500);
-      setTimeout(fixImageSrcset, 1500);
+      setTimeout(() => {
+        fixImageSrcset();
+        fixVideoPoster();
+      }, 500);
+      setTimeout(() => {
+        fixImageSrcset();
+        fixVideoPoster();
+      }, 1500);
     });
   } else {
     fixImageSrcset();
-    setTimeout(fixImageSrcset, 500);
-    setTimeout(fixImageSrcset, 1500);
+    fixVideoPoster();
+    setTimeout(() => {
+      fixImageSrcset();
+      fixVideoPoster();
+    }, 500);
+    setTimeout(() => {
+      fixImageSrcset();
+      fixVideoPoster();
+    }, 1500);
   }
   
   // Sử dụng MutationObserver để theo dõi khi các phần tử được thêm vào DOM
@@ -193,12 +243,23 @@
           if (node.tagName === 'IMG' || node.querySelectorAll?.('img').length > 0) {
             shouldFix = true;
           }
+          // Cũng kiểm tra video elements
+          if (node.tagName === 'VIDEO' || node.querySelectorAll?.('video').length > 0) {
+            shouldFix = true;
+          }
         }
       });
+      // Kiểm tra thay đổi attribute poster
+      if (mutation.type === 'attributes' && mutation.attributeName === 'poster') {
+        shouldFix = true;
+      }
     });
     
     if (shouldFix) {
-      setTimeout(fixImageSrcset, 100);
+      setTimeout(() => {
+        fixImageSrcset();
+        fixVideoPoster();
+      }, 100);
     }
   });
   
@@ -207,14 +268,23 @@
     document.addEventListener('DOMContentLoaded', () => {
       observer.observe(document.body, {
         childList: true,
-        subtree: true
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['poster']
       });
     });
   } else {
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['poster']
     });
   }
+  
+  // Kiểm tra định kỳ như một fallback
+  setInterval(() => {
+    fixVideoPoster();
+  }, 1000);
 })();
 
