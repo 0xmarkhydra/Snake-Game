@@ -1683,7 +1683,7 @@ export class GameScene extends Scene {
                 }
             }
             
-            // 🚀 PERFORMANCE: Render head with sprite
+            // Render head with sprite
             const headObj = segments[0] as Phaser.GameObjects.Sprite;
             if (headObj) {
                 // 🚀 PERFORMANCE: Only update if in viewport or if it's the player
@@ -1705,16 +1705,6 @@ export class GameScene extends Scene {
                         headObj.setTint(0xffcccc);
                     } else {
                         headObj.clearTint();
-                    }
-                    
-                    // Update name text position cố định với đầu rắn
-                    const nameText = this.playerTexts.get(id);
-                    if (nameText && nameText.scene) {
-                        nameText.setPosition(renderPosition.x, renderPosition.y - 40);
-                        // Scale text based on player score - similar to snake scaling
-                        const score = Number.isFinite(playerData.score) ? Math.max(0, playerData.score) : 0;
-                        const baseScale = Math.min(1.5, 1 + (score / 100));
-                        nameText.setScale(baseScale);
                     }
                     
                     // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
@@ -1779,11 +1769,8 @@ export class GameScene extends Scene {
                 
                 // 🚀 PERFORMANCE: Only update segments in current batch (except for current player)
                 if (!isCurrentPlayer && (i < startIndex || i >= startIndex + segmentsToUpdate)) {
-                    // Skip update but still check visibility
-                    const lastKnownX = segmentObj.x;
-                    const lastKnownY = segmentObj.y;
-                    const shouldRender = this.isInViewport(lastKnownX, lastKnownY);
-                    segmentObj.setVisible(shouldRender);
+                    // Skip update but keep visible
+                    segmentObj.setVisible(true);
                     continue;
                 }
                     
@@ -1811,21 +1798,15 @@ export class GameScene extends Scene {
                     this.segmentSpacing
                 );
 
-                // 🚀 PERFORMANCE: Viewport culling - only render visible segments
-                const shouldRender = isCurrentPlayer || this.isInViewport(clamped.x, clamped.y);
-                
-                if (shouldRender) {
-                    segmentObj.setVisible(true);
-                    segmentObj.setPosition(clamped.x, clamped.y);
-                    
-                    // Update texture if quality changed
-                    const expectedTextureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
-                    if (segmentObj.texture.key !== expectedTextureKey) {
-                        segmentObj.setTexture(expectedTextureKey);
-                        segmentObj.setData('textureKey', expectedTextureKey);
-                    }
-                } else {
-                    segmentObj.setVisible(false);
+                // Always render segments
+                segmentObj.setVisible(true);
+                segmentObj.setPosition(clamped.x, clamped.y);
+
+                // Update texture if quality changed
+                const expectedTextureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
+                if (segmentObj.texture.key !== expectedTextureKey) {
+                    segmentObj.setTexture(expectedTextureKey);
+                    segmentObj.setData('textureKey', expectedTextureKey);
                 }
             }
         });
