@@ -64,7 +64,10 @@ export class GameScene extends Scene {
     // Add these properties to the class
     private targetCameraX: number = 0;
     private targetCameraY: number = 0;
-    private cameraLerpFactor: number = 0.1; // Adjust between 0.05-0.2 for different smoothness
+    private cameraLerpFactor: number = 0.16; // Base smoothing factor
+    private cameraLerpMax: number = 0.35; // Hard cap when forcing catch-up
+    private cameraCatchupDistance: number = 220; // Distance before forcing faster camera
+    private cameraCatchupBoost: number = 0.4; // Additional lerp factor applied when distance is large
     
     // Add these properties to the class
     private respawnButton: Phaser.GameObjects.Text;
@@ -132,8 +135,10 @@ export class GameScene extends Scene {
     // 🚀 PERFORMANCE: Throttle network messages
     private lastSentAngle: number = 0;
     private lastMoveSentTime: number = 0;
-    private moveSendInterval: number = 50; // Send max 20 times/second instead of 60
-    private minAngleDiffToSend: number = 1; // Only send if angle changed > 1 degree (more responsive)
+    private moveSendInterval: number = 30; // Allow up to ~33 sends/sec
+    private minAngleDiffToSend: number = 0.4; // Send sooner on small adjustments
+    private boostMoveSendIntervalFactor: number = 0.5; // Faster send cadence while boosting
+    private rapidTurnAngleThreshold: number = 6; // Immediately send if angle delta exceeds this
     
     // 🔥 PERFORMANCE: Throttle food attraction calculation
     private lastAttractionUpdate: number = 0;
@@ -147,8 +152,11 @@ export class GameScene extends Scene {
     // Render smoothing
     private playerRenderPositions: Map<string, { x: number; y: number }> = new Map();
     private readonly headLerpScale: number = 0.35;
-    private readonly headLerpMin: number = 0.18;
-    private readonly headLerpMax: number = 0.6;
+    private readonly headLerpMin: number = 0.2;
+    private readonly headLerpMax: number = 0.65;
+    private readonly headLerpBoostedMax: number = 0.85;
+    private readonly headCatchupDistance: number = 160;
+    private readonly headCatchupMaxBoost: number = 0.8;
     
     // Blink effect for snake eyes
     private blinkTimers: Map<string, number> = new Map(); // Timer for each snake
@@ -160,8 +168,8 @@ export class GameScene extends Scene {
     private lastEyesBlinking: Map<string, boolean> = new Map();
     private lastEyesRadius: Map<string, number> = new Map();
     
-    // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame
-    private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake (adaptive)
+    // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame (smaller values mean lighter frames)
+    private segmentUpdateBatchSize: number = 10;
     private segmentUpdateFrameCounter: number = 0;
     
     // 🚀 PERFORMANCE: Low-end device optimizations
@@ -428,8 +436,12 @@ export class GameScene extends Scene {
             // 🚀 PERFORMANCE: Throttle network messages - only send if angle changed significantly or enough time passed
             const angleDiff = Math.abs(angleDeg - this.lastSentAngle);
             const timeSinceLastSend = time - this.lastMoveSentTime;
+            const intervalBudget = player.boosting
+                ? this.moveSendInterval * this.boostMoveSendIntervalFactor
+                : this.moveSendInterval;
+            const forceSend = angleDiff >= this.rapidTurnAngleThreshold;
             
-            if (angleDiff > this.minAngleDiffToSend || timeSinceLastSend > this.moveSendInterval) {
+            if (forceSend || angleDiff > this.minAngleDiffToSend || timeSinceLastSend > intervalBudget) {
                 room.send('move', { angle: angleDeg });
                 this.lastSentAngle = angleDeg;
                 this.lastMoveSentTime = time;
@@ -682,42 +694,42 @@ export class GameScene extends Scene {
     
     // 🚀 PERFORMANCE: Adaptive quality settings based on FPS
     private adaptQualitySettings(): void {
-        if (this.currentFPS >= 55) {
+        if (this.currentFPS >= 58) {
             // High performance - use best quality settings
-            this.viewportBuffer = 150;
+            this.viewportBuffer = 160;
             this.minimapUpdateInterval = 3;
-            this.leaderboardUpdateInterval = 10;
+            this.leaderboardUpdateInterval = 9;
+            this.segmentUpdateBatchSize = 14;
+            this.enableVisualEffects = true;
+            this.enableParticleEffects = true;
+            this.enableFoodAnimations = true;
+            this.enableAttractionAura = true;
+        } else if (this.currentFPS >= 50) {
+            // Medium performance - slightly trimmed quality
+            this.viewportBuffer = 120;
+            this.minimapUpdateInterval = 4;
+            this.leaderboardUpdateInterval = 12;
             this.segmentUpdateBatchSize = 10;
             this.enableVisualEffects = true;
             this.enableParticleEffects = true;
             this.enableFoodAnimations = true;
             this.enableAttractionAura = true;
-        } else if (this.currentFPS >= 45) {
-            // Medium performance - reduce some quality
-            this.viewportBuffer = 120;
-            this.minimapUpdateInterval = 4;
-            this.leaderboardUpdateInterval = 12;
-            this.segmentUpdateBatchSize = 15;
-            this.enableVisualEffects = true;
-            this.enableParticleEffects = true;
-            this.enableFoodAnimations = true;
-            this.enableAttractionAura = true;
-        } else if (this.currentFPS >= 35) {
-            // Low performance - aggressive optimization
-            this.viewportBuffer = 100;
+        } else if (this.currentFPS >= 40) {
+            // Low performance - prioritize responsiveness
+            this.viewportBuffer = 90;
             this.minimapUpdateInterval = 6;
-            this.leaderboardUpdateInterval = 15;
-            this.segmentUpdateBatchSize = 20;
+            this.leaderboardUpdateInterval = 16;
+            this.segmentUpdateBatchSize = 8;
             this.enableVisualEffects = true;
             this.enableParticleEffects = false; // Disable particle effects
             this.enableFoodAnimations = true;
             this.enableAttractionAura = false; // Disable attraction aura
-        } else if (this.currentFPS >= 25) {
-            // Very low performance - maximum optimization
-            this.viewportBuffer = 80;
+        } else if (this.currentFPS >= 30) {
+            // Very low performance - aggressive optimization
+            this.viewportBuffer = 70;
             this.minimapUpdateInterval = 8;
-            this.leaderboardUpdateInterval = 20;
-            this.segmentUpdateBatchSize = 25;
+            this.leaderboardUpdateInterval = 22;
+            this.segmentUpdateBatchSize = 6;
             this.enableVisualEffects = false; // Disable visual effects
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false; // Disable food animations
@@ -726,8 +738,8 @@ export class GameScene extends Scene {
             // Extremely low performance - minimal everything
             this.viewportBuffer = 60;
             this.minimapUpdateInterval = 10;
-            this.leaderboardUpdateInterval = 30;
-            this.segmentUpdateBatchSize = 30;
+            this.leaderboardUpdateInterval = 28;
+            this.segmentUpdateBatchSize = 4;
             this.enableVisualEffects = false;
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false;
@@ -1626,7 +1638,14 @@ export class GameScene extends Scene {
 
             const previousRenderPosition = this.playerRenderPositions.get(id);
             const clampedHeadLerp = Phaser.Math.Clamp(baseHeadLerp, this.headLerpMin, this.headLerpMax);
-            const effectiveHeadLerp = playerData.boosting ? Math.min(clampedHeadLerp * 1.2, 0.75) : clampedHeadLerp;
+            const headDistance = previousRenderPosition
+                ? Phaser.Math.Distance.Between(previousRenderPosition.x, previousRenderPosition.y, headPosition.x, headPosition.y)
+                : 0;
+            const catchupBoost = headDistance > this.headCatchupDistance
+                ? Math.min((headDistance - this.headCatchupDistance) / this.headCatchupDistance, this.headCatchupMaxBoost)
+                : 0;
+            const boostedMax = playerData.boosting ? this.headLerpBoostedMax : this.headLerpMax;
+            const effectiveHeadLerp = Phaser.Math.Clamp(clampedHeadLerp * (1 + catchupBoost), this.headLerpMin, boostedMax);
             const renderX = previousRenderPosition
                 ? Phaser.Math.Linear(previousRenderPosition.x, headPosition.x, effectiveHeadLerp)
                 : headPosition.x;
@@ -2803,10 +2822,24 @@ export class GameScene extends Scene {
             // Get current camera position
             const currentX = this.cameras.main.scrollX + this.cameras.main.width / 2;
             const currentY = this.cameras.main.scrollY + this.cameras.main.height / 2;
+            const cameraDistance = Phaser.Math.Distance.Between(currentX, currentY, this.targetCameraX, this.targetCameraY);
+            const distanceBoost = cameraDistance > this.cameraCatchupDistance
+                ? Math.min((cameraDistance - this.cameraCatchupDistance) / this.cameraCatchupDistance, 1) * this.cameraCatchupBoost
+                : 0;
+            
+            let lerpFactor = Phaser.Math.Clamp(
+                this.cameraLerpFactor + distanceBoost,
+                this.cameraLerpFactor,
+                this.cameraLerpMax
+            );
+            
+            if (player.boosting) {
+                lerpFactor = Math.min(lerpFactor * 1.2, this.cameraLerpMax);
+            }
             
             // Calculate interpolated position
-            const newX = currentX + (this.targetCameraX - currentX) * this.cameraLerpFactor;
-            const newY = currentY + (this.targetCameraY - currentY) * this.cameraLerpFactor;
+            const newX = currentX + (this.targetCameraX - currentX) * lerpFactor;
+            const newY = currentY + (this.targetCameraY - currentY) * lerpFactor;
             
             // Center camera on interpolated position
             this.cameras.main.centerOn(newX, newY);
