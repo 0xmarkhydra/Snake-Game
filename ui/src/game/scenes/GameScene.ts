@@ -1673,75 +1673,64 @@ export class GameScene extends Scene {
                 }
             }
             
-            // 🚀 PERFORMANCE: Render head with sprite
+            // Render head with sprite
             const headObj = segments[0] as Phaser.GameObjects.Sprite;
             if (headObj) {
-                // 🚀 PERFORMANCE: Only update if in viewport or if it's the player
-                const shouldRender = id === this.playerId || this.isInViewport(renderPosition.x, renderPosition.y);
-                
-                if (shouldRender) {
-                    headObj.setVisible(true);
-                    headObj.setPosition(renderPosition.x, renderPosition.y);
-                    
-                    // Update texture if quality changed
-                    const expectedTextureKey = this.getOrCreateHeadTexture(colorInt, snakeRadius, quality);
-                    if (headObj.texture.key !== expectedTextureKey) {
-                        headObj.setTexture(expectedTextureKey);
-                        headObj.setData('textureKey', expectedTextureKey);
-                    }
-                    
-                    // Add boost glow effect for head only
-                    if (playerData.boosting) {
-                        headObj.setTint(0xffcccc);
-                    } else {
-                        headObj.clearTint();
-                    }
-                    
-                    // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
-                    let eyesGraphics = this.snakeEyes.get(id);
-                    if (!eyesGraphics || !eyesGraphics.scene) {
-                        if (eyesGraphics) {
-                            eyesGraphics.destroy();
-                        }
-                        eyesGraphics = this.add.graphics();
-                        eyesGraphics.setDepth(21); // Above head
-                        this.snakeEyes.set(id, eyesGraphics);
-                    }
-                    
-                    eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
-                    eyesGraphics.setVisible(true);
-                    
-                    // Check if eyes need to be redrawn
-                    this.updateBlinkEffect(id);
-                    const currentBlinking = this.isBlinking.get(id) || false;
-                    const lastAngle = this.lastEyesAngle.get(id);
-                    const lastBoosting = this.lastEyesBoosting.get(id);
-                    const lastBlinking = this.lastEyesBlinking.get(id);
-                    const lastRadius = this.lastEyesRadius.get(id);
-                    
-                    const needsRedraw = 
-                        lastAngle === undefined || 
-                        Math.abs(lastAngle - playerData.angle) > 0.5 || // Redraw if angle changed > 0.5 degrees
-                        lastBoosting !== playerData.boosting ||
-                        lastBlinking !== currentBlinking ||
-                        lastRadius === undefined ||
-                        Math.abs(lastRadius - snakeRadius) > 0.5; // Redraw if radius changed significantly
-                    
-                    if (needsRedraw) {
-                        eyesGraphics.clear();
-                        this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
-                        // Cache current state
-                        this.lastEyesAngle.set(id, playerData.angle);
-                        this.lastEyesBoosting.set(id, playerData.boosting);
-                        this.lastEyesBlinking.set(id, currentBlinking);
-                        this.lastEyesRadius.set(id, snakeRadius);
-                    }
+                headObj.setVisible(true);
+                headObj.setPosition(renderPosition.x, renderPosition.y);
+
+                // Update texture if quality changed
+                const expectedTextureKey = this.getOrCreateHeadTexture(colorInt, snakeRadius, quality);
+                if (headObj.texture.key !== expectedTextureKey) {
+                    headObj.setTexture(expectedTextureKey);
+                    headObj.setData('textureKey', expectedTextureKey);
+                }
+
+                // Add boost glow effect for head only
+                if (playerData.boosting) {
+                    headObj.setTint(0xffcccc);
                 } else {
-                    headObj.setVisible(false);
-                    const eyesGraphics = this.snakeEyes.get(id);
+                    headObj.clearTint();
+                }
+
+                // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
+                let eyesGraphics = this.snakeEyes.get(id);
+                if (!eyesGraphics || !eyesGraphics.scene) {
                     if (eyesGraphics) {
-                        eyesGraphics.setVisible(false);
+                        eyesGraphics.destroy();
                     }
+                    eyesGraphics = this.add.graphics();
+                    eyesGraphics.setDepth(21); // Above head
+                    this.snakeEyes.set(id, eyesGraphics);
+                }
+
+                eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
+                eyesGraphics.setVisible(true);
+
+                // Check if eyes need to be redrawn
+                this.updateBlinkEffect(id);
+                const currentBlinking = this.isBlinking.get(id) || false;
+                const lastAngle = this.lastEyesAngle.get(id);
+                const lastBoosting = this.lastEyesBoosting.get(id);
+                const lastBlinking = this.lastEyesBlinking.get(id);
+                const lastRadius = this.lastEyesRadius.get(id);
+
+                const needsRedraw =
+                    lastAngle === undefined ||
+                    Math.abs(lastAngle - playerData.angle) > 0.5 || // Redraw if angle changed > 0.5 degrees
+                    lastBoosting !== playerData.boosting ||
+                    lastBlinking !== currentBlinking ||
+                    lastRadius === undefined ||
+                    Math.abs(lastRadius - snakeRadius) > 0.5; // Redraw if radius changed significantly
+
+                if (needsRedraw) {
+                    eyesGraphics.clear();
+                    this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
+                    // Cache current state
+                    this.lastEyesAngle.set(id, playerData.angle);
+                    this.lastEyesBoosting.set(id, playerData.boosting);
+                    this.lastEyesBlinking.set(id, currentBlinking);
+                    this.lastEyesRadius.set(id, snakeRadius);
                 }
             }
 
@@ -1759,11 +1748,8 @@ export class GameScene extends Scene {
                 
                 // 🚀 PERFORMANCE: Only update segments in current batch (except for current player)
                 if (!isCurrentPlayer && (i < startIndex || i >= startIndex + segmentsToUpdate)) {
-                    // Skip update but still check visibility
-                    const lastKnownX = segmentObj.x;
-                    const lastKnownY = segmentObj.y;
-                    const shouldRender = this.isInViewport(lastKnownX, lastKnownY);
-                    segmentObj.setVisible(shouldRender);
+                    // Skip update but keep visible
+                    segmentObj.setVisible(true);
                     continue;
                 }
                     
@@ -1791,21 +1777,15 @@ export class GameScene extends Scene {
                     this.segmentSpacing
                 );
 
-                // 🚀 PERFORMANCE: Viewport culling - only render visible segments
-                const shouldRender = isCurrentPlayer || this.isInViewport(clamped.x, clamped.y);
-                
-                if (shouldRender) {
-                    segmentObj.setVisible(true);
-                    segmentObj.setPosition(clamped.x, clamped.y);
-                    
-                    // Update texture if quality changed
-                    const expectedTextureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
-                    if (segmentObj.texture.key !== expectedTextureKey) {
-                        segmentObj.setTexture(expectedTextureKey);
-                        segmentObj.setData('textureKey', expectedTextureKey);
-                    }
-                } else {
-                    segmentObj.setVisible(false);
+                // Always render segments
+                segmentObj.setVisible(true);
+                segmentObj.setPosition(clamped.x, clamped.y);
+
+                // Update texture if quality changed
+                const expectedTextureKey = this.getOrCreateSegmentTexture(colorInt, snakeRadius, quality);
+                if (segmentObj.texture.key !== expectedTextureKey) {
+                    segmentObj.setTexture(expectedTextureKey);
+                    segmentObj.setData('textureKey', expectedTextureKey);
                 }
             }
         });
