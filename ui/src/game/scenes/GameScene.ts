@@ -87,8 +87,7 @@ export class GameScene extends Scene {
     private isQuitting: boolean = false;
     
     // 🚀 PERFORMANCE: Throttle update counters
-    private updatePlayerTextsCounter: number = 0;
-    private updatePlayerTextsInterval: number = 2; // Update every 2 frames
+    // Note: Player text position now updates directly with snake head, no throttling needed
     
     // 🚀 PERFORMANCE: Leaderboard change detection
     private lastLeaderboardHash: string = '';
@@ -371,11 +370,8 @@ export class GameScene extends Scene {
         this.updateFoods();
         
         // 🚀 PERFORMANCE: Throttle player texts update to every 2 frames
-        this.updatePlayerTextsCounter++;
-        if (this.updatePlayerTextsCounter >= this.updatePlayerTextsInterval) {
-            this.updatePlayerTexts();
-            this.updatePlayerTextsCounter = 0;
-        }
+        // Name text position now updated directly with snake head in updateSnakes()
+        // No need for separate updatePlayerTexts() function
         
         // Update wall warning
         if (time - this.lastWallWarningUpdate >= this.wallWarningUpdateInterval) {
@@ -689,7 +685,6 @@ export class GameScene extends Scene {
         if (this.currentFPS >= 55) {
             // High performance - use best quality settings
             this.viewportBuffer = 150;
-            this.updatePlayerTextsInterval = 2;
             this.minimapUpdateInterval = 3;
             this.leaderboardUpdateInterval = 10;
             this.segmentUpdateBatchSize = 10;
@@ -700,7 +695,6 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 45) {
             // Medium performance - reduce some quality
             this.viewportBuffer = 120;
-            this.updatePlayerTextsInterval = 3;
             this.minimapUpdateInterval = 4;
             this.leaderboardUpdateInterval = 12;
             this.segmentUpdateBatchSize = 15;
@@ -711,7 +705,6 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 35) {
             // Low performance - aggressive optimization
             this.viewportBuffer = 100;
-            this.updatePlayerTextsInterval = 4;
             this.minimapUpdateInterval = 6;
             this.leaderboardUpdateInterval = 15;
             this.segmentUpdateBatchSize = 20;
@@ -722,7 +715,6 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 25) {
             // Very low performance - maximum optimization
             this.viewportBuffer = 80;
-            this.updatePlayerTextsInterval = 5;
             this.minimapUpdateInterval = 8;
             this.leaderboardUpdateInterval = 20;
             this.segmentUpdateBatchSize = 25;
@@ -733,7 +725,6 @@ export class GameScene extends Scene {
         } else {
             // Extremely low performance - minimal everything
             this.viewportBuffer = 60;
-            this.updatePlayerTextsInterval = 6;
             this.minimapUpdateInterval = 10;
             this.leaderboardUpdateInterval = 30;
             this.segmentUpdateBatchSize = 30;
@@ -1695,6 +1686,16 @@ export class GameScene extends Scene {
                         headObj.setTint(0xffcccc);
                     } else {
                         headObj.clearTint();
+                    }
+                    
+                    // Update name text position cố định với đầu rắn
+                    const nameText = this.playerTexts.get(id);
+                    if (nameText && nameText.scene) {
+                        nameText.setPosition(renderPosition.x, renderPosition.y - 40);
+                        // Scale text based on player score - similar to snake scaling
+                        const score = Number.isFinite(playerData.score) ? Math.max(0, playerData.score) : 0;
+                        const baseScale = Math.min(1.5, 1 + (score / 100));
+                        nameText.setScale(baseScale);
                     }
                     
                     // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
@@ -2812,41 +2813,6 @@ export class GameScene extends Scene {
         }
     }
     
-    // Update the player text position with interpolation
-    private updatePlayerTexts() {
-        if (!this.gameState) return;
-        
-        this.playerTexts.forEach((text, playerId) => {
-            const player = this.gameState.players.get(playerId);
-            if (player && player.alive) {
-                // Use headPosition instead of segments[0]
-                const headPosition = player.headPosition;
-                if (headPosition) {
-                    // Apply smoother interpolation for text
-                    const lerpFactor = 0.2;
-                    
-                    // Get current position
-                    const currentX = text.x;
-                    const currentY = text.y;
-                    
-                    // Target position (above the head)
-                    const targetX = headPosition.x;
-                    const targetY = headPosition.y - 40;
-                    
-                    // Calculate interpolated position
-                    const newX = currentX + (targetX - currentX) * lerpFactor;
-                    const newY = currentY + (targetY - currentY) * lerpFactor;
-                    
-                    // Update position
-                    text.setPosition(newX, newY);
-                    
-                    // Scale text based on player score - similar to snake scaling
-                    const baseScale = Math.min(1.5, 1 + (player.score / 100));
-                    text.setScale(baseScale);
-                }
-            }
-        });
-    }
     
     private setupAudio() {
         // 🚀 MOBILE OPTIMIZATION: Lazy load sounds
