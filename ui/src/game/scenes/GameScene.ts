@@ -1746,11 +1746,23 @@ export class GameScene extends Scene {
                         this.lastEyesBlinking.set(id, currentBlinking);
                         this.lastEyesRadius.set(id, snakeRadius);
                     }
+                    
+                    // Update player name text position above snake head
+                    if (nameText) {
+                        // Position name text above the head with offset
+                        const nameOffsetY = -snakeRadius - 25; // 25px spacing above head
+                        nameText.setPosition(renderPosition.x, renderPosition.y + nameOffsetY);
+                        nameText.setVisible(true);
+                    }
                 } else {
                     headObj.setVisible(false);
                     const eyesGraphics = this.snakeEyes.get(id);
                     if (eyesGraphics) {
                         eyesGraphics.setVisible(false);
+                    }
+                    // Hide name text when snake is not rendered
+                    if (nameText) {
+                        nameText.setVisible(false);
                     }
                 }
             }
