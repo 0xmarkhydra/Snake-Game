@@ -9,6 +9,7 @@
     "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:ui\""
   },
   "dependencies": {
+    "canvas-confetti": "^1.9.4",
     "concurrently": "^9.1.2"
   }
 }
