@@ -86,24 +86,24 @@ export class GameScene extends Scene {
     // Quit state
     private isQuitting: boolean = false;
     
-    // 🚀 PERFORMANCE: Throttle update counters
+    // PERFORMANCE: Throttle update counters
     private updatePlayerTextsCounter: number = 0;
-    private updatePlayerTextsInterval: number = 2; // Update every 2 frames
+    private updatePlayerTextsInterval: number = 1; // Update every frame for smooth player name movement
     
-    // 🚀 PERFORMANCE: Leaderboard change detection
+    // PERFORMANCE: Leaderboard change detection
     private lastLeaderboardHash: string = '';
     private leaderboardUpdateCounter: number = 0;
     private leaderboardUpdateInterval: number = 10; // Check every 10 frames (~166ms at 60fps)
     
-    // 🚀 PERFORMANCE: Minimap update throttling
+    // PERFORMANCE: Minimap update throttling
     private minimapUpdateCounter: number = 0;
     private minimapUpdateInterval: number = 3; // Update every 3 frames (~50ms at 60fps)
     
-    // 🚀 PERFORMANCE: Camera update throttling
+    // PERFORMANCE: Camera update throttling
     private cameraUpdateCounter: number = 0;
     private cameraUpdateInterval: number = 1; // Update every frame (can be increased if needed)
     
-    // 🚀 PERFORMANCE: Adaptive quality based on FPS
+    // PERFORMANCE: Adaptive quality based on FPS
     private currentFPS: number = 60;
     private fpsCheckCounter: number = 0;
     private fpsCheckInterval: number = 30; // Check every 30 frames (0.5s at 60fps)
@@ -130,13 +130,13 @@ export class GameScene extends Scene {
     private lastAngle: number = 0;
     private maxAngleChange: number = 16; // Increased for better turn responsiveness
     
-    // 🚀 PERFORMANCE: Throttle network messages
+    // PERFORMANCE: Throttle network messages
     private lastSentAngle: number = 0;
     private lastMoveSentTime: number = 0;
     private moveSendInterval: number = 50; // Send max 20 times/second instead of 60
     private minAngleDiffToSend: number = 1; // Only send if angle changed > 1 degree (more responsive)
     
-    // 🔥 PERFORMANCE: Throttle food attraction calculation
+    // PERFORMANCE: Throttle food attraction calculation
     private lastAttractionUpdate: number = 0;
     private attractionUpdateInterval: number = 33; // Update every 33ms (~30 times per second) - balanced for smooth attraction
     
@@ -155,17 +155,17 @@ export class GameScene extends Scene {
     private blinkTimers: Map<string, number> = new Map(); // Timer for each snake
     private isBlinking: Map<string, boolean> = new Map(); // Blink state for each snake
     
-    // 🚀 PERFORMANCE: Cache eyes graphics state to avoid redrawing every frame
+    // PERFORMANCE: Cache eyes graphics state to avoid redrawing every frame
     private lastEyesAngle: Map<string, number> = new Map();
     private lastEyesBoosting: Map<string, boolean> = new Map();
     private lastEyesBlinking: Map<string, boolean> = new Map();
     private lastEyesRadius: Map<string, number> = new Map();
     
-    // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame
+    // PERFORMANCE: Batch segment updates - only update portion each frame
     private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake (adaptive)
     private segmentUpdateFrameCounter: number = 0;
     
-    // 🚀 PERFORMANCE: Low-end device optimizations
+    // PERFORMANCE: Low-end device optimizations
     private enableVisualEffects: boolean = true; // Enable/disable visual effects based on FPS
     private enableParticleEffects: boolean = true; // Enable/disable particle effects
     private enableFoodAnimations: boolean = true; // Enable/disable food animations
@@ -199,16 +199,16 @@ export class GameScene extends Scene {
     ];
     private foodTextureKeys: Map<number, string> = new Map();
     
-    // 🚀 PERFORMANCE: Texture caching for snake segments
+    // PERFORMANCE: Texture caching for snake segments
     private segmentTextureCache: Map<string, string> = new Map(); // color -> textureKey
     private eyeTextureCache: Map<string, string> = new Map(); // state -> textureKey
     
-    // 🚀 PERFORMANCE: Adaptive rendering thresholds
+    // PERFORMANCE: Adaptive rendering thresholds
     private readonly SEGMENT_COUNT_LOW = 50; // Full quality
     private readonly SEGMENT_COUNT_MEDIUM = 100; // Medium quality
     private readonly SEGMENT_COUNT_HIGH = 150; // Low quality
     
-    // 🚀 PERFORMANCE: Viewport culling - optimized buffer size
+    // PERFORMANCE: Viewport culling - optimized buffer size
     private viewportBuffer: number = 100; // Reduced from 150 to 100 for better performance
     private cameraMoveThreshold: number = 50; // Only recalculate viewport when camera moves significantly
     
@@ -353,11 +353,11 @@ export class GameScene extends Scene {
             this.fpsText.setText(`FPS: ${this.currentFPS}`);
             this.fpsUpdateTime = time;
             
-            // 🚀 PERFORMANCE: Adaptive FPS target for low-end devices
+            // PERFORMANCE: Adaptive FPS target for low-end devices
             this.adaptFPSTarget();
         }
         
-        // 🚀 PERFORMANCE: Adaptive quality based on current FPS
+        // PERFORMANCE: Adaptive quality based on current FPS
         if (this.adaptiveQualityEnabled) {
             this.fpsCheckCounter++;
             if (this.fpsCheckCounter >= this.fpsCheckInterval) {
@@ -370,7 +370,7 @@ export class GameScene extends Scene {
         this.updateSnakes(delta);
         this.updateFoods();
         
-        // 🚀 PERFORMANCE: Throttle player texts update to every 2 frames
+        // PERFORMANCE: Throttle player texts update to every frame
         this.updatePlayerTextsCounter++;
         if (this.updatePlayerTextsCounter >= this.updatePlayerTextsInterval) {
             this.updatePlayerTexts();
@@ -429,7 +429,7 @@ export class GameScene extends Scene {
             this.lastAngle = angleDeg;
             
             // Send movement input to server
-            // 🚀 PERFORMANCE: Throttle network messages - only send if angle changed significantly or enough time passed
+            // PERFORMANCE: Throttle network messages - only send if angle changed significantly or enough time passed
             const angleDiff = Math.abs(angleDeg - this.lastSentAngle);
             const timeSinceLastSend = time - this.lastMoveSentTime;
             
@@ -448,14 +448,14 @@ export class GameScene extends Scene {
                 this.boostEffect.stop();
             }
             
-            // 🚀 PERFORMANCE: Only update attraction aura if enabled
+            // PERFORMANCE: Only update attraction aura if enabled
             if (this.enableAttractionAura) {
                 this.updateHeadAttractionAura(headPosition.x, headPosition.y);
             } else if (this.headAttractionAura) {
                 this.headAttractionAura.setVisible(false);
             }
 
-            // 🔥 PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
+            // PERFORMANCE: Throttle food attraction logic - only run every 33ms for balance
             // Reduce frequency when FPS is low, but don't disable completely to preserve gameplay
             const attractionInterval = this.currentFPS < 30 ? this.attractionUpdateInterval * 2 : this.attractionUpdateInterval;
             if (time - this.lastAttractionUpdate > attractionInterval) {
@@ -466,21 +466,21 @@ export class GameScene extends Scene {
             this.headAttractionAura.setVisible(false);
         }
         
-        // 🚀 PERFORMANCE: Throttle minimap update to every 3 frames
+        // PERFORMANCE: Throttle minimap update to every 3 frames
         this.minimapUpdateCounter++;
         if (this.minimapUpdateCounter >= this.minimapUpdateInterval) {
             this.updateMinimap();
             this.minimapUpdateCounter = 0;
         }
         
-        // 🚀 PERFORMANCE: Update leaderboard less frequently with change detection
+        // PERFORMANCE: Update leaderboard less frequently with change detection
         this.leaderboardUpdateCounter++;
         if (this.leaderboardUpdateCounter >= this.leaderboardUpdateInterval) {
             this.updateLeaderboardOptimized();
             this.leaderboardUpdateCounter = 0;
         }
         
-        // 🚀 PERFORMANCE: Throttle camera update
+        // PERFORMANCE: Throttle camera update
         this.cameraUpdateCounter++;
         if (this.cameraUpdateCounter >= this.cameraUpdateInterval) {
             this.updateCamera();
@@ -507,7 +507,7 @@ export class GameScene extends Scene {
         }
     }
     
-    // 🚀 PERFORMANCE: Generate and cache segment texture
+    // PERFORMANCE: Generate and cache segment texture
     private getOrCreateSegmentTexture(color: number, radius: number, quality: 'high' | 'medium' | 'low'): string {
         const textureKey = `segment_${color.toString(16)}_${radius}_${quality}`;
         
@@ -573,7 +573,7 @@ export class GameScene extends Scene {
         return textureKey;
     }
     
-    // 🚀 PERFORMANCE: Generate and cache head texture with highlight
+    // PERFORMANCE: Generate and cache head texture with highlight
     private getOrCreateHeadTexture(color: number, radius: number, quality: 'high' | 'medium' | 'low'): string {
         const textureKey = `head_${color.toString(16)}_${radius}_${quality}`;
         
@@ -637,14 +637,14 @@ export class GameScene extends Scene {
         return textureKey;
     }
     
-    // 🚀 PERFORMANCE: Determine rendering quality based on segment count
+    // PERFORMANCE: Determine rendering quality based on segment count
     private getRenderingQuality(segmentCount: number): 'high' | 'medium' | 'low' {
         if (segmentCount < this.SEGMENT_COUNT_LOW) return 'high';
         if (segmentCount < this.SEGMENT_COUNT_MEDIUM) return 'medium';
         return 'low';
     }
     
-    // 🚀 PERFORMANCE: Cached viewport bounds to avoid recalculation
+    // PERFORMANCE: Cached viewport bounds to avoid recalculation
     private cachedViewportBounds: {
         left: number;
         right: number;
@@ -654,7 +654,7 @@ export class GameScene extends Scene {
         cameraY: number;
     } | null = null;
     
-    // 🚀 PERFORMANCE: Check if position is in viewport with cached bounds
+    // PERFORMANCE: Check if position is in viewport with cached bounds
     private isInViewport(x: number, y: number): boolean {
         const cam = this.cameras.main;
         const currentCameraX = cam.scrollX;
@@ -684,15 +684,15 @@ export class GameScene extends Scene {
         );
     }
     
-    // 🚀 PERFORMANCE: Adaptive quality settings based on FPS
+    // PERFORMANCE: Adaptive quality settings based on FPS
     private adaptQualitySettings(): void {
         if (this.currentFPS >= 55) {
             // High performance - use best quality settings
             this.viewportBuffer = 150;
-            this.updatePlayerTextsInterval = 2;
             this.minimapUpdateInterval = 3;
             this.leaderboardUpdateInterval = 10;
             this.segmentUpdateBatchSize = 10;
+            
             this.enableVisualEffects = true;
             this.enableParticleEffects = true;
             this.enableFoodAnimations = true;
@@ -700,10 +700,10 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 45) {
             // Medium performance - reduce some quality
             this.viewportBuffer = 120;
-            this.updatePlayerTextsInterval = 3;
             this.minimapUpdateInterval = 4;
             this.leaderboardUpdateInterval = 12;
             this.segmentUpdateBatchSize = 15;
+            
             this.enableVisualEffects = true;
             this.enableParticleEffects = true;
             this.enableFoodAnimations = true;
@@ -711,10 +711,10 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 35) {
             // Low performance - aggressive optimization
             this.viewportBuffer = 100;
-            this.updatePlayerTextsInterval = 4;
             this.minimapUpdateInterval = 6;
             this.leaderboardUpdateInterval = 15;
             this.segmentUpdateBatchSize = 20;
+            
             this.enableVisualEffects = true;
             this.enableParticleEffects = false; // Disable particle effects
             this.enableFoodAnimations = true;
@@ -722,10 +722,10 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 25) {
             // Very low performance - maximum optimization
             this.viewportBuffer = 80;
-            this.updatePlayerTextsInterval = 5;
             this.minimapUpdateInterval = 8;
             this.leaderboardUpdateInterval = 20;
             this.segmentUpdateBatchSize = 25;
+            
             this.enableVisualEffects = false; // Disable visual effects
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false; // Disable food animations
@@ -733,10 +733,10 @@ export class GameScene extends Scene {
         } else {
             // Extremely low performance - minimal everything
             this.viewportBuffer = 60;
-            this.updatePlayerTextsInterval = 6;
             this.minimapUpdateInterval = 10;
             this.leaderboardUpdateInterval = 30;
             this.segmentUpdateBatchSize = 30;
+            
             this.enableVisualEffects = false;
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false;
@@ -2799,26 +2799,29 @@ export class GameScene extends Scene {
         this.playerTexts.forEach((text, playerId) => {
             const player = this.gameState.players.get(playerId);
             if (player && player.alive) {
-                // Use headPosition instead of segments[0]
-                const headPosition = player.headPosition;
-                if (headPosition) {
-                    // Apply smoother interpolation for text
-                    const lerpFactor = 0.2;
+                // Lấy đúng vị trí render của đầu rắn (đã được nội suy trong updateSnakes)
+                const renderPosition = this.playerRenderPositions.get(playerId);
+                if (renderPosition) {
+                    // Vị trí tên nằm phía trên đầu rắn
+                    const targetX = renderPosition.x;
+                    const targetY = renderPosition.y - 40;
                     
-                    // Get current position
+                    // Nội suy nhẹ để giảm giật, đặc biệt khi boost (đầu rắn di chuyển rất nhanh)
                     const currentX = text.x;
                     const currentY = text.y;
-                    
-                    // Target position (above the head)
-                    const targetX = headPosition.x;
-                    const targetY = headPosition.y - 40;
-                    
-                    // Calculate interpolated position
-                    const newX = currentX + (targetX - currentX) * lerpFactor;
-                    const newY = currentY + (targetY - currentY) * lerpFactor;
-                    
-                    // Update position
-                    text.setPosition(newX, newY);
+
+                    // Nếu teleport (khoảng cách quá xa) thì nhảy thẳng để tránh kéo đuổi lâu
+                    const distSq = (currentX - targetX) * (currentX - targetX) + (currentY - targetY) * (currentY - targetY);
+                    const maxSnapDistSq = 80 * 80;
+
+                    if (!Number.isFinite(currentX) || !Number.isFinite(currentY) || distSq > maxSnapDistSq) {
+                        text.setPosition(targetX, targetY);
+                    } else {
+                        const lerpFactor = player.boosting ? 0.45 : 0.3; // khi boost thì bám sát hơn
+                        const newX = Phaser.Math.Linear(currentX, targetX, lerpFactor);
+                        const newY = Phaser.Math.Linear(currentY, targetY, lerpFactor);
+                        text.setPosition(newX, newY);
+                    }
                     
                     // Scale text based on player score - similar to snake scaling
                     const baseScale = Math.min(1.5, 1 + (player.score / 100));
