@@ -194,7 +194,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   onJoin(client: Client, options: { name: string; skinId?: number }): void {
-    const spawnPosition = this.getRandomPosition();
+    const spawnPosition = this.getRandomSpawnPosition();
     const skinId = options.skinId !== undefined ? options.skinId : 0;
     const color = this.colors[skinId % this.colors.length];
 
@@ -541,7 +541,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
-    const spawnPosition = this.getRandomPosition();
+    const spawnPosition = this.getRandomSpawnPosition();
     player.alive = true;
     player.score = 0;
     player.kills = 0;
@@ -667,7 +667,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
   }
 
   protected spawnFood(): void {
-    const position = this.getRandomPosition();
+    const position = this.getRandomFoodPosition();
     const foodId = `food_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const value = Math.random() < 0.1 ? 5 : 1; // 10% special food (increased from 5%)
@@ -721,10 +721,37 @@ export class FreeGameRoom extends Room<SnakeGameState> {
     player.lastBoostFoodSpawnTime = currentTime;
   }
 
-  protected getRandomPosition(): { x: number; y: number } {
+  /**
+   * Random spawn position for players/bots inside a central 4000x4000 area
+   */
+  protected getRandomSpawnPosition(): { x: number; y: number } {
+    const worldWidth = this.state.worldWidth;
+    const worldHeight = this.state.worldHeight;
+
+    const targetSize = 2000;
+
+    const effectiveWidth = Math.min(worldWidth, targetSize);
+    const effectiveHeight = Math.min(worldHeight, targetSize);
+
+    const marginX = (worldWidth - effectiveWidth) / 2;
+    const marginY = (worldHeight - effectiveHeight) / 2;
+
     return {
-      x: Math.random() * this.state.worldWidth,
-      y: Math.random() * this.state.worldHeight,
+      x: marginX + Math.random() * effectiveWidth,
+      y: marginY + Math.random() * effectiveHeight,
+    };
+  }
+
+  /**
+   * Random position for food over the full map
+   */
+  protected getRandomFoodPosition(): { x: number; y: number } {
+    const worldWidth = this.state.worldWidth;
+    const worldHeight = this.state.worldHeight;
+
+    return {
+      x: Math.random() * worldWidth,
+      y: Math.random() * worldHeight,
     };
   }
 
@@ -941,8 +968,8 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       this.botNames[0];
     this.usedBotNames.add(botName);
 
-    // Spawn position
-    const spawnPosition = this.getRandomPosition();
+    // Spawn position (use central spawn area)
+    const spawnPosition = this.getRandomSpawnPosition();
     const skinId = Math.floor(Math.random() * this.colors.length);
     const color = this.colors[skinId];
 
@@ -1055,7 +1082,7 @@ export class FreeGameRoom extends Room<SnakeGameState> {
       return;
     }
 
-    const spawnPosition = this.getRandomPosition();
+    const spawnPosition = this.getRandomSpawnPosition();
     bot.alive = true;
     bot.score = 0;
     bot.kills = 0;
