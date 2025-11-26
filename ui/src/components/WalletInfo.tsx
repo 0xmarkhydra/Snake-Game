@@ -22,6 +22,8 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
   const [referralCode, setReferralCode] = useState<string>('');
   const [referralCopied, setReferralCopied] = useState(false);
   const [isLoadingReferral, setIsLoadingReferral] = useState(false);
+  const [showWithdrawAmountEffect, setShowWithdrawAmountEffect] = useState(false);
+  const [withdrawAmountEffectValue, setWithdrawAmountEffectValue] = useState<string>('');
 
   useEffect(() => {
     // Get wallet address
@@ -99,6 +101,13 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
     // Refresh credit after successful deposit
     const newCredit = walletService.getCachedCredit();
     setCredit(walletService.formatCredit(newCredit));
+  };
+
+  const handleShowWithdrawAmountEffect = (amount: number) => {
+    // Làm tròn amount thành số nguyên, không giữ .0 phía sau
+    const rounded = Math.round(amount);
+    setWithdrawAmountEffectValue(rounded.toString());
+    setShowWithdrawAmountEffect(true);
   };
 
   return (
@@ -265,7 +274,7 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
                     whileTap={{ scale: 0.98 }}
                     className="w-full py-2 px-3 rounded-[40px] bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 border border-green-600 text-white font-bold font-SFPro text-xs transition-all flex items-center justify-center group"
                   >
-                    <span className="font-SFPro">Withdraw</span>
+                    <span className="font-SFPro">Cash Out</span>
                   </motion.button>
 
                   {/* Logout Button */}
@@ -296,6 +305,7 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         onWithdrawSuccess={handleWithdrawSuccess}
+        onShowAmountEffect={handleShowWithdrawAmountEffect}
       />
 
       {/* Referral Stats Modal */}
@@ -303,6 +313,26 @@ export const WalletInfo = ({ onLogout }: WalletInfoProps) => {
         isOpen={isReferralModalOpen}
         onClose={() => setIsReferralModalOpen(false)}
       />
+
+      {/* Global Withdraw Amount Effect (shows after popup is closed) */}
+      <AnimatePresence>
+        {showWithdrawAmountEffect && withdrawAmountEffectValue && (
+          <motion.div
+            key="withdraw-amount-effect"
+            initial={{ y: 80, scale: 0.7, opacity: 0 }}
+            animate={{ y: -40, scale: 1.8, opacity: 1 }}
+            exit={{ y: -140, scale: 2, opacity: 0 }}
+            transition={{ duration: 2.1, ease: 'easeOut' }}
+            className="pointer-events-none fixed inset-0 z-[9999] flex items-center justify-center"
+            onAnimationComplete={() => setShowWithdrawAmountEffect(false)}
+          >
+            <span className="flex items-center gap-3 sm:gap-4 text-4xl sm:text-5xl font-black text-white font-SFPro drop-shadow-[0_0_16px_rgba(0,0,0,0.95)] [text-shadow:_0_0_0_3px_#1f6fe5]">
+              <span>+ {withdrawAmountEffectValue}</span>
+              <img src="/images/iconUsdc.png" alt="USDC" className="w-8 h-8 sm:w-10 sm:h-10" />
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

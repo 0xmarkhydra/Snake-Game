@@ -32,6 +32,9 @@ importers:
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
+      canvas-confetti:
+        specifier: ^1.9.3
+        version: 1.9.4
       colyseus.js:
         specifier: ^0.16.9
         version: 0.16.22(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -2086,6 +2089,9 @@ packages:
 
   caniuse-lite@1.0.30001754:
     resolution: {integrity: sha512-x6OeBXueoAceOmotzx3PO4Zpt4rzpeIFsSr6AAePTZxSkXiYDUmpypEl7e2+8NCd9bD7bXjqyef8CJYPC1jfxg==}
+
+  canvas-confetti@1.9.4:
+    resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
 
   cashaddrjs@0.4.4:
     resolution: {integrity: sha512-xZkuWdNOh0uq/mxJIng6vYWfTowZLd9F4GMAlp2DwFHlcCqCm91NtuAc47RuV4L7r4PYcY5p6Cr2OKNb4hnkWA==}
@@ -7201,6 +7207,8 @@ snapshots:
   camelcase@6.3.0: {}
 
   caniuse-lite@1.0.30001754: {}
+
+  canvas-confetti@1.9.4: {}
 
   cashaddrjs@0.4.4:
     dependencies:

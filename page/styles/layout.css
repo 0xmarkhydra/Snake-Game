@@ -1,3 +1,13 @@
+/* Đảm bảo html và body luôn có background để tránh màn hình đen khi resize */
+html, body {
+  background-color: #0f0d06 !important;
+  background: radial-gradient(50% 50% at 50% 50%, rgb(40, 32, 1) 0%, rgb(16, 13, 8) 100%) !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+}
+
 .page--Slither {
   background-color: #0f0d06;
   color: var(--framer-text-color, #f0e9cf);
@@ -66,10 +76,97 @@ img[srcset*="44TwklfcbffNfvfqxTq7Ow6dQ.png"] {
   pointer-events: none !important;
   transform: translateX(-50%) !important;
   transform-origin: left center !important;
-  overflow: visible !important;
+  overflow: hidden !important;
   aspect-ratio: 2.3230309072781656 / 1 !important;
   height: 64% !important;
   width: var(--framer-aspect-ratio-supported, 2330px) !important;
   display: block !important;
   visibility: visible !important;
+  /* Clip to prevent overflow on small screens */
+  clip-path: inset(0 0 0 0);
+  max-width: 120% !important;
+}
+
+/* Ẩn hoặc điều chỉnh phần tử này ở màn hình nhỏ để tránh overflow */
+@media (max-width: 800px) {
+  [data-framer-name="Mount-l-b-extra"] {
+    left: 0% !important;
+    transform: translateX(0) !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+}
+
+/* Ẩn hoàn toàn ở màn hình rất nhỏ */
+@media (max-width: 600px) {
+  [data-framer-name="Mount-l-b-extra"] {
+    display: none !important;
+  }
+}
+
+/* Khoảng cách giữa các roadmap items - đảm bảo kích thước ổn định */
+/* Target tất cả carousel có roadmap items với specificity cao */
+.swiper-container[data-width-mode="columns"] .swiper-slide:has([data-framer-name^="roadmap-item"]),
+.swiper-container[data-width-mode="columns"] .swiper-slide:has([data-framer-name="810-roadmap-item-02"]),
+[data-width-mode="columns"].swiper-container .swiper-slide:has([data-framer-name^="roadmap-item"]),
+[data-width-mode="columns"].swiper-container .swiper-slide:has([data-framer-name="810-roadmap-item-02"]) {
+  /* Tính toán lại width để bao gồm margin: 4 slides, 3 khoảng cách * 10px = 30px */
+  /* Width = (100% - 30px) / 4 */
+  width: calc((100% - 30px) / 4) !important;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  min-width: calc((100% - 30px) / 4) !important;
+  max-width: calc((100% - 30px) / 4) !important;
+  box-sizing: border-box !important;
+  margin-left: 5px !important;
+  margin-right: 5px !important;
+}
+
+/* Override CSS inline trong HTML cho tất cả carousel columns mode */
+.swiper-container[data-width-mode="columns"] .swiper-slide,
+[data-width-mode="columns"].swiper-container .swiper-slide {
+  width: calc((100% - 30px) / 4) !important;
+  flex-shrink: 0 !important;
+  flex-grow: 0 !important;
+  min-width: calc((100% - 30px) / 4) !important;
+  max-width: calc((100% - 30px) / 4) !important;
+}
+
+/* Đảm bảo container roadmap items có width 100% */
+[data-framer-name^="roadmap-item"],
+[data-framer-name="810-roadmap-item-02"] {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Đảm bảo wrapper không có gap và không wrap */
+[data-width-mode="columns"] .swiper-wrapper,
+.swiper-container[data-width-mode="columns"] .swiper-wrapper {
+  gap: 0 !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+}
+
+/* Đảm bảo không có phần tử nào che khuất toàn màn hình khi resize */
+* {
+  box-sizing: border-box;
+}
+
+/* Tránh màn hình đen khi resize - đảm bảo container chính luôn hiển thị */
+#main,
+[data-framer-root],
+.framer-RCC0J {
+  background-color: transparent !important;
+  position: relative !important;
+  min-height: 100vh !important;
+}
+
+/* Tránh lag khi resize - tắt hardware acceleration không cần thiết */
+@media (max-width: 1024px) {
+  [data-framer-name="Mount-l-b-extra"] {
+    will-change: auto !important;
+    transform: translateZ(0) !important;
+  }
 }

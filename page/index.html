@@ -30,10 +30,26 @@
   [data-framer-name="char-info"] {
     display: none !important;
   }
+  
+  /* Fix roadmap width ngay từ đầu - chạy sớm để tránh "lúc dài lúc ngắn" */
+  [data-width-mode="columns"] .swiper-slide {
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
+  }
+  
+  [data-width-mode="columns"] .swiper-slide:has([data-framer-name^="roadmap-item"]),
+  [data-width-mode="columns"] .swiper-slide:has([data-framer-name="810-roadmap-item-02"]) {
+    width: calc((100% - 30px) / 4) !important;
+    min-width: calc((100% - 30px) / 4) !important;
+    max-width: calc((100% - 30px) / 4) !important;
+    margin-left: 5px !important;
+    margin-right: 5px !important;
+    box-sizing: border-box !important;
+  }
 </style>
 
     <!-- End of headStart -->
-    <meta name="viewport" content="width=device-width">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="generator" content="Framer 8c094e5">
     <title>Snake Game - Multiplayer Snake Game</title>
     <meta name="title" content="Snake Game - Multiplayer Snake Game" />

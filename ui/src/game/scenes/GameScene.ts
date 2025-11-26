@@ -64,7 +64,10 @@ export class GameScene extends Scene {
     // Add these properties to the class
     private targetCameraX: number = 0;
     private targetCameraY: number = 0;
-    private cameraLerpFactor: number = 0.1; // Adjust between 0.05-0.2 for different smoothness
+    private cameraLerpFactor: number = 0.16; // Base smoothing factor
+    private cameraLerpMax: number = 0.35; // Hard cap when forcing catch-up
+    private cameraCatchupDistance: number = 220; // Distance before forcing faster camera
+    private cameraCatchupBoost: number = 0.4; // Additional lerp factor applied when distance is large
     
     // Add these properties to the class
     private respawnButton: Phaser.GameObjects.Text;
@@ -86,9 +89,9 @@ export class GameScene extends Scene {
     // Quit state
     private isQuitting: boolean = false;
     
-    // PERFORMANCE: Throttle update counters
+    // 🚀 PERFORMANCE: Throttle update counters
     private updatePlayerTextsCounter: number = 0;
-    private updatePlayerTextsInterval: number = 1; // Update every frame for smooth player name movement
+    private updatePlayerTextsInterval: number = 2; // Update every 2 frames
     
     // PERFORMANCE: Leaderboard change detection
     private lastLeaderboardHash: string = '';
@@ -133,8 +136,10 @@ export class GameScene extends Scene {
     // PERFORMANCE: Throttle network messages
     private lastSentAngle: number = 0;
     private lastMoveSentTime: number = 0;
-    private moveSendInterval: number = 50; // Send max 20 times/second instead of 60
-    private minAngleDiffToSend: number = 1; // Only send if angle changed > 1 degree (more responsive)
+    private moveSendInterval: number = 30; // Allow up to ~33 sends/sec
+    private minAngleDiffToSend: number = 0.4; // Send sooner on small adjustments
+    private boostMoveSendIntervalFactor: number = 0.5; // Faster send cadence while boosting
+    private rapidTurnAngleThreshold: number = 6; // Immediately send if angle delta exceeds this
     
     // PERFORMANCE: Throttle food attraction calculation
     private lastAttractionUpdate: number = 0;
@@ -148,8 +153,11 @@ export class GameScene extends Scene {
     // Render smoothing
     private playerRenderPositions: Map<string, { x: number; y: number }> = new Map();
     private readonly headLerpScale: number = 0.35;
-    private readonly headLerpMin: number = 0.18;
-    private readonly headLerpMax: number = 0.6;
+    private readonly headLerpMin: number = 0.2;
+    private readonly headLerpMax: number = 0.65;
+    private readonly headLerpBoostedMax: number = 0.85;
+    private readonly headCatchupDistance: number = 160;
+    private readonly headCatchupMaxBoost: number = 0.8;
     
     // Blink effect for snake eyes
     private blinkTimers: Map<string, number> = new Map(); // Timer for each snake
@@ -161,7 +169,7 @@ export class GameScene extends Scene {
     private lastEyesBlinking: Map<string, boolean> = new Map();
     private lastEyesRadius: Map<string, number> = new Map();
     
-    // PERFORMANCE: Batch segment updates - only update portion each frame
+    // 🚀 PERFORMANCE: Batch segment updates - only update portion each frame
     private segmentUpdateBatchSize: number = 10; // Update 10 segments per frame per snake (adaptive)
     private segmentUpdateFrameCounter: number = 0;
     
@@ -370,7 +378,7 @@ export class GameScene extends Scene {
         this.updateSnakes(delta);
         this.updateFoods();
         
-        // PERFORMANCE: Throttle player texts update to every frame
+        // 🚀 PERFORMANCE: Throttle player texts update to every 2 frames
         this.updatePlayerTextsCounter++;
         if (this.updatePlayerTextsCounter >= this.updatePlayerTextsInterval) {
             this.updatePlayerTexts();
@@ -432,8 +440,12 @@ export class GameScene extends Scene {
             // PERFORMANCE: Throttle network messages - only send if angle changed significantly or enough time passed
             const angleDiff = Math.abs(angleDeg - this.lastSentAngle);
             const timeSinceLastSend = time - this.lastMoveSentTime;
+            const intervalBudget = player.boosting
+                ? this.moveSendInterval * this.boostMoveSendIntervalFactor
+                : this.moveSendInterval;
+            const forceSend = angleDiff >= this.rapidTurnAngleThreshold;
             
-            if (angleDiff > this.minAngleDiffToSend || timeSinceLastSend > this.moveSendInterval) {
+            if (forceSend || angleDiff > this.minAngleDiffToSend || timeSinceLastSend > intervalBudget) {
                 room.send('move', { angle: angleDeg });
                 this.lastSentAngle = angleDeg;
                 this.lastMoveSentTime = time;
@@ -686,24 +698,23 @@ export class GameScene extends Scene {
     
     // PERFORMANCE: Adaptive quality settings based on FPS
     private adaptQualitySettings(): void {
-        if (this.currentFPS >= 55) {
+        if (this.currentFPS >= 58) {
             // High performance - use best quality settings
             this.viewportBuffer = 150;
+            this.updatePlayerTextsInterval = 2;
             this.minimapUpdateInterval = 3;
             this.leaderboardUpdateInterval = 10;
             this.segmentUpdateBatchSize = 10;
-            
             this.enableVisualEffects = true;
             this.enableParticleEffects = true;
             this.enableFoodAnimations = true;
             this.enableAttractionAura = true;
-        } else if (this.currentFPS >= 45) {
-            // Medium performance - reduce some quality
+        } else if (this.currentFPS >= 50) {
+            // Medium performance - slightly trimmed quality
             this.viewportBuffer = 120;
             this.minimapUpdateInterval = 4;
             this.leaderboardUpdateInterval = 12;
             this.segmentUpdateBatchSize = 15;
-            
             this.enableVisualEffects = true;
             this.enableParticleEffects = true;
             this.enableFoodAnimations = true;
@@ -711,10 +722,10 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 35) {
             // Low performance - aggressive optimization
             this.viewportBuffer = 100;
+            this.updatePlayerTextsInterval = 4;
             this.minimapUpdateInterval = 6;
             this.leaderboardUpdateInterval = 15;
             this.segmentUpdateBatchSize = 20;
-            
             this.enableVisualEffects = true;
             this.enableParticleEffects = false; // Disable particle effects
             this.enableFoodAnimations = true;
@@ -722,10 +733,10 @@ export class GameScene extends Scene {
         } else if (this.currentFPS >= 25) {
             // Very low performance - maximum optimization
             this.viewportBuffer = 80;
+            this.updatePlayerTextsInterval = 5;
             this.minimapUpdateInterval = 8;
             this.leaderboardUpdateInterval = 20;
             this.segmentUpdateBatchSize = 25;
-            
             this.enableVisualEffects = false; // Disable visual effects
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false; // Disable food animations
@@ -736,7 +747,6 @@ export class GameScene extends Scene {
             this.minimapUpdateInterval = 10;
             this.leaderboardUpdateInterval = 30;
             this.segmentUpdateBatchSize = 30;
-            
             this.enableVisualEffects = false;
             this.enableParticleEffects = false;
             this.enableFoodAnimations = false;
@@ -1635,7 +1645,14 @@ export class GameScene extends Scene {
 
             const previousRenderPosition = this.playerRenderPositions.get(id);
             const clampedHeadLerp = Phaser.Math.Clamp(baseHeadLerp, this.headLerpMin, this.headLerpMax);
-            const effectiveHeadLerp = playerData.boosting ? Math.min(clampedHeadLerp * 1.2, 0.75) : clampedHeadLerp;
+            const headDistance = previousRenderPosition
+                ? Phaser.Math.Distance.Between(previousRenderPosition.x, previousRenderPosition.y, headPosition.x, headPosition.y)
+                : 0;
+            const catchupBoost = headDistance > this.headCatchupDistance
+                ? Math.min((headDistance - this.headCatchupDistance) / this.headCatchupDistance, this.headCatchupMaxBoost)
+                : 0;
+            const boostedMax = playerData.boosting ? this.headLerpBoostedMax : this.headLerpMax;
+            const effectiveHeadLerp = Phaser.Math.Clamp(clampedHeadLerp * (1 + catchupBoost), this.headLerpMin, boostedMax);
             const renderX = previousRenderPosition
                 ? Phaser.Math.Linear(previousRenderPosition.x, headPosition.x, effectiveHeadLerp)
                 : headPosition.x;
@@ -1676,61 +1693,84 @@ export class GameScene extends Scene {
             // Render head with sprite
             const headObj = segments[0] as Phaser.GameObjects.Sprite;
             if (headObj) {
-                headObj.setVisible(true);
-                headObj.setPosition(renderPosition.x, renderPosition.y);
-
-                // Update texture if quality changed
-                const expectedTextureKey = this.getOrCreateHeadTexture(colorInt, snakeRadius, quality);
-                if (headObj.texture.key !== expectedTextureKey) {
-                    headObj.setTexture(expectedTextureKey);
-                    headObj.setData('textureKey', expectedTextureKey);
-                }
-
-                // Add boost glow effect for head only
-                if (playerData.boosting) {
-                    headObj.setTint(0xffcccc);
-                } else {
-                    headObj.clearTint();
-                }
-
-                // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
-                let eyesGraphics = this.snakeEyes.get(id);
-                if (!eyesGraphics || !eyesGraphics.scene) {
-                    if (eyesGraphics) {
-                        eyesGraphics.destroy();
+                // 🚀 PERFORMANCE: Only update if in viewport or if it's the player
+                const shouldRender = id === this.playerId || this.isInViewport(renderPosition.x, renderPosition.y);
+                
+                if (shouldRender) {
+                    headObj.setVisible(true);
+                    headObj.setPosition(renderPosition.x, renderPosition.y);
+                    
+                    // Update texture if quality changed
+                    const expectedTextureKey = this.getOrCreateHeadTexture(colorInt, snakeRadius, quality);
+                    if (headObj.texture.key !== expectedTextureKey) {
+                        headObj.setTexture(expectedTextureKey);
+                        headObj.setData('textureKey', expectedTextureKey);
                     }
-                    eyesGraphics = this.add.graphics();
-                    eyesGraphics.setDepth(21); // Above head
-                    this.snakeEyes.set(id, eyesGraphics);
-                }
-
-                eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
-                eyesGraphics.setVisible(true);
-
-                // Check if eyes need to be redrawn
-                this.updateBlinkEffect(id);
-                const currentBlinking = this.isBlinking.get(id) || false;
-                const lastAngle = this.lastEyesAngle.get(id);
-                const lastBoosting = this.lastEyesBoosting.get(id);
-                const lastBlinking = this.lastEyesBlinking.get(id);
-                const lastRadius = this.lastEyesRadius.get(id);
-
-                const needsRedraw =
-                    lastAngle === undefined ||
-                    Math.abs(lastAngle - playerData.angle) > 0.5 || // Redraw if angle changed > 0.5 degrees
-                    lastBoosting !== playerData.boosting ||
-                    lastBlinking !== currentBlinking ||
-                    lastRadius === undefined ||
-                    Math.abs(lastRadius - snakeRadius) > 0.5; // Redraw if radius changed significantly
-
-                if (needsRedraw) {
-                    eyesGraphics.clear();
-                    this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
-                    // Cache current state
-                    this.lastEyesAngle.set(id, playerData.angle);
-                    this.lastEyesBoosting.set(id, playerData.boosting);
-                    this.lastEyesBlinking.set(id, currentBlinking);
-                    this.lastEyesRadius.set(id, snakeRadius);
+                    
+                    // Add boost glow effect for head only
+                    if (playerData.boosting) {
+                        headObj.setTint(0xffcccc);
+                    } else {
+                        headObj.clearTint();
+                    }
+                    
+                    // 🚀 PERFORMANCE: Draw eyes on overlay graphics - only redraw when state changes
+                    let eyesGraphics = this.snakeEyes.get(id);
+                    if (!eyesGraphics || !eyesGraphics.scene) {
+                        if (eyesGraphics) {
+                            eyesGraphics.destroy();
+                        }
+                        eyesGraphics = this.add.graphics();
+                        eyesGraphics.setDepth(21); // Above head
+                        this.snakeEyes.set(id, eyesGraphics);
+                    }
+                    
+                    eyesGraphics.setPosition(renderPosition.x, renderPosition.y);
+                    eyesGraphics.setVisible(true);
+                    
+                    // Check if eyes need to be redrawn
+                    this.updateBlinkEffect(id);
+                    const currentBlinking = this.isBlinking.get(id) || false;
+                    const lastAngle = this.lastEyesAngle.get(id);
+                    const lastBoosting = this.lastEyesBoosting.get(id);
+                    const lastBlinking = this.lastEyesBlinking.get(id);
+                    const lastRadius = this.lastEyesRadius.get(id);
+                    
+                    const needsRedraw = 
+                        lastAngle === undefined || 
+                        Math.abs(lastAngle - playerData.angle) > 0.5 || // Redraw if angle changed > 0.5 degrees
+                        lastBoosting !== playerData.boosting ||
+                        lastBlinking !== currentBlinking ||
+                        lastRadius === undefined ||
+                        Math.abs(lastRadius - snakeRadius) > 0.5; // Redraw if radius changed significantly
+                    
+                    if (needsRedraw) {
+                        eyesGraphics.clear();
+                        this.drawSnakeEyes(eyesGraphics, playerData.angle, snakeRadius, playerData.boosting, id);
+                        // Cache current state
+                        this.lastEyesAngle.set(id, playerData.angle);
+                        this.lastEyesBoosting.set(id, playerData.boosting);
+                        this.lastEyesBlinking.set(id, currentBlinking);
+                        this.lastEyesRadius.set(id, snakeRadius);
+                    }
+                    
+                    // Update player name text position above snake head
+                    if (nameText) {
+                        // Position name text above the head with offset
+                        const nameOffsetY = -snakeRadius - 25; // 25px spacing above head
+                        nameText.setPosition(renderPosition.x, renderPosition.y + nameOffsetY);
+                        nameText.setVisible(true);
+                    }
+                } else {
+                    headObj.setVisible(false);
+                    const eyesGraphics = this.snakeEyes.get(id);
+                    if (eyesGraphics) {
+                        eyesGraphics.setVisible(false);
+                    }
+                    // Hide name text when snake is not rendered
+                    if (nameText) {
+                        nameText.setVisible(false);
+                    }
                 }
             }
 
@@ -2799,29 +2839,26 @@ export class GameScene extends Scene {
         this.playerTexts.forEach((text, playerId) => {
             const player = this.gameState.players.get(playerId);
             if (player && player.alive) {
-                // Lấy đúng vị trí render của đầu rắn (đã được nội suy trong updateSnakes)
-                const renderPosition = this.playerRenderPositions.get(playerId);
-                if (renderPosition) {
-                    // Vị trí tên nằm phía trên đầu rắn
-                    const targetX = renderPosition.x;
-                    const targetY = renderPosition.y - 40;
+                // Use headPosition instead of segments[0]
+                const headPosition = player.headPosition;
+                if (headPosition) {
+                    // Apply smoother interpolation for text
+                    const lerpFactor = 0.2;
                     
-                    // Nội suy nhẹ để giảm giật, đặc biệt khi boost (đầu rắn di chuyển rất nhanh)
+                    // Get current position
                     const currentX = text.x;
                     const currentY = text.y;
-
-                    // Nếu teleport (khoảng cách quá xa) thì nhảy thẳng để tránh kéo đuổi lâu
-                    const distSq = (currentX - targetX) * (currentX - targetX) + (currentY - targetY) * (currentY - targetY);
-                    const maxSnapDistSq = 80 * 80;
-
-                    if (!Number.isFinite(currentX) || !Number.isFinite(currentY) || distSq > maxSnapDistSq) {
-                        text.setPosition(targetX, targetY);
-                    } else {
-                        const lerpFactor = player.boosting ? 0.45 : 0.3; // khi boost thì bám sát hơn
-                        const newX = Phaser.Math.Linear(currentX, targetX, lerpFactor);
-                        const newY = Phaser.Math.Linear(currentY, targetY, lerpFactor);
-                        text.setPosition(newX, newY);
-                    }
+                    
+                    // Target position (above the head)
+                    const targetX = headPosition.x;
+                    const targetY = headPosition.y - 40;
+                    
+                    // Calculate interpolated position
+                    const newX = currentX + (targetX - currentX) * lerpFactor;
+                    const newY = currentY + (targetY - currentY) * lerpFactor;
+                    
+                    // Update position
+                    text.setPosition(newX, newY);
                     
                     // Scale text based on player score - similar to snake scaling
                     const baseScale = Math.min(1.5, 1 + (player.score / 100));

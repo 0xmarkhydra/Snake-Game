@@ -2,17 +2,19 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { walletService } from '../services/WalletService';
 import { authService } from '../services/AuthService';
+import { fireWithdrawConfetti } from '../utils/confetti';
 
 interface WithdrawModalProps {
   isOpen: boolean;
   onClose: () => void;
   onWithdrawSuccess: () => void;
+  onShowAmountEffect?: (amount: number) => void;
 }
 
-export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawModalProps) => {
+export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess, onShowAmountEffect }: WithdrawModalProps) => {
   const [walletAddress, setWalletAddress] = useState('');
   const [amount, setAmount] = useState('');
-  const [statusText, setStatusText] = useState('Enter the amount to withdraw to your connected Phantom wallet.');
+  const [statusText, setStatusText] = useState('Enter the amount to cash out to your connected Phantom wallet.');
   const [statusColor, setStatusColor] = useState('text-[#989898]');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentCredit, setCurrentCredit] = useState('0.00');
@@ -27,10 +29,10 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
 
       if (connectedWallet) {
         setStatusColor('text-[#989898]');
-        setStatusText('Enter the amount to withdraw to your connected Phantom wallet.');
+        setStatusText('Enter the amount to cash out to your connected Phantom wallet.');
       } else {
         setStatusColor('text-red-400');
-        setStatusText('Connect your Phantom wallet to withdraw.');
+        setStatusText('Connect your Phantom wallet to cash out.');
       }
       setAmount('');
       setRetryCountdown(0);
@@ -67,6 +69,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
       return;
     }
 
+    // Real flow: check balance and call withdraw API
     const currentBalance = walletService.getCachedCredit();
     if (amountNum > currentBalance) {
       setStatusColor('text-red-400');
@@ -77,17 +80,24 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
     try {
       setIsProcessing(true);
       setStatusColor('text-yellow-300');
-      setStatusText('Processing withdrawal...');
+      setStatusText('Processing cash out...');
 
       const result = await walletService.withdraw(connectedWallet, amountNum);
 
       if (result.success) {
         setStatusColor('text-green-400');
-        setStatusText(`✅ Withdrawal successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}.`);
+        setStatusText(`✅ Cash Out successful! ${amountNum} USDC sent to ${authService.formatWalletAddress(connectedWallet)}.`);
         
         // Update current credit display
         const newCredit = walletService.getCachedCredit();
         setCurrentCredit(walletService.formatCredit(newCredit));
+
+        // Fire celebratory confetti from bottom of the screen
+        fireWithdrawConfetti();
+
+        if (onShowAmountEffect) {
+          onShowAmountEffect(amountNum);
+        }
 
         // Close modal after 2 seconds
         setTimeout(() => {
@@ -96,7 +106,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
         }, 2000);
       } else {
         setStatusColor('text-red-400');
-        setStatusText(result.message || 'Withdrawal failed. Please try again.');
+        setStatusText(result.message || 'Cash Out failed. Please try again.');
         
         // Handle retry countdown
         if (result.retryAfter) {
@@ -152,9 +162,16 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
           {/* Header */}
           <div className="text-center mb-6 relative z-10">
             <img src="/images/USDC2.jpg" alt="USDC" className="w-20 h-20 mx-auto mb-3 object-contain" />
-            <h2 className="text-3xl font-black text-[#12B900] mb-2">Withdraw USDC</h2>
-            <p className="text-sm text-[#5F5F5F]">
-              Available: <span className="font-bold text-[#5F5F5F]">{currentCredit} USDC</span>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <h2 className="text-3xl font-black text-[#12B900]">Cash Out USDC</h2>
+              <img src="/images/iconUsdc.png" alt="USDC" className="w-7 h-7" />
+            </div>
+            <p className="text-sm text-[#5F5F5F] flex items-center justify-center gap-1">
+              <span>Available:</span>
+              <span className="font-bold text-[#5F5F5F] flex items-center gap-1">
+                {currentCredit}
+                <img src="/images/iconUsdc.png" alt="USDC" className="w-4 h-4" />
+              </span>
             </p>
           </div>
 
@@ -167,7 +184,7 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
                 {formattedWallet}
               </div>
               <p className="text-xs text-[#5F5F5F] mt-2 text-center">
-                Funds will be withdrawn to your connected Phantom wallet.
+                Funds will be cashed out to your connected Phantom wallet.
               </p>
             </div>
 
@@ -225,14 +242,14 @@ export const WithdrawModal = ({ isOpen, onClose, onWithdrawSuccess }: WithdrawMo
                 ) : retryCountdown > 0 ? (
                   `Wait ${retryCountdown}s...`
                 ) : (
-                  'Withdraw Now'
+                  'Cash Out Now'
                 )}
               </span>
             </motion.button>
 
             {/* Warning Note */}
             <div className="bg-white/5 border border-[#E1E1E1] rounded-[30px] p-3 text-xs text-[#5F5F5F] font-SFPro">
-              <span className="font-bold text-[#5F5F5F]">⚠️ Note:</span> Withdrawal is irreversible. Ensure your Phantom wallet remains connected and secure before confirming.
+              <span className="font-bold text-[#5F5F5F]">⚠️ Note:</span> Cast Out is irreversible. Ensure your Phantom wallet remains connected and secure before confirming.
             </div>
           </div>
 
