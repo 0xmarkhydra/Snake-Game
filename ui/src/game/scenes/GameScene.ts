@@ -67,8 +67,9 @@ export class GameScene extends Scene {
     private cameraLerpFactor: number = 0.1; // Adjust between 0.05-0.2 for different smoothness
     
     // Add these properties to the class
-    private respawnButton: Phaser.GameObjects.Text;
-    private menuButton: Phaser.GameObjects.Text;
+    private respawnButton: Phaser.GameObjects.Container;
+    private menuButton: Phaser.GameObjects.Container;
+    private buttonBackgrounds: Map<Phaser.GameObjects.Container, Phaser.GameObjects.Graphics> = new Map();
     
     // Add these properties to the class
     private isBoosting: boolean = false;
@@ -85,6 +86,12 @@ export class GameScene extends Scene {
 
     // Quit state
     private isQuitting: boolean = false;
+    private quitConfirmationModal: Phaser.GameObjects.Container | null = null;
+    private quitModalBg: Phaser.GameObjects.Rectangle | null = null;
+    private quitModalContent: Phaser.GameObjects.Container | null = null;
+    private quitOutButton: Phaser.GameObjects.Container | null = null;
+    private quitCloseButton: Phaser.GameObjects.Container | null = null;
+    private escKey: Phaser.Input.Keyboard.Key | null = null;
     
     // PERFORMANCE: Throttle update counters
     private updatePlayerTextsCounter: number = 0;
@@ -241,6 +248,14 @@ export class GameScene extends Scene {
         this.vipCredit = data.vipCredit ?? 0;
         this.room = null;
         this.isQuitting = false;
+        
+        // Reset modal properties khi scene được tạo lại
+        this.quitConfirmationModal = null;
+        this.quitModalBg = null;
+        this.quitModalContent = null;
+        this.quitOutButton = null;
+        this.quitCloseButton = null;
+        this.escKey = null;
     }
     
     // Helper method to create sharp text with high resolution
@@ -253,6 +268,99 @@ export class GameScene extends Scene {
             textObj.setResolution(resolution);
         }
         return textObj;
+    }
+    
+    // Helper method to create button with rounded background
+    private createRoundedButton(
+        x: number, 
+        y: number, 
+        text: string, 
+        backgroundColor: string,
+        textStyle: Phaser.Types.GameObjects.Text.TextStyle,
+        borderRadius: number = 15,
+        fixedSize?: { width: number; height: number }
+    ): Phaser.GameObjects.Container {
+        const container = this.add.container(x, y);
+        
+        let buttonWidth: number;
+        let buttonHeight: number;
+        
+        if (fixedSize) {
+            // Use fixed size if provided
+            buttonWidth = fixedSize.width;
+            buttonHeight = fixedSize.height;
+        } else {
+            // Create text to measure size
+            const tempText = this.add.text(0, 0, text, textStyle);
+            const textWidth = tempText.width;
+            const textHeight = tempText.height;
+            tempText.destroy();
+            
+            // Calculate button size with padding
+            const padding = textStyle.padding || { left: 20, right: 20, top: 10, bottom: 10 };
+            buttonWidth = textWidth + (padding.left || 0) + (padding.right || 0);
+            buttonHeight = textHeight + (padding.top || 0) + (padding.bottom || 0);
+        }
+        
+        // Create rounded background
+        const bg = this.add.graphics();
+        const bgColor = Phaser.Display.Color.HexStringToColor(backgroundColor).color;
+        bg.fillStyle(bgColor, 1);
+        bg.fillRoundedRect(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight, borderRadius);
+        container.add(bg);
+        
+        // Store background reference for color updates
+        this.buttonBackgrounds.set(container, bg);
+        
+        // Store button dimensions for redrawing
+        (container as any).buttonWidth = buttonWidth;
+        (container as any).buttonHeight = buttonHeight;
+        (container as any).borderRadius = borderRadius;
+        
+        // Create text
+        const buttonText = this.add.text(0, 0, text, {
+            ...textStyle,
+            backgroundColor: undefined // Remove backgroundColor from text style
+        });
+        const resolution = Math.min(window.devicePixelRatio || 1, 2);
+        if (buttonText.setResolution) {
+            buttonText.setResolution(resolution);
+        }
+        buttonText.setOrigin(0.5);
+        container.add(buttonText);
+        
+        // Set interactive on container
+        container.setInteractive(
+            new Phaser.Geom.Rectangle(-buttonWidth / 2, -buttonHeight / 2, buttonWidth, buttonHeight),
+            Phaser.Geom.Rectangle.Contains
+        );
+        
+        return container;
+    }
+    
+    // Helper method to update button background color
+    private updateButtonBackground(button: Phaser.GameObjects.Container, color: string): void {
+        const bg = this.buttonBackgrounds.get(button);
+        if (bg && (button as any).buttonWidth) {
+            bg.clear();
+            const bgColor = Phaser.Display.Color.HexStringToColor(color).color;
+            bg.fillStyle(bgColor, 1);
+            bg.fillRoundedRect(
+                -(button as any).buttonWidth / 2, 
+                -(button as any).buttonHeight / 2, 
+                (button as any).buttonWidth, 
+                (button as any).buttonHeight, 
+                (button as any).borderRadius
+            );
+        }
+    }
+    
+    // Helper method to destroy button and clean up
+    private destroyButton(button: Phaser.GameObjects.Container | null): void {
+        if (button) {
+            this.buttonBackgrounds.delete(button);
+            button.destroy();
+        }
     }
     
     async create() {
@@ -1079,6 +1187,9 @@ export class GameScene extends Scene {
         
         // Quit button
         this.createQuitButton(20, height-80);
+        
+        // Setup keyboard handler for ESC key
+        this.setupKeyboardHandler();
     }
     
     private createLeaderboard() {
@@ -1308,19 +1419,35 @@ export class GameScene extends Scene {
         // Create buttons directly in the scene instead of in the container
         // This ensures they're properly interactive
         
-        // Respawn button
-        this.respawnButton = this.createSharpText(width/2, height/2 + 100, 'RESPAWN', {
+        // Menu button - create first to get its size
+        this.menuButton = this.createRoundedButton(width/2, height/2 + 180, 'BACK TO MENU', '#333333', {
             fontFamily: 'Arial',
-            fontSize: '32px',
+            fontSize: '24px',
             color: '#ffffff',
-            backgroundColor: '#990000',
             padding: {
                 left: 20,
                 right: 20,
                 top: 10,
                 bottom: 10
             }
-        }).setOrigin(0.5);
+        }, 15);
+        
+        // Get menu button size
+        const menuButtonWidth = (this.menuButton as any).buttonWidth;
+        const menuButtonHeight = (this.menuButton as any).buttonHeight;
+        
+        // Respawn button - use same size as menu button
+        this.respawnButton = this.createRoundedButton(width/2, height/2 + 100, 'RESPAWN', '#990000', {
+            fontFamily: 'Arial',
+            fontSize: '32px',
+            color: '#ffffff',
+            padding: {
+                left: 20,
+                right: 20,
+                top: 10,
+                bottom: 10
+            }
+        }, 15, { width: menuButtonWidth, height: menuButtonHeight });
         
         // Make sure the button is interactive
         this.respawnButton.setInteractive({ useHandCursor: true });
@@ -1329,11 +1456,11 @@ export class GameScene extends Scene {
         
         // Add hover effects
         this.respawnButton.on('pointerover', () => {
-            this.respawnButton.setStyle({ backgroundColor: '#cc0000' });
+            this.updateButtonBackground(this.respawnButton, '#cc0000');
         });
         
         this.respawnButton.on('pointerout', () => {
-            this.respawnButton.setStyle({ backgroundColor: '#990000' });
+            this.updateButtonBackground(this.respawnButton, '#990000');
         });
         
         // Add click handler
@@ -1341,32 +1468,18 @@ export class GameScene extends Scene {
             this.respawn();
         });
         
-        // Menu button
-        this.menuButton = this.createSharpText(width/2, height/2 + 180, 'BACK TO MENU', {
-            fontFamily: 'Arial',
-            fontSize: '24px',
-            color: '#ffffff',
-            backgroundColor: '#333333',
-            padding: {
-                left: 20,
-                right: 20,
-                top: 10,
-                bottom: 10
-            }
-        }).setOrigin(0.5);
-        
-        // Make sure the button is interactive
+        // Make sure the menu button is interactive
         this.menuButton.setInteractive({ useHandCursor: true });
         this.menuButton.setScrollFactor(0);
         this.menuButton.setDepth(1001); // Higher than the overlay
         
         // Add hover effects
         this.menuButton.on('pointerover', () => {
-            this.menuButton.setStyle({ backgroundColor: '#555555' });
+            this.updateButtonBackground(this.menuButton, '#555555');
         });
         
         this.menuButton.on('pointerout', () => {
-            this.menuButton.setStyle({ backgroundColor: '#333333' });
+            this.updateButtonBackground(this.menuButton, '#333333');
         });
         
         // Add click handler
@@ -2892,6 +3005,34 @@ export class GameScene extends Scene {
             this.headAttractionAura.destroy();
             this.headAttractionAura = undefined;
         }
+
+        // Clean up quit confirmation modal
+        if (this.quitOutButton) {
+            this.destroyButton(this.quitOutButton);
+            this.quitOutButton = null;
+        }
+        if (this.quitCloseButton) {
+            this.destroyButton(this.quitCloseButton);
+            this.quitCloseButton = null;
+        }
+        if (this.quitModalContent) {
+            this.quitModalContent.destroy();
+            this.quitModalContent = null;
+        }
+        if (this.quitModalBg) {
+            this.quitModalBg.destroy();
+            this.quitModalBg = null;
+        }
+        if (this.quitConfirmationModal) {
+            this.quitConfirmationModal.destroy();
+            this.quitConfirmationModal = null;
+        }
+
+        // Clean up keyboard handler
+        if (this.escKey) {
+            this.escKey.removeAllListeners();
+            this.escKey = null;
+        }
     }
     
     private updateHeadAttractionAura(x: number, y: number) {
@@ -3355,16 +3496,10 @@ export class GameScene extends Scene {
         const shadowOffset = 6;
         const idleAlpha = 0.35;
         const hoverAlpha = 1;
+        const maxScale = 1.05; // Maximum scale when hovering
 
         const buttonContainer = this.add.container(x, y).setDepth(1000).setScrollFactor(0);
         buttonContainer.setSize(btnWidth, btnHeight);
-
-        const interactiveConfig: Phaser.Types.Input.InputConfiguration = {
-            hitArea: new Phaser.Geom.Rectangle(0, 0, btnWidth, btnHeight),
-            hitAreaCallback: Phaser.Geom.Rectangle.Contains,
-            useHandCursor: true
-        };
-        buttonContainer.setInteractive(interactiveConfig);
 
         const shadow = this.add.graphics();
         const buttonBg = this.add.graphics();
@@ -3403,6 +3538,14 @@ export class GameScene extends Scene {
 
         buttonContainer.add([shadow, buttonBg, buttonText]);
 
+        // Set interactive cho container với hitArea đơn giản bao phủ toàn bộ button
+        buttonContainer.setInteractive(
+            new Phaser.Geom.Rectangle(0, 0, btnWidth, btnHeight),
+            Phaser.Geom.Rectangle.Contains
+        );
+        buttonContainer.input!.cursor = 'pointer';
+
+        // Sử dụng container để handle pointer events
         buttonContainer.on('pointerover', () => {
             drawButton('hover');
             this.tweens.add({
@@ -3430,52 +3573,399 @@ export class GameScene extends Scene {
         buttonContainer.on('pointerdown', () => {
             drawButton('active');
             buttonContainer.alpha = hoverAlpha;
-            this.handleQuitClick(buttonContainer, buttonText, drawButton, interactiveConfig);
+            this.handleQuitClick(buttonContainer, buttonText, drawButton);
         });
     }
     
     private handleQuitClick(
         buttonContainer: Phaser.GameObjects.Container,
         buttonText: Phaser.GameObjects.Text,
-        drawButton: (state: 'default' | 'hover' | 'active' | 'disabled') => void,
-        interactiveConfig: Phaser.Types.Input.InputConfiguration
+        drawButton: (state: 'default' | 'hover' | 'active' | 'disabled') => void
     ) {
         if (this.isQuitting) {
             return;
         }
 
-        buttonContainer.disableInteractive();
-        drawButton('disabled');
-        buttonText.disableInteractive();
+        // Hiển thị modal xác nhận thay vì quit trực tiếp
+        this.showQuitConfirmationModal();
+    }
+    
+    /**
+     * Setup keyboard handler for ESC key
+     */
+    private setupKeyboardHandler(): void {
+        if (!this.input.keyboard) {
+            return;
+        }
 
+        // Remove listener cũ nếu có
+        if (this.escKey) {
+            this.escKey.removeAllListeners();
+        }
+
+        // Tạo key mới hoặc lấy key đã tồn tại
+        this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        
+        this.escKey.on('down', () => {
+            if (!this.isQuitting && !this.quitConfirmationModal?.visible) {
+                this.showQuitConfirmationModal();
+            }
+        });
+    }
+    
+    /**
+     * Show quit confirmation modal
+     */
+    private showQuitConfirmationModal(): void {
+        if (this.isQuitting) {
+            return;
+        }
+
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        // Kiểm tra xem modal có tồn tại và còn active không
+        const modalExists = this.quitConfirmationModal && this.quitConfirmationModal.active;
+        const modalVisible = this.quitConfirmationModal && this.quitConfirmationModal.visible;
+        
+        if (modalVisible) {
+            return; // Modal đang hiện rồi, không cần làm gì
+        }
+
+        // Nếu modal không tồn tại hoặc không active, reset về null để tạo mới
+        if (!modalExists) {
+            // Clean up các objects cũ nếu có
+            if (this.quitOutButton && this.quitOutButton.active) {
+                this.destroyButton(this.quitOutButton);
+            }
+            if (this.quitCloseButton && this.quitCloseButton.active) {
+                this.destroyButton(this.quitCloseButton);
+            }
+            if (this.quitModalContent && this.quitModalContent.active) {
+                this.quitModalContent.destroy();
+            }
+            if (this.quitModalBg && this.quitModalBg.active) {
+                this.quitModalBg.destroy();
+            }
+            if (this.quitConfirmationModal && this.quitConfirmationModal.active) {
+                this.quitConfirmationModal.destroy();
+            }
+            
+            // Reset tất cả về null để tạo mới
+            this.quitConfirmationModal = null;
+            this.quitModalBg = null;
+            this.quitModalContent = null;
+            this.quitOutButton = null;
+            this.quitCloseButton = null;
+        }
+
+        // Nếu modal đã tồn tại và active, chỉ cần restore và hiện lại
+        if (modalExists && this.quitConfirmationModal) {
+            // Kill các tweens đang chạy để tránh conflict
+            if (this.quitModalContent) {
+                this.tweens.killTweensOf(this.quitModalContent);
+            }
+            if (this.quitOutButton) {
+                this.tweens.killTweensOf(this.quitOutButton);
+            }
+            if (this.quitCloseButton) {
+                this.tweens.killTweensOf(this.quitCloseButton);
+            }
+            
+            // Set visible cho container và nền mờ
+            this.quitConfirmationModal.setVisible(true);
+            if (this.quitModalBg) {
+                this.quitModalBg.setVisible(true);
+                this.quitModalBg.setAlpha(0.75);
+            }
+            
+            if (this.quitModalContent) {
+                this.quitModalContent.setVisible(true);
+                // Reset về trạng thái ban đầu cho animation
+                this.quitModalContent.setScale(0.8);
+                this.quitModalContent.setAlpha(0);
+            }
+            
+            if (this.quitOutButton) {
+                this.quitOutButton.setVisible(true);
+                this.quitOutButton.setAlpha(0);
+                this.quitOutButton.setScale(1);
+                // Luôn set lại interactive để đảm bảo hoạt động - Phaser tự động sử dụng bounds
+                this.quitOutButton.setInteractive({ useHandCursor: true });
+            }
+            
+            if (this.quitCloseButton) {
+                this.quitCloseButton.setVisible(true);
+                this.quitCloseButton.setAlpha(0);
+                this.quitCloseButton.setScale(1);
+                // Luôn set lại interactive để đảm bảo hoạt động - Phaser tự động sử dụng bounds
+                this.quitCloseButton.setInteractive({ useHandCursor: true });
+            }
+            
+            // Animation khi hiện lại
+            this.tweens.add({
+                targets: this.quitModalContent,
+                scale: 1,
+                alpha: 1,
+                duration: 300,
+                ease: 'Back.easeOut'
+            });
+            
+            this.tweens.add({
+                targets: [this.quitOutButton, this.quitCloseButton],
+                alpha: 1,
+                duration: 300,
+                ease: 'Back.easeOut'
+            });
+            
+            return;
+        }
+
+        // Tạo container cho modal
+        this.quitConfirmationModal = this.add.container(0, 0);
+        this.quitConfirmationModal.setDepth(2000);
+        this.quitConfirmationModal.setScrollFactor(0);
+        // Disable input cho container để không chặn pointer events của các buttons
+        this.quitConfirmationModal.disableInteractive();
+
+        // Nền mờ - không interactive để không chặn pointer events
+        this.quitModalBg = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75);
+        this.quitModalBg.setScrollFactor(0);
+        this.quitModalBg.setDepth(2000);
+        // Disable input để không chặn pointer events của các nút
+        this.quitModalBg.disableInteractive();
+        this.quitConfirmationModal.add(this.quitModalBg);
+
+        // Tạo container cho nội dung modal (ở giữa màn hình)
+        this.quitModalContent = this.add.container(width / 2, height / 2);
+        this.quitModalContent.setScrollFactor(0);
+        this.quitModalContent.setDepth(2001);
+
+        // Nền của modal content
+        const modalWidth = 500;
+        const modalHeight = 250;
+        const modalBg = this.add.graphics();
+        modalBg.fillStyle(0x1a1a1a, 0.95);
+        modalBg.fillRoundedRect(-modalWidth / 2, -modalHeight / 2, modalWidth, modalHeight, 20);
+        modalBg.lineStyle(3, 0x0ec3c9, 0.9);
+        modalBg.strokeRoundedRect(-modalWidth / 2, -modalHeight / 2, modalWidth, modalHeight, 20);
+        this.quitModalContent.add(modalBg);
+
+        // Text câu hỏi
+        const questionText = this.createSharpText(0, -60, 'Are you sure you want to log out?', {
+            fontFamily: 'Arial',
+            fontSize: '28px',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 3,
+            align: 'center'
+        }).setOrigin(0.5, 0.5);
+        this.quitModalContent.add(questionText);
+
+        // Tạo nút "Out" trực tiếp trong scene (không trong container) để đảm bảo interactive hoạt động
+        // Fixed size: 120x50
+        this.quitOutButton = this.createRoundedButton(width / 2 - 120, height / 2 + 60, 'Out', '#ff5a5a', {
+            fontFamily: 'Arial',
+            fontSize: '24px',
+            color: '#ffffff',
+            padding: {
+                left: 30,
+                right: 30,
+                top: 12,
+                bottom: 12
+            }
+        }, 15, { width: 120, height: 50 });
+        
+        // Set interactive - Phaser sẽ tự động sử dụng bounds của text object (bao gồm cả padding)
+        this.quitOutButton.setInteractive({ useHandCursor: true });
+        this.quitOutButton.setScrollFactor(0);
+        this.quitOutButton.setDepth(2002); // Higher than modal content
+        
+        this.quitOutButton.on('pointerover', () => {
+            if (this.quitOutButton) {
+                this.updateButtonBackground(this.quitOutButton, '#ff6c6c');
+                this.quitOutButton.setScale(1.05);
+            }
+        });
+        
+        this.quitOutButton.on('pointerout', () => {
+            if (this.quitOutButton) {
+                this.updateButtonBackground(this.quitOutButton, '#ff5a5a');
+                this.quitOutButton.setScale(1);
+            }
+        });
+        
+        this.quitOutButton.on('pointerdown', () => {
+            if (this.quitOutButton) {
+                this.tweens.add({
+                    targets: this.quitOutButton,
+                    scale: 0.95,
+                    duration: 100,
+                    yoyo: true,
+                    onComplete: () => {
+                        this.handleQuitConfirmed();
+                    }
+                });
+            }
+        });
+
+        // Tạo nút "Close" trực tiếp trong scene (không trong container) để đảm bảo interactive hoạt động
+        // Fixed size: 120x50
+        this.quitCloseButton = this.createRoundedButton(width / 2 + 120, height / 2 + 60, 'Close', '#555555', {
+            fontFamily: 'Arial',
+            fontSize: '24px',
+            color: '#ffffff',
+            padding: {
+                left: 30,
+                right: 30,
+                top: 12,
+                bottom: 12
+            }
+        }, 15, { width: 120, height: 50 });
+        
+        // Set interactive - Phaser sẽ tự động sử dụng bounds của text object (bao gồm cả padding)
+        this.quitCloseButton.setInteractive({ useHandCursor: true });
+        this.quitCloseButton.setScrollFactor(0);
+        this.quitCloseButton.setDepth(2002); // Higher than modal content
+        
+        this.quitCloseButton.on('pointerover', () => {
+            if (this.quitCloseButton) {
+                this.updateButtonBackground(this.quitCloseButton, '#666666');
+                this.quitCloseButton.setScale(1.05);
+            }
+        });
+        
+        this.quitCloseButton.on('pointerout', () => {
+            if (this.quitCloseButton) {
+                this.updateButtonBackground(this.quitCloseButton, '#555555');
+                this.quitCloseButton.setScale(1);
+            }
+        });
+        
+        this.quitCloseButton.on('pointerdown', () => {
+            if (this.quitCloseButton) {
+                this.tweens.add({
+                    targets: this.quitCloseButton,
+                    scale: 0.95,
+                    duration: 100,
+                    yoyo: true,
+                    onComplete: () => {
+                        this.hideQuitConfirmationModal();
+                    }
+                });
+            }
+        });
+
+        this.quitConfirmationModal.add(this.quitModalContent);
+
+        // Animation khi hiện modal
+        this.quitModalContent.setScale(0.8);
+        this.quitModalContent.setAlpha(0);
+        if (this.quitOutButton) {
+            this.quitOutButton.setAlpha(0);
+        }
+        if (this.quitCloseButton) {
+            this.quitCloseButton.setAlpha(0);
+        }
+        
         this.tweens.add({
-            targets: buttonContainer,
-            alpha: 0.85,
-            duration: 120,
-            yoyo: true,
-            onComplete: async () => {
-                if (this.isQuitting) {
-                    return;
-                }
+            targets: this.quitModalContent,
+            scale: 1,
+            alpha: 1,
+            duration: 300,
+            ease: 'Back.easeOut'
+        });
+        
+        this.tweens.add({
+            targets: [this.quitOutButton, this.quitCloseButton],
+            alpha: 1,
+            duration: 300,
+            ease: 'Back.easeOut'
+        });
+    }
+    
+    /**
+     * Hide quit confirmation modal
+     */
+    private hideQuitConfirmationModal(): void {
+        if (!this.quitConfirmationModal || !this.quitConfirmationModal.visible) {
+            return;
+        }
 
-                try {
-                    this.isQuitting = true;
-                    buttonText.setText('Leaving...');
-                    await this.leaveRoomSafely();
-                    
-                    // Emit event to return to React menu
-                    EventBus.emit('game-exit');
-                } catch (error) {
-                    console.error('Error leaving room:', error);
-                    this.isQuitting = false;
-                    buttonText.setText('Retry?');
-                    buttonContainer.setInteractive(interactiveConfig);
-                    drawButton('default');
-                    buttonText.setInteractive({ useHandCursor: true });
-                    buttonContainer.alpha = 1;
+        // Kill các tweens đang chạy để tránh conflict
+        if (this.quitModalContent) {
+            this.tweens.killTweensOf(this.quitModalContent);
+        }
+        if (this.quitOutButton) {
+            this.tweens.killTweensOf(this.quitOutButton);
+        }
+        if (this.quitCloseButton) {
+            this.tweens.killTweensOf(this.quitCloseButton);
+        }
+
+        const targetsToHide: any[] = [];
+        if (this.quitModalContent) {
+            targetsToHide.push(this.quitModalContent);
+        }
+        if (this.quitOutButton) {
+            targetsToHide.push(this.quitOutButton);
+        }
+        if (this.quitCloseButton) {
+            targetsToHide.push(this.quitCloseButton);
+        }
+        
+        if (targetsToHide.length === 0) {
+            return;
+        }
+        
+        this.tweens.add({
+            targets: targetsToHide,
+            scale: 0.8,
+            alpha: 0,
+            duration: 200,
+            ease: 'Back.easeIn',
+            onComplete: () => {
+                // Chỉ ẩn, không disable interactive
+                if (this.quitConfirmationModal) {
+                    this.quitConfirmationModal.setVisible(false);
+                }
+                if (this.quitModalContent) {
+                    this.quitModalContent.setVisible(false);
+                }
+                if (this.quitOutButton) {
+                    this.quitOutButton.setVisible(false);
+                    // Reset scale về 1 để khi show lại không bị scale nhỏ
+                    this.quitOutButton.setScale(1);
+                }
+                if (this.quitCloseButton) {
+                    this.quitCloseButton.setVisible(false);
+                    // Reset scale về 1 để khi show lại không bị scale nhỏ
+                    this.quitCloseButton.setScale(1);
                 }
             }
         });
+    }
+    
+    /**
+     * Handle quit confirmation - execute the actual quit logic
+     */
+    private async handleQuitConfirmed(): Promise<void> {
+        if (this.isQuitting) {
+            return;
+        }
+
+        this.isQuitting = true;
+        this.hideQuitConfirmationModal();
+
+        try {
+            await this.leaveRoomSafely();
+            // Emit event to return to React menu
+            EventBus.emit('game-exit');
+        } catch (error) {
+            console.error('Error leaving room:', error);
+            this.isQuitting = false;
+            // Có thể hiển thị thông báo lỗi nếu cần
+        }
     }
     
     /**
